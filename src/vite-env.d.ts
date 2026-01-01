@@ -1,0 +1,13 @@
+/// <reference types="vite/client" />
+
+interface Window {
+    ipcRenderer: {
+        invoke<T = any>(channel: string, ...args: any[]): Promise<T>
+        openDirectory(): Promise<string | null>
+        listMusicFiles(path: string): Promise<string[]>
+        readFileBuffer(path: string): Promise<Uint8Array | null>
+        on(channel: string, listener: (...args: any[]) => void): void
+        off(channel: string, listener: (...args: any[]) => void): void
+        send(channel: string, ...args: any[]): void
+    }
+}
