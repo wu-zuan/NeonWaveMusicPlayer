@@ -35,5 +35,5 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   },
   getArtistImage: (name: string) => ipcRenderer.invoke('search:artistImage', name),
   searchYouTube: (query: string) => ipcRenderer.invoke('search:youtube', query),
-  getLyrics: (title: string, artist: string) => ipcRenderer.invoke('search:lyrics', title, artist)
+  getLyrics: (title: string, artist: string, filePath?: string) => ipcRenderer.invoke('search:lyrics', title, artist, filePath)
 })

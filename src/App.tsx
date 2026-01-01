@@ -104,6 +104,7 @@ function App() {
           onClose={() => setShowLyrics(false)}
           trackTitle={currentTrack?.title || ''}
           trackArtist={currentTrack?.artist || ''}
+          trackPath={currentTrack?.path}
           currentTime={currentTime}
         />
 

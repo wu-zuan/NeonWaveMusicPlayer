@@ -8,11 +8,12 @@ interface LyricsOverlayProps {
     onClose: () => void
     trackTitle: string
     trackArtist: string
+    trackPath?: string
     currentTime: number
 }
 
 export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
-    visible, onClose, trackTitle, trackArtist, currentTime
+    visible, onClose, trackTitle, trackArtist, trackPath, currentTime
 }) => {
     const [lyrics, setLyrics] = useState<LyricLine[]>([])
     const [loading, setLoading] = useState(false)
@@ -48,7 +49,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
             setLyrics([])
             try {
                 // Try to find lyrics
-                const rawLrc = await window.ipcRenderer.getLyrics(trackTitle, trackArtist || '')
+                const rawLrc = await window.ipcRenderer.getLyrics(trackTitle, trackArtist || '', trackPath || '')
                 if (rawLrc) {
                     const parsed = parseLrc(rawLrc)
                     if (parsed.length > 0) {
@@ -71,7 +72,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         }
 
         fetchLyrics()
-    }, [trackTitle, trackArtist, visible])
+    }, [trackTitle, trackArtist, trackPath, visible])
 
     if (!visible) return null
 
