@@ -11,6 +11,7 @@ interface Window {
         installUpdate(): Promise<void>
         getAppVersion(): Promise<string>
         onUpdateStatus(callback: (status: any) => void): () => void
+        searchYouTube(query: string): Promise<any[]>
 
         on(channel: string, listener: (...args: any[]) => void): void
         off(channel: string, listener: (...args: any[]) => void): void

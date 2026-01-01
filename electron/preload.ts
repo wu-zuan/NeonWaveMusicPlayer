@@ -31,5 +31,6 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   onUpdateStatus: (callback: (status: any) => void) => {
     ipcRenderer.on('update-status', (_, data) => callback(data))
     return () => ipcRenderer.removeAllListeners('update-status')
-  }
+  },
+  searchYouTube: (query: string) => ipcRenderer.invoke('search:youtube', query)
 })

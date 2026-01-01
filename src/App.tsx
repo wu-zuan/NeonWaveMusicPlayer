@@ -4,6 +4,7 @@ import { Sidebar } from './components/Layout/Sidebar'
 import { TrackList } from './components/Playlist/TrackList'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { SettingsView } from './components/Layout/SettingsView'
+import { SearchView } from './components/Search/SearchView'
 import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { useLibrary } from './hooks/useLibrary'
 import './index.css'
@@ -73,12 +74,7 @@ function App() {
           )}
 
           {view === 'search' && (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              height: '100%', color: 'var(--text-muted)'
-            }}>
-              <h2>線上搜尋與下載 (敬請期待)</h2>
-            </div>
+            <SearchView />
           )}
 
           {view === 'settings' && (

@@ -1,9 +1,15 @@
 
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import os from 'node:os'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
+// @ts-ignore
+import yts from 'yt-search'
+
+const require = createRequire(import.meta.url)
 
 // Allow updating to pre-releases if needed
 autoUpdater.allowPrerelease = true
@@ -17,14 +23,6 @@ if (!gotTheLock) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
-//
-// ├─┬─┬ dist
-// │ │ └── index.html
-// │ │
-// │ ├─┬ dist-electron
-// │ │ ├── main.js
-// │ │ └── preload.mjs
-// │
 process.env.APP_ROOT = path.join(__dirname, '..')
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
@@ -142,6 +140,23 @@ app.whenReady().then(() => {
     } catch (error) {
       console.error('Error reading file:', error)
       return null
+    }
+  })
+
+  ipcMain.handle('search:youtube', async (_, query) => {
+    try {
+      const r = await yts(query)
+      return r.videos.slice(0, 20).map((v: any) => ({
+        id: v.videoId,
+        title: v.title,
+        artist: v.author.name,
+        duration: v.seconds,
+        thumbnail: v.thumbnail,
+        url: v.url
+      }))
+    } catch (e) {
+      console.error(e)
+      return []
     }
   })
 
