@@ -35,8 +35,7 @@
   "nsis": {
     "oneClick": true,
     "perMachine": false,
-    "deleteAppDataOnUninstall": false,
-    "guid": "5f9d1c7a-3b2e-4a8f-9c6d-0e4b1a2f3d5c"
+    "deleteAppDataOnUninstall": false
   },
   "linux": {
     "target": [

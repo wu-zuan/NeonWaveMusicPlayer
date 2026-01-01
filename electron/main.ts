@@ -5,9 +5,6 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
 
-const require = createRequire(import.meta.url)
-const yts = require('yt-search')
-
 // Allow updating to pre-releases if needed
 autoUpdater.allowPrerelease = true
 
@@ -151,6 +148,8 @@ app.whenReady().then(() => {
 
   ipcMain.handle('search:youtube', async (_, query) => {
     try {
+      const require = createRequire(import.meta.url)
+      const yts = require('yt-search')
       const r = await yts(query)
       return r.videos.slice(0, 20).map((v: any) => ({
         id: v.videoId,
