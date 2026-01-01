@@ -150,13 +150,14 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     {/* Space Mode */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>真實空間模擬</label>
-                        <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
-                            {['none', 'room', 'hall', 'driver'].map(mode => (
+                        <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px', overflowX: 'auto' }}>
+                            {['none', 'room', 'hall', 'concert', 'driver'].map(mode => (
                                 <button
                                     key={mode}
                                     onClick={() => handleSpace(mode)}
                                     style={{
                                         flex: 1,
+                                        minWidth: '36px',
                                         background: spaceMode === mode ? 'var(--accent-primary)' : 'transparent',
                                         color: spaceMode === mode ? '#000' : 'var(--text-muted)',
                                         border: 'none',
@@ -164,10 +165,11 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                         fontSize: '11px',
                                         padding: '6px 0',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s'
+                                        transition: 'all 0.2s',
+                                        whiteSpace: 'nowrap'
                                     }}
                                 >
-                                    {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '大廳' : '車內'}
+                                    {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '大廳' : mode === 'concert' ? '演唱會' : '車內'}
                                 </button>
                             ))}
                         </div>

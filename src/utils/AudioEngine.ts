@@ -84,12 +84,10 @@ export class AudioEngine {
         this.compressor.connect(this.context.destination)
 
         // Generate a basic impulse response for testing space
-        this.generateSimpleImpulse()
+        this.generateImpulse(2, 3)
     }
 
-    private generateSimpleImpulse() {
-        // Simple synthetic reverb IR
-        const duration = 2
+    private generateImpulse(duration: number, decay: number) {
         const rate = this.context.sampleRate
         const length = rate * duration
         const impulse = this.context.createBuffer(2, length, rate)
@@ -97,9 +95,9 @@ export class AudioEngine {
         const right = impulse.getChannelData(1)
 
         for (let i = 0; i < length; i++) {
-            const decay = Math.pow(1 - i / length, 3)
-            left[i] = (Math.random() * 2 - 1) * decay
-            right[i] = (Math.random() * 2 - 1) * decay
+            const val = Math.pow(1 - i / length, decay)
+            left[i] = (Math.random() * 2 - 1) * val
+            right[i] = (Math.random() * 2 - 1) * val
         }
         this.convolver.buffer = impulse
     }
@@ -161,20 +159,50 @@ export class AudioEngine {
 
     /**
      * Set Space/Reverb Type
-     * @param type 'none' | 'room' | 'hall' | 'driver'
+     * @param type 'none' | 'room' | 'hall' | 'concert' | 'driver'
      */
     setSpaceMode(type: string) {
+        const t = this.context.currentTime
         let wetAmount = 0
+        let duration = 0.1
+        let decay = 1
+
         switch (type) {
-            case 'room': wetAmount = 0.3; break;
-            case 'hall': wetAmount = 0.6; break;
-            case 'driver': wetAmount = 0.1; break; // Tight reflection
-            case 'none': default: wetAmount = 0; break;
+            case 'concert': // Stadium / Live
+                wetAmount = 0.55 // High reflection
+                duration = 3.5   // Long tail (3.5s)
+                decay = 2.0      // Slow decay
+                break;
+            case 'hall':
+                wetAmount = 0.4
+                duration = 2.0
+                decay = 3.0
+                break;
+            case 'room':
+                wetAmount = 0.2
+                duration = 0.8
+                decay = 5.0
+                break;
+            case 'driver':
+                wetAmount = 0.1
+                duration = 0.1 // Short slapback
+                decay = 10.0
+                break;
+            case 'none':
+            default:
+                wetAmount = 0
+                break;
         }
 
-        this.reverbGain.gain.setTargetAtTime(wetAmount, this.context.currentTime, 0.5)
+        // Regenerate IR if not none
+        if (type !== 'none') {
+            this.generateImpulse(duration, decay)
+        }
 
-        // In real impl, we would swap Convolver buffer here for different impulse responses.
+        this.reverbGain.gain.setTargetAtTime(wetAmount, t, 0.5)
+
+        // Enhance stereo width for Concert?
+        // Basic stereo width is handled by Panner HRTF, but Reverb adds omni feel.
     }
 
     setNormalization(enable: boolean) {
