@@ -139,3 +139,109 @@
     color: #000;
     transform: scale(1.1);
 }
+
+/* Artist Grid */
+.sectionTitle {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    background: linear-gradient(to right, #fff, var(--accent-primary));
+    -webkit-background-clip: text;
+    color: transparent;
+    padding-left: 4px;
+}
+
+.artistGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 20px;
+    padding-bottom: 32px;
+}
+
+.artistCard {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.artistCard:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-6px);
+    border-color: var(--accent-primary);
+    box-shadow: 0 10px 30px rgba(0, 255, 242, 0.15);
+}
+
+.artistImage {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #000;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s;
+}
+
+.artistCard:hover .artistImage {
+    transform: scale(1.05);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 20px rgba(0, 255, 242, 0.4);
+}
+
+.artistName {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+    text-align: center;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-top: auto;
+    padding: 24px 0;
+}
+
+.pageBtn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.pageBtn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 10px rgba(0, 255, 242, 0.2);
+}
+
+.pageBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: transparent;
+}
+
+.pageInfo {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
