@@ -205,6 +205,7 @@ export function useAudioPlayer() {
             engineRef.current?.setPosition(x, y, z)
         },
         setFocusMode: (enable: boolean) => engineRef.current?.setFocusMode(enable),
-        setNormalization: (enable: boolean) => engineRef.current?.setNormalization(enable)
+        setNormalization: (enable: boolean) => engineRef.current?.setNormalization(enable),
+        setCrowd: (enable: boolean) => engineRef.current?.setCrowd(enable)
     }
 }

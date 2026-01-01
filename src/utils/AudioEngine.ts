@@ -8,6 +8,8 @@ export class AudioEngine {
     private focusEQ: BiquadFilterNode
     private masterGain: GainNode
     private compressor: DynamicsCompressorNode // Volume Normalization
+    private crowdGain: GainNode
+    private crowdSource: AudioBufferSourceNode | null = null
 
     // Reverb (Spatial)
     private convolver: ConvolverNode
@@ -62,6 +64,11 @@ export class AudioEngine {
         this.compressor.ratio.value = 1
         this.compressor.attack.value = 0
         this.compressor.release.value = 0.25
+
+        // 6. Crowd Ambience (Virtual Audience)
+        this.crowdGain = this.context.createGain()
+        this.crowdGain.gain.value = 0
+        this.crowdGain.connect(this.masterGain) // Bypass Panner/Reverb (Ambient)
 
         // Graph Construction
         // Path A (Dry/Direct): Source -> Panner -> FocusEQ -> DistanceFilter -> DryGain -> Master
@@ -242,6 +249,54 @@ export class AudioEngine {
         } else {
             // Reset to full if none (assuming distance slider is 0, logic drift risk but acceptable)
             this.distanceFilter.frequency.setTargetAtTime(20000, t, 0.5)
+        }
+    }
+
+    setCrowd(enable: boolean) {
+        if (enable) {
+            if (this.crowdSource) return
+
+            // 5s buffer Loop suitable for crowd ambience (Pink Noise-ish)
+            const rate = this.context.sampleRate
+            const buf = this.context.createBuffer(2, rate * 5, rate)
+            for (let c = 0; c < 2; c++) {
+                const data = buf.getChannelData(c)
+                let lastOut = 0;
+                for (let i = 0; i < buf.length; i++) {
+                    const white = Math.random() * 2 - 1
+                    // Simple lowpass to make it less harsh (pink-ish)
+                    lastOut = (lastOut + white) / 2
+                    data[i] = lastOut * 0.1
+                }
+            }
+
+            this.crowdSource = this.context.createBufferSource()
+            this.crowdSource.buffer = buf
+            this.crowdSource.loop = true
+
+            // Filter to shape it into "distant crowd roar"
+            const filter = this.context.createBiquadFilter()
+            filter.type = 'lowpass'
+            filter.frequency.value = 800
+
+            this.crowdSource.connect(filter)
+            filter.connect(this.crowdGain)
+
+            this.crowdSource.start()
+            // Fade In
+            this.crowdGain.gain.setValueAtTime(0, this.context.currentTime)
+            this.crowdGain.gain.linearRampToValueAtTime(0.3, this.context.currentTime + 2)
+        } else {
+            if (this.crowdSource) {
+                // Fade Out
+                this.crowdGain.gain.setTargetAtTime(0, this.context.currentTime, 0.5)
+                const oldSource = this.crowdSource
+                this.crowdSource = null
+                setTimeout(() => {
+                    oldSource.stop()
+                    oldSource.disconnect()
+                }, 1000)
+            }
         }
     }
 

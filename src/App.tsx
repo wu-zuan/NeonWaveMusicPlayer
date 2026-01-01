@@ -23,7 +23,7 @@ function App() {
     isShuffle, repeatMode,
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
-    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization
+    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization, setCrowd
   } = useAudioPlayer()
 
   // Auto-Detect Context
@@ -118,6 +118,7 @@ function App() {
           onSetPosition={setPosition}
           onSetFocusMode={setFocusMode}
           onSetNormalization={setNormalization}
+          onSetCrowd={setCrowd}
         />
       </main>
     </div>
