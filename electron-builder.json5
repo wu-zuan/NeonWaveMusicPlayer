@@ -3,6 +3,10 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.wuzuan.neonwave",
   "asar": true,
+  "asarUnpack": [
+    "**/node_modules/yt-search/**",
+    "**/node_modules/cheerio/**"
+  ],
   "productName": "NeonWave",
   "directories": {
     "output": "release/${version}"

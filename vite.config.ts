@@ -14,7 +14,7 @@ export default defineConfig({
         vite: {
           build: {
             rollupOptions: {
-              external: ['yt-search'],
+              external: ['yt-search', 'cheerio', 'iconv-lite', 'whatwg-encoding'],
             },
           },
         },

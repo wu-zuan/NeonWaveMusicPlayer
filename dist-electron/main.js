@@ -1,9 +1,10 @@
 import $t, { app as ft, BrowserWindow as al, ipcMain as Ct, dialog as Cf } from "electron";
-import { fileURLToPath as bf } from "node:url";
+import { createRequire as bf } from "node:module";
+import { fileURLToPath as Of } from "node:url";
 import Qe from "node:path";
 import ca from "node:fs/promises";
 import Et from "fs";
-import Of from "constants";
+import If from "constants";
 import Mr from "stream";
 import ho from "util";
 import sl from "assert";
@@ -14,10 +15,9 @@ import Br from "crypto";
 import cl from "tty";
 import jn from "os";
 import nr from "url";
-import If from "string_decoder";
+import Rf from "string_decoder";
 import ul from "zlib";
-import Rf from "http";
-import Pf from "yt-search";
+import Pf from "http";
 var Se = typeof globalThis < "u" ? globalThis : typeof window < "u" ? window : typeof global < "u" ? global : typeof self < "u" ? self : {}, Ye = {}, xt = {}, be = {};
 be.fromCallback = function(e) {
   return Object.defineProperty(function(...t) {
@@ -35,7 +35,7 @@ be.fromPromise = function(e) {
     t.pop(), e.apply(this, t).then((n) => r(null, n), r);
   }, "name", { value: e.name });
 };
-var ot = Of, Nf = process.cwd, Tn = null, Df = process.env.GRACEFUL_FS_PLATFORM || process.platform;
+var ot = If, Nf = process.cwd, Tn = null, Df = process.env.GRACEFUL_FS_PLATFORM || process.platform;
 process.cwd = function() {
   return Tn || (Tn = Nf.call(process)), Tn;
 };
@@ -2828,7 +2828,7 @@ var qr = {}, sc = {};
     }), c.prototype.write = function(d) {
       if (typeof Buffer == "function" && typeof Buffer.isBuffer == "function" && Buffer.isBuffer(d)) {
         if (!this._decoder) {
-          var u = If.StringDecoder;
+          var u = Rf.StringDecoder;
           this._decoder = new u("utf8");
         }
         d = this._decoder.write(d);
@@ -8229,7 +8229,7 @@ Lr.RpmUpdater = Lw;
 var Ur = {};
 Object.defineProperty(Ur, "__esModule", { value: !0 });
 Ur.MacUpdater = void 0;
-const Js = he, Yi = yt, Uw = Et, Qs = ne, kw = Rf, Mw = dt, Bw = ce, Zs = Bn, el = Br;
+const Js = he, Yi = yt, Uw = Et, Qs = ne, kw = Pf, Mw = dt, Bw = ce, Zs = Bn, el = Br;
 class jw extends Mw.AppUpdater {
   constructor(t, r) {
     super(t, r), this.nativeUpdater = $t.autoUpdater, this.squirrelDownloadedUpdate = !1, this.nativeUpdater.on("error", (n) => {
@@ -8623,14 +8623,15 @@ kr.NsisUpdater = Jw;
     get: () => _ || y()
   });
 })(Ye);
+const Qw = bf(import.meta.url), Zw = Qw("yt-search");
 Ye.autoUpdater.allowPrerelease = !0;
-const Qw = ft.requestSingleInstanceLock();
-Qw ? ft.on("second-instance", () => {
+const e_ = ft.requestSingleInstanceLock();
+e_ ? ft.on("second-instance", () => {
   z && (z.isMinimized() && z.restore(), z.focus());
 }) : ft.quit();
-const vu = Qe.dirname(bf(import.meta.url));
+const vu = Qe.dirname(Of(import.meta.url));
 process.env.APP_ROOT = Qe.join(vu, "..");
-const fo = process.env.VITE_DEV_SERVER_URL, v_ = Qe.join(process.env.APP_ROOT, "dist-electron"), wu = Qe.join(process.env.APP_ROOT, "dist");
+const fo = process.env.VITE_DEV_SERVER_URL, __ = Qe.join(process.env.APP_ROOT, "dist-electron"), wu = Qe.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = fo ? Qe.join(process.env.APP_ROOT, "public") : wu;
 let z;
 function _u() {
@@ -8702,7 +8703,7 @@ ft.whenReady().then(() => {
     }
   }), Ct.handle("search:youtube", async (e, t) => {
     try {
-      return (await Pf(t)).videos.slice(0, 20).map((n) => ({
+      return (await Zw(t)).videos.slice(0, 20).map((n) => ({
         id: n.videoId,
         title: n.title,
         artist: n.author.name,
@@ -8720,7 +8721,7 @@ ft.whenReady().then(() => {
   }), Ct.handle("app:version", () => ft.getVersion());
 });
 export {
-  v_ as MAIN_DIST,
+  __ as MAIN_DIST,
   wu as RENDERER_DIST,
   fo as VITE_DEV_SERVER_URL
 };
