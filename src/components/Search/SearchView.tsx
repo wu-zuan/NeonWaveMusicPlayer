@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Search, Download, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import styles from './Search.module.css'
+import { ARTIST_NAMES } from '../../data/artists'
 
 interface SearchResult {
     id: string
@@ -11,39 +12,68 @@ interface SearchResult {
     url: string
 }
 
-import { ARTIST_NAMES } from '../../data/artists'
-
 const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) => {
-    const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v2_${name}`))
+    const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v3_${name}`))
+    const [isVisible, setIsVisible] = useState(false)
+    const cardRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        if (img && img !== 'null' && !img.includes('ui-avatars')) return
+        if (img) return
 
-        // Delay fetch slightly to avoid congestion if mounting many
-        const timer = setTimeout(() => {
-            window.ipcRenderer.getArtistImage(name).then(url => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsVisible(true)
+                    observer.disconnect()
+                }
+            },
+            { rootMargin: '100px' }
+        )
+
+        if (cardRef.current) observer.observe(cardRef.current)
+
+        return () => observer.disconnect()
+    }, [img])
+
+    useEffect(() => {
+        if (!isVisible || img) return
+
+        const fetchImage = async () => {
+            // Hash-based delay to stagger requests
+            const delay = (name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 20) * 100
+            await new Promise(r => setTimeout(r, delay))
+
+            try {
+                const url = await window.ipcRenderer.getArtistImage(name)
                 if (url) {
                     setImg(url)
-                    localStorage.setItem(`artist_img_v2_${name}`, url)
+                    localStorage.setItem(`artist_img_v3_${name}`, url)
                 } else {
                     const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`
                     setImg(fallback)
-                    localStorage.setItem(`artist_img_v2_${name}`, fallback)
+                    localStorage.setItem(`artist_img_v3_${name}`, fallback)
                 }
-            })
-        }, Math.random() * 2000) // Stagger requests
-
-        return () => clearTimeout(timer)
-    }, [name])
+            } catch (e) {
+                console.error(e)
+            }
+        }
+        fetchImage()
+    }, [isVisible, name, img])
 
     return (
-        <div className={styles.artistCard} onClick={onClick}>
-            <img
-                src={img || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`}
-                alt={name}
-                className={styles.artistImage}
-                loading="lazy"
-            />
+        <div ref={cardRef} className={styles.artistCard} onClick={onClick}>
+            {img ? (
+                <img
+                    src={img}
+                    alt={name}
+                    className={styles.artistImage}
+                    loading="lazy"
+                />
+            ) : (
+                <div className={styles.artistImage} style={{ background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Loader2 size={24} className="animate-spin" style={{ opacity: 0.5 }} />
+                </div>
+            )}
             <span className={styles.artistName}>{name}</span>
         </div>
     )

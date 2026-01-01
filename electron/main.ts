@@ -207,12 +207,35 @@ app.whenReady().then(() => {
 
   ipcMain.handle('search:artistImage', async (_, artistName) => {
     try {
-      const url = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}&limit=1`
-      const res = await fetch(url)
-      const data: any = await res.json()
-      if (data && data.data && data.data.length > 0) {
-        return data.data[0].picture_medium || data.data[0].picture_big || null
+      // 1. Try Deezer
+      // Add a small timeout to respect potential rate limits if called rapidly
+      const deezerUrl = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}&limit=1`
+      try {
+        const resDeezer = await fetch(deezerUrl)
+        if (resDeezer.ok) {
+          const dataDeezer: any = await resDeezer.json()
+          if (dataDeezer && dataDeezer.data && dataDeezer.data.length > 0) {
+            const pic = dataDeezer.data[0].picture_medium || dataDeezer.data[0].picture_big
+            if (pic) return pic
+          }
+        }
+      } catch (err) {
+        // Deezer failed, proceed to fallback
       }
+
+      // 2. Fallback to iTunes (Album Art)
+      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&media=music&entity=album&limit=1`
+      const resItunes = await fetch(itunesUrl)
+      if (resItunes.ok) {
+        const dataItunes: any = await resItunes.json()
+        if (dataItunes && dataItunes.results && dataItunes.results.length > 0) {
+          const artwork = dataItunes.results[0].artworkUrl100
+          if (artwork) {
+            return artwork.replace('100x100bb', '600x600bb')
+          }
+        }
+      }
+
       return null
     } catch (e) {
       console.error('Error fetching artist image:', e)
