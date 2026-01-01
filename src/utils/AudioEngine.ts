@@ -116,10 +116,10 @@ export class AudioEngine {
             let L = (Math.random() * 2 - 1) * val
             let R = (Math.random() * 2 - 1) * val
 
-            // Simple LowPass (Warmth)
-            if (lowPass && i > 0) {
-                L = (L + left[i - 1]) * 0.5
-                R = (R + right[i - 1]) * 0.5
+            // Stronger LowPass (Warmth) to kill the "hash"
+            if (lowPass && i > 1) {
+                L = (L + left[i - 1] + left[i - 2]) / 3
+                R = (R + right[i - 1] + right[i - 2]) / 3
             }
 
             left[i] = L
@@ -183,10 +183,6 @@ export class AudioEngine {
         this.distanceFilter.frequency.setTargetAtTime(freq, this.context.currentTime, 0.2)
     }
 
-    /**
-     * Set Space/Reverb Type
-     * @param type 'none' | 'room' | 'hall' | 'concert' | 'driver'
-     */
     setSpaceMode(type: string) {
         const t = this.context.currentTime
         let wetAmount = 0
@@ -200,13 +196,13 @@ export class AudioEngine {
 
         switch (type) {
             case 'concert': // Stadium / Live
-                wetAmount = 0.8  // Overwhelming ambience
-                duration = 4.5   // Huge tail
-                decay = 2.5      // Rich decay
-                preDelay = 0.05  // 50ms slapback
-                lowPass = true   // Warm air absorption
-                targetDry = 0.6  // Less direct sound
-                targetCutoff = 8000 // Darker tone
+                wetAmount = 0.65  // Reduced from 0.8 to clean up
+                duration = 4.5    // Huge tail
+                decay = 2.5       // Rich decay
+                preDelay = 0.05   // 50ms slapback
+                lowPass = true    // Warm air absorption
+                targetDry = 0.8   // Increased from 0.6 for clarity
+                targetCutoff = 10000 // Opened up from 8000
                 break;
             case 'hall':
                 wetAmount = 0.4
@@ -243,11 +239,9 @@ export class AudioEngine {
         // Adjust Dry & Cutoff for immersion
         this.dryGain.gain.setTargetAtTime(targetDry, t, 0.5)
         // Only adjust cutoff if we are tweaking for mode, otherwise let distance slider handle it
-        // Ideally we blend them, but setting it here provides the "preset" base
         if (type !== 'none') {
             this.distanceFilter.frequency.setTargetAtTime(targetCutoff, t, 0.5)
         } else {
-            // Reset to full if none (assuming distance slider is 0, logic drift risk but acceptable)
             this.distanceFilter.frequency.setTargetAtTime(20000, t, 0.5)
         }
     }
@@ -277,7 +271,7 @@ export class AudioEngine {
             // Filter to shape it into "distant crowd roar"
             const filter = this.context.createBiquadFilter()
             filter.type = 'lowpass'
-            filter.frequency.value = 800
+            filter.frequency.value = 500
 
             this.crowdSource.connect(filter)
             filter.connect(this.crowdGain)
@@ -285,7 +279,7 @@ export class AudioEngine {
             this.crowdSource.start()
             // Fade In
             this.crowdGain.gain.setValueAtTime(0, this.context.currentTime)
-            this.crowdGain.gain.linearRampToValueAtTime(0.3, this.context.currentTime + 2)
+            this.crowdGain.gain.linearRampToValueAtTime(0.15, this.context.currentTime + 2)
         } else {
             if (this.crowdSource) {
                 // Fade Out
