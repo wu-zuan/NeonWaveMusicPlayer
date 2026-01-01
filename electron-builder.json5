@@ -44,7 +44,8 @@
     {
       "provider": "github",
       "owner": "DM-WuzuanTW",
-      "repo": "NeonWaveMusicPlayer"
+      "repo": "NeonWaveMusicPlayer",
+      "releaseType": "release"
     }
   ]
 }
