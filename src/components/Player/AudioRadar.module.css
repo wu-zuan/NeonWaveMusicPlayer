@@ -1,0 +1,114 @@
+.radarContainer {
+    width: 240px;
+    height: 240px;
+    background: radial-gradient(circle at center,
+            rgba(0, 255, 242, 0.1) 0%,
+            rgba(0, 0, 0, 0.4) 60%,
+            rgba(0, 0, 0, 0.8) 100%);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    position: relative;
+    margin: 10px auto;
+    overflow: hidden;
+    box-shadow: inset 0 0 20px rgba(0, 255, 242, 0.1);
+    cursor: crosshair;
+}
+
+.grid {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background-image:
+        linear-gradient(rgba(0, 255, 242, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 242, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.listener {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #fff;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.listener::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    pointer-events: none;
+}
+
+.listener::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 1px;
+    height: 200px;
+    background: linear-gradient(transparent, rgba(255, 255, 255, 0.2), transparent);
+    pointer-events: none;
+}
+
+.source {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 15px var(--accent-primary);
+    cursor: grab;
+    z-index: 20;
+    transition: width 0.2s, height 0.2s, box-shadow 0.2s;
+}
+
+.source:active {
+    cursor: grabbing;
+    width: 14px;
+    height: 14px;
+    box-shadow: 0 0 25px var(--accent-primary);
+}
+
+.resetBtn {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0;
+}
+
+.radarContainer:hover .resetBtn {
+    opacity: 1;
+}
+
+.resetBtn:hover {
+    background: var(--accent-primary);
+    color: #000;
+}

@@ -22,7 +22,7 @@ function App() {
     isShuffle, repeatMode,
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
-    setDistance, setSpaceMode
+    setDistance, setSpaceMode, setPosition
   } = useAudioPlayer()
 
   // Determine which tracks to show based on view
@@ -102,6 +102,7 @@ function App() {
           onPrev={handlePrev}
           onSetDistance={setDistance}
           onSetSpace={setSpaceMode}
+          onSetPosition={setPosition}
         />
       </main>
     </div>

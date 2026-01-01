@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
+import { AudioRadar } from './AudioRadar'
 
 interface PlayerBarProps {
     isPlaying: boolean
@@ -23,6 +24,7 @@ interface PlayerBarProps {
     // Advanced
     onSetDistance?: (d: number) => void
     onSetSpace?: (s: string) => void
+    onSetPosition?: (x: number, y: number, z: number) => void
 }
 
 export const PlayerBar: React.FC<PlayerBarProps> = ({
@@ -30,7 +32,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     isShuffle, repeatMode,
     onTogglePlay, onSeek, onVolumeChange, onToggle8D,
     onToggleShuffle, onToggleRepeat, onNext, onPrev,
-    onSetDistance, onSetSpace
+    onSetDistance, onSetSpace, onSetPosition
 }) => {
     const [showSpatial, setShowSpatial] = useState(false)
     const [distVal, setDistVal] = useState(0)
@@ -125,6 +127,12 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                             onChange={(e) => handleDistance(Number(e.target.value))}
                             style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
                         />
+                    </div>
+
+                    {/* Position */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>3D 音源定位</label>
+                        <AudioRadar onSetPosition={(x, y, z) => onSetPosition?.(x, y, z)} />
                     </div>
                 </div>
             )}
