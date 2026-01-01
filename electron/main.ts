@@ -205,7 +205,7 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('download:youtube', async (_, url, title) => {
+  ipcMain.handle('download:youtube', async (_, url, inputTitle) => {
     try {
       const require = createRequire(import.meta.url)
       // Use the more maintained fork
@@ -213,18 +213,32 @@ app.whenReady().then(() => {
 
       if (!ytdl.validateURL(url)) throw new Error('Invalid URL')
 
-      // Pick download path
+      // 1. Get Info first (validates access and gets full metadata)
+      let info
+      try {
+        info = await ytdl.getInfo(url)
+      } catch (err) {
+        console.error('Failed to get info:', err)
+        throw new Error('Video unavailable or blocked. (Info fetch failed)')
+      }
+
+      const safeTitle = (info.videoDetails.title || inputTitle).replace(/[\\/:*?"<>|]/g, '_').trim()
+
+      // 2. Pick download path
       const { filePath } = await dialog.showSaveDialog(win!, {
         title: '下載歌曲',
-        defaultPath: `${title.replace(/[\\/:*?"<>|]/g, '_')}.mp3`,
+        defaultPath: `${safeTitle}.mp3`,
         filters: [{ name: 'Audio', extensions: ['mp3'] }]
       })
 
       if (!filePath) return null // User canceled
 
       return new Promise((resolve, reject) => {
-        // 'highestaudio' usually returns webm/opus or m4a/aac. 
-        const stream = ytdl(url, { quality: 'highestaudio', filter: 'audioonly' })
+        // 3. Start Stream
+        const stream = ytdl.downloadFromInfo(info, {
+          quality: 'highestaudio',
+          filter: 'audioonly'
+        })
 
         stream.on('error', (err: any) => {
           console.error('YTDL Stream Error:', err)
