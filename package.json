@@ -1,17 +1,20 @@
 {
   "name": "neon-wave-music-player",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A modern, high-fidelity music player with 8D spatial audio effects.",
   "author": "DM-WuzuanTW",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "release": "powershell -ExecutionPolicy Bypass -File ./scripts/publish.ps1"
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "framer-motion": "^12.23.26",
     "howler": "^2.2.4",
     "lucide-react": "^0.562.0",
