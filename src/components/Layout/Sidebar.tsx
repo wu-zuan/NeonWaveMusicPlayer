@@ -18,7 +18,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return (
         <aside className={styles.sidebar}>
             <div className={styles.brand}>
-                <img src="/logo.png" className={styles.logo} alt="Logo" />
                 <h1 className={styles.title}>NeonWave</h1>
             </div>
 
