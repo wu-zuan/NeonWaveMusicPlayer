@@ -7,8 +7,8 @@ import { autoUpdater } from 'electron-updater'
 import { exec } from 'node:child_process'
 
 function runPowerShell(scriptPath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, (error, stdout, stderr) => {
+  return new Promise((resolve) => {
+    exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, (error, stdout) => {
       if (error) {
         // reject(error) // Don't reject, just return unknown
         resolve("unknown")
