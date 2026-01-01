@@ -253,7 +253,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                                 whiteSpace: 'nowrap'
                                             }}
                                         >
-                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '大廳' : mode === 'concert' ? '演唱會' : '車內'}
+                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '空間' : mode === 'concert' ? '演唱會' : '車內'}
                                         </button>
                                     ))}
                                 </div>

@@ -222,10 +222,14 @@ export class AudioEngine {
                 targetDry = 1.0
                 targetCutoff = 3000 // Furniture absorbs highs heavily
                 break;
-            case 'driver':
-                wetAmount = 0.1
-                duration = 0.1
-                decay = 10.0
+            case 'driver': // Premium Car Cabin
+                wetAmount = 0.15  // Very subtle cabin pressure
+                duration = 0.2    // Almost dead
+                decay = 15.0      // Instant decay
+                preDelay = 0.002  // Immediate reflection (glass/doors)
+                lowPass = true
+                targetDry = 1.0
+                targetCutoff = 4000 // Carpet/Seats absorb highs, off-axis tweeters
                 break;
             case 'none':
             default:
