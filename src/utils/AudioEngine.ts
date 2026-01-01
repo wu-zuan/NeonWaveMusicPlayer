@@ -200,13 +200,13 @@ export class AudioEngine {
 
         switch (type) {
             case 'concert': // Stadium / Live
-                wetAmount = 0.9  // Overwhelming ambience
-                duration = 5.0   // Huge tail
-                decay = 2.0      // Long decay
-                preDelay = 0.12  // 120ms distinct slapback
+                wetAmount = 0.8  // Overwhelming ambience
+                duration = 4.5   // Huge tail
+                decay = 2.5      // Rich decay
+                preDelay = 0.05  // 50ms slapback
                 lowPass = true   // Warm air absorption
-                targetDry = 0.4  // Distant stage
-                targetCutoff = 6000 // Darker tone
+                targetDry = 0.6  // Less direct sound
+                targetCutoff = 8000 // Darker tone
                 break;
             case 'hall':
                 wetAmount = 0.4
@@ -256,9 +256,9 @@ export class AudioEngine {
         if (enable) {
             if (this.crowdSource) return
 
-            // 10s buffer Loop suitable for crowd ambience (Pink Noise-ish with surges)
+            // 5s buffer Loop suitable for crowd ambience (Pink Noise-ish)
             const rate = this.context.sampleRate
-            const buf = this.context.createBuffer(2, rate * 10, rate)
+            const buf = this.context.createBuffer(2, rate * 5, rate)
             for (let c = 0; c < 2; c++) {
                 const data = buf.getChannelData(c)
                 let lastOut = 0;
@@ -266,12 +266,7 @@ export class AudioEngine {
                     const white = Math.random() * 2 - 1
                     // Simple lowpass to make it less harsh (pink-ish)
                     lastOut = (lastOut + white) / 2
-
-                    // Add "surges" (Slow sine wave modulation)
-                    // Different phase for L/R to create width
-                    const surge = Math.sin((i / rate) * 0.5 + (c * 3.14)) * 0.2 + 1
-
-                    data[i] = lastOut * 0.1 * surge
+                    data[i] = lastOut * 0.1
                 }
             }
 
@@ -279,19 +274,18 @@ export class AudioEngine {
             this.crowdSource.buffer = buf
             this.crowdSource.loop = true
 
-            // Bandpass filter for "Roar" (Human vocal range)
+            // Filter to shape it into "distant crowd roar"
             const filter = this.context.createBiquadFilter()
-            filter.type = 'bandpass'
-            filter.frequency.value = 500
-            filter.Q.value = 0.5
+            filter.type = 'lowpass'
+            filter.frequency.value = 800
 
             this.crowdSource.connect(filter)
             filter.connect(this.crowdGain)
 
             this.crowdSource.start()
-            // Fade In louder
+            // Fade In
             this.crowdGain.gain.setValueAtTime(0, this.context.currentTime)
-            this.crowdGain.gain.linearRampToValueAtTime(0.5, this.context.currentTime + 3)
+            this.crowdGain.gain.linearRampToValueAtTime(0.3, this.context.currentTime + 2)
         } else {
             if (this.crowdSource) {
                 // Fade Out
