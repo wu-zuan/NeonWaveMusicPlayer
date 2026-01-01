@@ -213,13 +213,13 @@ export class AudioEngine {
                 targetCutoff = 16000
                 break;
             case 'room':
-                wetAmount = 0.35  // Boosted for presence
-                duration = 1.2    // Slightly longer tail
-                decay = 6.0       // Metallic/Roomy decay
-                preDelay = 0.01   // Close walls (10ms)
-                lowPass = true    // Absorptive walls
-                targetDry = 1.0   // Keep clear
-                targetCutoff = 14000 // Dampened highs
+                wetAmount = 0.55  // Stronger presence (Studio feel)
+                duration = 1.6    // Richer body
+                decay = 4.0       // Natural room decay
+                preDelay = 0.01   // Slight depth
+                lowPass = true
+                targetDry = 1.0
+                targetCutoff = 15000
                 break;
             case 'driver':
                 wetAmount = 0.1
