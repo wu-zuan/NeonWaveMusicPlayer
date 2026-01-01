@@ -195,14 +195,14 @@ export class AudioEngine {
         let targetCutoff = 20000
 
         switch (type) {
-            case 'concert': // Stadium / Live
-                wetAmount = 0.65  // Reduced from 0.8 to clean up
-                duration = 4.5    // Huge tail
-                decay = 2.5       // Rich decay
-                preDelay = 0.05   // 50ms slapback
-                lowPass = true    // Warm air absorption
-                targetDry = 0.8   // Increased from 0.6 for clarity
-                targetCutoff = 10000 // Opened up from 8000
+            case 'concert': // Taipei Dome
+                wetAmount = 0.55  // Dome Enclosure Ambience
+                duration = 3.2    // Large indoor volume
+                decay = 3.2       // Smooth decay
+                preDelay = 0.04   // ~14m initial reflection
+                lowPass = true    // Dome roof absorption
+                targetDry = 0.9
+                targetCutoff = 9000 // Slightly warmer/darker due to indoor damping
                 break;
             case 'hall':
                 wetAmount = 0.4
