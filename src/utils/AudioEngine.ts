@@ -222,14 +222,14 @@ export class AudioEngine {
                 targetDry = 1.0
                 targetCutoff = 3000 // Furniture absorbs highs heavily
                 break;
-            case 'driver': // Premium Car Cabin
-                wetAmount = 0.15  // Very subtle cabin pressure
-                duration = 0.2    // Almost dead
-                decay = 15.0      // Instant decay
-                preDelay = 0.002  // Immediate reflection (glass/doors)
+            case 'driver': // Immersive Car Cabin
+                wetAmount = 0.35  // Significant "Cabin Pressure" feel
+                duration = 0.3    // Tight box
+                decay = 12.0      // Fast absorption
+                preDelay = 0.001  // Immediate (In-ear feel)
                 lowPass = true
-                targetDry = 1.0
-                targetCutoff = 4000 // Carpet/Seats absorb highs, off-axis tweeters
+                targetDry = 1.0   // Direct focus
+                targetCutoff = 8000 // Focus on Mids/Lows, standard Car EQ curve
                 break;
             case 'none':
             default:
