@@ -205,6 +205,43 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('download:youtube', async (_, url, title) => {
+    try {
+      const require = createRequire(import.meta.url)
+      const ytdl = require('ytdl-core')
+
+      if (!ytdl.validateURL(url)) throw new Error('Invalid URL')
+
+      // Pick download path
+      const { filePath } = await dialog.showSaveDialog(win!, {
+        title: '下載歌曲',
+        defaultPath: `${title.replace(/[\\/:*?"<>|]/g, '_')}.mp3`,
+        filters: [{ name: 'Audio', extensions: ['mp3'] }]
+      })
+
+      if (!filePath) return null // User canceled
+
+      return new Promise((resolve, reject) => {
+        const stream = ytdl(url, { quality: 'highestaudio', filter: 'audioonly' })
+
+        // We need fs-extra or similar to write, or just use fs/promises? No, stream needs createWriteStream
+        // Since we are in main.ts, we can use fs.createWriteStream but we imported fs from 'node:fs/promises'
+        // Let's dynamic import standard fs for streams
+        import('node:fs').then(fsSync => {
+          const writer = fsSync.createWriteStream(filePath)
+          stream.pipe(writer)
+
+          writer.on('finish', () => resolve(filePath))
+          writer.on('error', reject)
+        })
+      })
+
+    } catch (e: any) {
+      console.error("Download failed:", e)
+      throw e
+    }
+  })
+
   ipcMain.handle('search:artistImage', async (_, artistName) => {
     try {
       // 1. Try Deezer

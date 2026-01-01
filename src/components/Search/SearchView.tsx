@@ -131,8 +131,19 @@ export const SearchView = () => {
         return `${m}:${s.toString().padStart(2, '0')}`
     }
 
-    const handleDownload = (track: SearchResult) => {
-        alert(`準備下載: ${track.title}\n(此功能將在下一版本實裝)`)
+    const handleDownload = async (track: SearchResult) => {
+        const confirm = window.confirm(`是否下載：\n${track.title}\n${track.artist}\n此過程可能需要一些時間...`)
+        if (!confirm) return
+
+        try {
+            const savedPath = await window.ipcRenderer.downloadYouTube(track.url, track.title)
+            if (savedPath) {
+                alert(`✅ 下載完成！\n已儲存至：\n${savedPath}`)
+            }
+        } catch (e) {
+            console.error(e)
+            alert("❌ 下載失敗，請稍後再試。")
+        }
     }
 
     // Pagination Logic
