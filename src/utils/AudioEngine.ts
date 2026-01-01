@@ -204,14 +204,14 @@ export class AudioEngine {
                 targetDry = 1.0   // Full Dry Signal (Fixes "weird" vocals)
                 targetCutoff = 16000 // High Fidelity
                 break;
-            case 'hall': // Hotel Lobby (Marble/Glass)
-                wetAmount = 0.45  // Airy ambience
-                duration = 2.5    // Spacious
-                decay = 3.0       // Hard surface decay
-                preDelay = 0.03   // Large open space
+            case 'hall': // Hotel Lobby (Spacious, Hollow, Airy)
+                wetAmount = 0.65  // High ambience for "迴盪"
+                duration = 3.5    // Long tail for "寬敞"
+                decay = 2.0       // Slow decay for "空曠"
+                preDelay = 0.06   // Distinct slapback for "空間感"
                 lowPass = true
-                targetDry = 1.0
-                targetCutoff = 17000 // Bright, reflective
+                targetDry = 0.85  // Push source back slightly
+                targetCutoff = 19000 // Very bright "通透"
                 break;
             case 'room': // Real Bedroom (Tight & Damp)
                 wetAmount = 0.45
