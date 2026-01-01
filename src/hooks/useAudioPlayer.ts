@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { AudioEngine } from '../utils/AudioEngine'
 
 export interface Track {
@@ -9,7 +9,10 @@ export interface Track {
     duration?: number
 }
 
+type RepeatMode = 'none' | 'all' | 'one'
+
 export function useAudioPlayer() {
+    // State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
     const [currentTime, setCurrentTime] = useState(0)
@@ -17,31 +20,31 @@ export function useAudioPlayer() {
     const [volume, setVolume] = useState(1)
     const [is8D, setIs8D] = useState(false)
 
-    // Use a ref for the audio element to persist across renders
+    // Playlist & Ordering
+    const [playlist, setPlaylist] = useState<Track[]>([])
+    const [isShuffle, setIsShuffle] = useState(false)
+    const [repeatMode, setRepeatMode] = useState<RepeatMode>('none')
+    const [history, setHistory] = useState<Track[]>([])
+
+    // Refs
     const audioRef = useRef<HTMLAudioElement>(new Audio())
     const engineRef = useRef<AudioEngine | null>(null)
 
-    useEffect(() => {
-        // Initialize Audio Engine
-        engineRef.current = new AudioEngine()
+    // Helper to get random index
+    const getRandomIndex = (max: number) => Math.floor(Math.random() * max)
 
+    useEffect(() => {
+        engineRef.current = new AudioEngine()
         const audio = audioRef.current
         audio.crossOrigin = "anonymous"
 
-        // Connect audio element to Web Audio API
-        // Must be done after user interaction usually, but let's try init
-        try {
-            engineRef.current.connect(audio)
-        } catch (e) {
-            console.warn("Autoplay policy might prevent instant connection", e)
+        try { engineRef.current.connect(audio) } catch (e) {
+            console.warn("Connection error", e)
         }
 
         const onTimeUpdate = () => setCurrentTime(audio.currentTime)
         const onDurationChange = () => setDuration(audio.duration)
-        const onEnded = () => {
-            setIsPlaying(false)
-            // Emit event or callback for next track?
-        }
+        const onEnded = () => handleNext(true) // Auto next
         const onPlay = () => setIsPlaying(true)
         const onPause = () => setIsPlaying(false)
 
@@ -61,30 +64,27 @@ export function useAudioPlayer() {
         }
     }, [])
 
+    // Effects for Audio Engine
+    useEffect(() => { engineRef.current?.toggle8D(is8D) }, [is8D])
     useEffect(() => {
-        if (engineRef.current) {
-            engineRef.current.toggle8D(is8D)
-        }
-    }, [is8D])
-
-    useEffect(() => {
-        if (engineRef.current) {
-            engineRef.current.setVolume(volume)
-        } else {
-            audioRef.current.volume = volume // Fallback
-        }
+        if (engineRef.current) engineRef.current.setVolume(volume)
+        else audioRef.current.volume = volume
     }, [volume])
 
-    const playTrack = async (track: Track) => {
+    // Main Play Logic
+    const playTrack = async (track: Track, newPlaylist?: Track[]) => {
         const audio = audioRef.current
 
-        // In Electron, to load local files, usage of 'file://' or 'media://' is required.
-        // Ideally we register a protocol in main process.
-        // For now assuming we can use 'file://' + path
-        // But we need to handle special chars.
-        const fileUrl = `file://${track.path}` // Basic approach
+        if (newPlaylist) {
+            setPlaylist(newPlaylist)
+        }
+
+        const fileUrl = `file://${track.path}`
 
         if (currentTrack?.path !== track.path) {
+            // Add to history if it's different
+            if (currentTrack) setHistory(prev => [...prev, currentTrack])
+
             audio.src = fileUrl
             setCurrentTrack(track)
             audio.load()
@@ -98,19 +98,76 @@ export function useAudioPlayer() {
         }
     }
 
-    const togglePlay = () => {
-        if (isPlaying) {
-            audioRef.current.pause()
-        } else {
-            engineRef.current?.resume()
-            audioRef.current.play()
-        }
-    }
+    // Navigation Logic
+    const handleNext = useCallback((autoTrigger = false) => {
+        if (!currentTrack || playlist.length === 0) return
 
-    const seek = (time: number) => {
-        audioRef.current.currentTime = time
-        setCurrentTime(time)
-    }
+        let nextTrack: Track
+
+        if (repeatMode === 'one' && autoTrigger) {
+            // If repeating one and it ended naturally, replay same track
+            nextTrack = currentTrack
+            audioRef.current.currentTime = 0
+            audioRef.current.play()
+            return
+        }
+
+        if (isShuffle) {
+            // Simple random pick for now
+            const idx = getRandomIndex(playlist.length)
+            nextTrack = playlist[idx]
+            // Avoid repeating same track in shuffle if possible, unless only 1 track
+            if (nextTrack.path === currentTrack.path && playlist.length > 1) {
+                handleNext(autoTrigger) // try again
+                return
+            }
+        } else {
+            // Sequential
+            const idx = playlist.findIndex(t => t.path === currentTrack.path)
+            const nextIdx = (idx + 1)
+
+            if (nextIdx >= playlist.length) {
+                // End of playlist
+                if (repeatMode === 'all') {
+                    nextTrack = playlist[0]
+                } else {
+                    // Stop playing
+                    return
+                }
+            } else {
+                nextTrack = playlist[nextIdx]
+            }
+        }
+
+        playTrack(nextTrack)
+    }, [currentTrack, playlist, isShuffle, repeatMode])
+
+    const handlePrev = useCallback(() => {
+        if (audioRef.current.currentTime > 3) {
+            // Restart current song
+            audioRef.current.currentTime = 0
+            return
+        }
+
+        if (history.length > 0) {
+            const prev = history[history.length - 1]
+            setHistory(h => h.slice(0, -1)) // Pop
+            playTrack(prev)
+            return
+        }
+
+        // If no history, just go previous in list or restart
+        if (!currentTrack || playlist.length === 0) return
+
+        const idx = playlist.findIndex(t => t.path === currentTrack.path)
+        const prevIdx = (idx - 1 + playlist.length) % playlist.length
+        playTrack(playlist[prevIdx])
+
+    }, [currentTrack, playlist, history])
+
+
+    const togglePlay = () => isPlaying ? audioRef.current.pause() : audioRef.current.play()
+    const seek = (time: number) => { audioRef.current.currentTime = time; setCurrentTime(time) }
 
     return {
         isPlaying,
@@ -119,10 +176,17 @@ export function useAudioPlayer() {
         duration,
         volume,
         is8D,
+        isShuffle,
+        repeatMode,
+        playlist,
         playTrack,
         togglePlay,
         setVolume,
         setIs8D,
-        seek
+        toggleShuffle: () => setIsShuffle(!isShuffle),
+        toggleRepeat: () => setRepeatMode(m => m === 'none' ? 'all' : m === 'all' ? 'one' : 'none'),
+        seek,
+        handleNext: () => handleNext(false),
+        handlePrev: () => handlePrev()
     }
 }

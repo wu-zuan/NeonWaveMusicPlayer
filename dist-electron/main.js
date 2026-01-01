@@ -8699,7 +8699,7 @@ Dt.whenReady().then(() => {
   }), kt.handle("update:check", () => {
     Ye.autoUpdater.checkForUpdatesAndNotify();
   }), kt.handle("update:install", () => {
-    Ye.autoUpdater.quitAndInstall();
+    Ye.autoUpdater.quitAndInstall(!0, !0);
   }), kt.handle("app:version", () => Dt.getVersion());
 });
 export {

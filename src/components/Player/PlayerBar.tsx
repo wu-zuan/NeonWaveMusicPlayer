@@ -1,5 +1,5 @@
 import React from 'react'
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1 } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 
@@ -10,17 +10,23 @@ interface PlayerBarProps {
     duration: number
     volume: number
     is8D: boolean
+    isShuffle: boolean
+    repeatMode: 'none' | 'all' | 'one'
     onTogglePlay: () => void
     onSeek: (time: number) => void
     onVolumeChange: (vol: number) => void
     onToggle8D: () => void
+    onToggleShuffle: () => void
+    onToggleRepeat: () => void
     onNext?: () => void
     onPrev?: () => void
 }
 
 export const PlayerBar: React.FC<PlayerBarProps> = ({
     isPlaying, currentTrack, currentTime, duration, volume, is8D,
-    onTogglePlay, onSeek, onVolumeChange, onToggle8D, onNext, onPrev
+    isShuffle, repeatMode,
+    onTogglePlay, onSeek, onVolumeChange, onToggle8D,
+    onToggleShuffle, onToggleRepeat, onNext, onPrev
 }) => {
 
     const formatTime = (t: number) => {
@@ -58,7 +64,11 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             {/* Main Controls */}
             <div className={styles.controls}>
                 <div className={styles.buttons}>
-                    <button className={styles.actionBtn}>
+                    <button
+                        className={`${styles.actionBtn} ${isShuffle ? styles.activeControl : ''}`}
+                        onClick={onToggleShuffle}
+                        title="隨機播放"
+                    >
                         <Shuffle size={18} />
                     </button>
 
@@ -74,8 +84,12 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                         <SkipForward size={22} />
                     </button>
 
-                    <button className={styles.actionBtn}>
-                        <Repeat size={18} />
+                    <button
+                        className={`${styles.actionBtn} ${repeatMode !== 'none' ? styles.activeControl : ''}`}
+                        onClick={onToggleRepeat}
+                        title={repeatMode === 'one' ? '單曲循環' : repeatMode === 'all' ? '列表循環' : '不循環'}
+                    >
+                        {repeatMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
                     </button>
                 </div>
 
@@ -99,7 +113,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 <button
                     className={`${styles.toggle8D} ${is8D ? styles.active8D : ''}`}
                     onClick={onToggle8D}
-                    title="Toggle 8D Surround"
+                    title="8D 環繞音效"
                 >
                     8D
                 </button>

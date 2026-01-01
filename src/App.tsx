@@ -9,28 +9,15 @@ import { useLibrary } from './hooks/useLibrary'
 import './index.css'
 
 function App() {
-  const {
-    isPlaying, currentTrack, currentTime, duration, volume, is8D,
-    playTrack, togglePlay, setVolume, setIs8D, seek
-  } = useAudioPlayer()
-
   const { tracks, openLibrary } = useLibrary()
   const [view, setView] = useState('library')
 
-  // Simple next/prev logic
-  const handleNext = () => {
-    if (!currentTrack || tracks.length === 0) return
-    const idx = tracks.findIndex(t => t.path === currentTrack.path)
-    const nextIdx = (idx + 1) % tracks.length
-    playTrack(tracks[nextIdx])
-  }
-
-  const handlePrev = () => {
-    if (!currentTrack || tracks.length === 0) return
-    const idx = tracks.findIndex(t => t.path === currentTrack.path)
-    const prevIdx = (idx - 1 + tracks.length) % tracks.length
-    playTrack(tracks[prevIdx])
-  }
+  const {
+    isPlaying, currentTrack, currentTime, duration, volume, is8D,
+    isShuffle, repeatMode,
+    playTrack, togglePlay, setVolume, setIs8D, seek,
+    toggleShuffle, toggleRepeat, handleNext, handlePrev
+  } = useAudioPlayer()
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -52,7 +39,7 @@ function App() {
             <TrackList
               tracks={tracks}
               currentTrack={currentTrack}
-              onPlay={playTrack}
+              onPlay={(track) => playTrack(track, tracks)}
             />
           )}
 
@@ -77,10 +64,14 @@ function App() {
           duration={duration}
           volume={volume}
           is8D={is8D}
+          isShuffle={isShuffle}
+          repeatMode={repeatMode}
           onTogglePlay={togglePlay}
           onSeek={seek}
           onVolumeChange={setVolume}
           onToggle8D={() => setIs8D(!is8D)}
+          onToggleShuffle={toggleShuffle}
+          onToggleRepeat={toggleRepeat}
           onNext={handleNext}
           onPrev={handlePrev}
         />
