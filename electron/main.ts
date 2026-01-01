@@ -1,7 +1,15 @@
+
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import { autoUpdater } from 'electron-updater'
+
+// Prevent multiple instances
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -74,10 +82,31 @@ app.on('activate', () => {
   }
 })
 
+// Auto Updater Listeners
+autoUpdater.on('checking-for-update', () => {
+  win?.webContents.send('update-status', { status: 'checking' })
+})
+autoUpdater.on('update-available', (info) => {
+  win?.webContents.send('update-status', { status: 'available', info })
+})
+autoUpdater.on('update-not-available', (info) => {
+  win?.webContents.send('update-status', { status: 'not-available', info })
+})
+autoUpdater.on('error', (err) => {
+  win?.webContents.send('update-status', { status: 'error', error: err.message })
+})
+autoUpdater.on('download-progress', (progressObj) => {
+  win?.webContents.send('update-status', { status: 'downloading', progress: progressObj })
+})
+autoUpdater.on('update-downloaded', (info) => {
+  win?.webContents.send('update-status', { status: 'downloaded', info })
+})
+
 app.whenReady().then(() => {
   // Register 'media' protocol to bypass some security if needed, or rely on webSecurity: false for now
   createWindow()
 
+  // IPC Handlers
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
       properties: ['openDirectory']
@@ -112,5 +141,17 @@ app.whenReady().then(() => {
       return null
     }
   })
-})
 
+  // Update IPC
+  ipcMain.handle('update:check', () => {
+    autoUpdater.checkForUpdatesAndNotify()
+  })
+
+  ipcMain.handle('update:install', () => {
+    autoUpdater.quitAndInstall()
+  })
+
+  ipcMain.handle('app:version', () => {
+    return app.getVersion()
+  })
+})

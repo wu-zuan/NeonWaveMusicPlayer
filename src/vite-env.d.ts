@@ -6,6 +6,12 @@ interface Window {
         openDirectory(): Promise<string | null>
         listMusicFiles(path: string): Promise<string[]>
         readFileBuffer(path: string): Promise<Uint8Array | null>
+
+        checkUpdate(): Promise<void>
+        installUpdate(): Promise<void>
+        getAppVersion(): Promise<string>
+        onUpdateStatus(callback: (status: any) => void): () => void
+
         on(channel: string, listener: (...args: any[]) => void): void
         off(channel: string, listener: (...args: any[]) => void): void
         send(channel: string, ...args: any[]): void

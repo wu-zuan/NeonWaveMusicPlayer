@@ -1,7 +1,9 @@
+
 import { useState } from 'react'
 import { Sidebar } from './components/Layout/Sidebar'
 import { TrackList } from './components/Playlist/TrackList'
 import { PlayerBar } from './components/Player/PlayerBar'
+import { SettingsView } from './components/Layout/SettingsView'
 import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { useLibrary } from './hooks/useLibrary'
 import './index.css'
@@ -64,13 +66,7 @@ function App() {
           )}
 
           {view === 'settings' && (
-            <div style={{ padding: '40px' }}>
-              <h2 style={{ fontSize: '24px', marginBottom: '20px' }}>Settings</h2>
-              <div className="glass" style={{ padding: '24px', borderRadius: '16px' }}>
-                <p>Audio Engine: Web Audio API (Spatial)</p>
-                <p>Version: 1.0.0 Alpha</p>
-              </div>
-            </div>
+            <SettingsView />
           )}
         </div>
 

@@ -23,4 +23,13 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   listMusicFiles: (path: string) => ipcRenderer.invoke('files:listMusic', path),
   readFileBuffer: (path: string) => ipcRenderer.invoke('files:readBuffer', path),
+
+  // Update
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  getAppVersion: () => ipcRenderer.invoke('app:version'),
+  onUpdateStatus: (callback: (status: any) => void) => {
+    ipcRenderer.on('update-status', (_, data) => callback(data))
+    return () => ipcRenderer.removeAllListeners('update-status')
+  }
 })
