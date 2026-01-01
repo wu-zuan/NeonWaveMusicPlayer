@@ -87,17 +87,36 @@ export class AudioEngine {
         this.generateImpulse(2, 3)
     }
 
-    private generateImpulse(duration: number, decay: number) {
+    private generateImpulse(duration: number, decay: number, preDelaySeconds: number = 0, lowPass: boolean = false) {
         const rate = this.context.sampleRate
         const length = rate * duration
-        const impulse = this.context.createBuffer(2, length, rate)
+        const preDelaySamples = Math.floor(rate * preDelaySeconds)
+        const totalLength = length + preDelaySamples
+
+        const impulse = this.context.createBuffer(2, totalLength, rate)
         const left = impulse.getChannelData(0)
         const right = impulse.getChannelData(1)
 
-        for (let i = 0; i < length; i++) {
-            const val = Math.pow(1 - i / length, decay)
-            left[i] = (Math.random() * 2 - 1) * val
-            right[i] = (Math.random() * 2 - 1) * val
+        for (let i = 0; i < totalLength; i++) {
+            if (i < preDelaySamples) {
+                left[i] = 0; right[i] = 0;
+                continue;
+            }
+            const realIndex = i - preDelaySamples
+            // Exponential decay usually sounds better than linear power for reverb
+            const val = Math.pow(1 - realIndex / length, decay)
+
+            let L = (Math.random() * 2 - 1) * val
+            let R = (Math.random() * 2 - 1) * val
+
+            // Simple LowPass (Warmth)
+            if (lowPass && i > 0) {
+                L = (L + left[i - 1]) * 0.5
+                R = (R + right[i - 1]) * 0.5
+            }
+
+            left[i] = L
+            right[i] = R
         }
         this.convolver.buffer = impulse
     }
@@ -166,26 +185,39 @@ export class AudioEngine {
         let wetAmount = 0
         let duration = 0.1
         let decay = 1
+        let preDelay = 0
+        let lowPass = false
+
+        let targetDry = 1
+        let targetCutoff = 20000
 
         switch (type) {
             case 'concert': // Stadium / Live
-                wetAmount = 0.55 // High reflection
-                duration = 3.5   // Long tail (3.5s)
-                decay = 2.0      // Slow decay
+                wetAmount = 0.8  // Overwhelming ambience
+                duration = 4.5   // Huge tail
+                decay = 2.5      // Rich decay
+                preDelay = 0.05  // 50ms slapback
+                lowPass = true   // Warm air absorption
+                targetDry = 0.6  // Less direct sound
+                targetCutoff = 8000 // Darker tone
                 break;
             case 'hall':
                 wetAmount = 0.4
                 duration = 2.0
                 decay = 3.0
+                preDelay = 0.02
+                lowPass = true
+                targetCutoff = 16000
                 break;
             case 'room':
                 wetAmount = 0.2
                 duration = 0.8
                 decay = 5.0
+                targetCutoff = 18000
                 break;
             case 'driver':
                 wetAmount = 0.1
-                duration = 0.1 // Short slapback
+                duration = 0.1
                 decay = 10.0
                 break;
             case 'none':
@@ -196,13 +228,21 @@ export class AudioEngine {
 
         // Regenerate IR if not none
         if (type !== 'none') {
-            this.generateImpulse(duration, decay)
+            this.generateImpulse(duration, decay, preDelay, lowPass)
         }
 
         this.reverbGain.gain.setTargetAtTime(wetAmount, t, 0.5)
 
-        // Enhance stereo width for Concert?
-        // Basic stereo width is handled by Panner HRTF, but Reverb adds omni feel.
+        // Adjust Dry & Cutoff for immersion
+        this.dryGain.gain.setTargetAtTime(targetDry, t, 0.5)
+        // Only adjust cutoff if we are tweaking for mode, otherwise let distance slider handle it
+        // Ideally we blend them, but setting it here provides the "preset" base
+        if (type !== 'none') {
+            this.distanceFilter.frequency.setTargetAtTime(targetCutoff, t, 0.5)
+        } else {
+            // Reset to full if none (assuming distance slider is 0, logic drift risk but acceptable)
+            this.distanceFilter.frequency.setTargetAtTime(20000, t, 0.5)
+        }
     }
 
     setNormalization(enable: boolean) {
