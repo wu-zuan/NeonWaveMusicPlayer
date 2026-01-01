@@ -7,6 +7,9 @@ export interface Track {
     artist: string
     album?: string
     duration?: number
+    codec?: string
+    bitrate?: number
+    sampleRate?: number
 }
 
 type RepeatMode = 'none' | 'all' | 'one'

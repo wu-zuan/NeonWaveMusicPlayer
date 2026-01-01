@@ -5,6 +5,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
 import { exec } from 'node:child_process'
+import { parseFile } from 'music-metadata'
 
 function runPowerShell(scriptPath: string): Promise<string> {
   return new Promise((resolve) => {
@@ -156,6 +157,24 @@ app.whenReady().then(() => {
       return buffer
     } catch (error) {
       console.error('Error reading file:', error)
+      return null
+    }
+  })
+
+  ipcMain.handle('files:getMetadata', async (_, filePath) => {
+    try {
+      const metadata = await parseFile(filePath)
+      return {
+        title: metadata.common.title,
+        artist: metadata.common.artist,
+        album: metadata.common.album,
+        duration: metadata.format.duration,
+        codec: metadata.format.codec,
+        bitrate: metadata.format.bitrate,
+        sampleRate: metadata.format.sampleRate
+      }
+    } catch (e) {
+      // console.warn('Failed to parse metadata:', filePath, e)
       return null
     }
   })

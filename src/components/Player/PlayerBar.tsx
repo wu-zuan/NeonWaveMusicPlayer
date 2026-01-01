@@ -184,6 +184,30 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 <div className={styles.trackInfo}>
                     <div className={styles.trackTitle}>{currentTrack?.title || 'NeonWave'}</div>
                     <div className={styles.trackArtist}>{currentTrack?.artist || 'Ready to Play'}</div>
+
+                    {/* Audio Format Badges */}
+                    {currentTrack && (
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                            {currentTrack.codec && (
+                                <span style={{
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    padding: '0 4px',
+                                    borderRadius: '3px',
+                                    textTransform: 'uppercase',
+                                    color: (currentTrack.codec.toUpperCase().includes('FLAC') || currentTrack.codec.toUpperCase().includes('WAV')) ? 'var(--accent-primary)' : 'inherit',
+                                    borderColor: (currentTrack.codec.toUpperCase().includes('FLAC') || currentTrack.codec.toUpperCase().includes('WAV')) ? 'var(--accent-primary)' : 'rgba(255,255,255,0.2)'
+                                }}>
+                                    {currentTrack.codec.replace('MPEG 1 Layer 3', 'MP3')}
+                                </span>
+                            )}
+                            {currentTrack.bitrate && (
+                                <span>{Math.round(currentTrack.bitrate / 1000)}kbps</span>
+                            )}
+                            {currentTrack.sampleRate && (
+                                <span>{(currentTrack.sampleRate / 1000).toFixed(1)}kHz</span>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

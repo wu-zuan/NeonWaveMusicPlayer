@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   // You can expose other APTs you need here.
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   listMusicFiles: (path: string) => ipcRenderer.invoke('files:listMusic', path),
+  getAudioMetadata: (path: string) => ipcRenderer.invoke('files:getMetadata', path),
   readFileBuffer: (path: string) => ipcRenderer.invoke('files:readBuffer', path),
 
   // Update

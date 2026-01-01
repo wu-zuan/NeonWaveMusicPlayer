@@ -8625,13 +8625,13 @@ kr.NsisUpdater = Qw;
   });
 })(ze);
 function Zw(e) {
-  return new Promise((t, r) => {
-    Nf(`powershell -ExecutionPolicy Bypass -File "${e}"`, (n, i, o) => {
-      if (n) {
+  return new Promise((t) => {
+    Nf(`powershell -ExecutionPolicy Bypass -File "${e}"`, (r, n) => {
+      if (r) {
         t("unknown");
         return;
       }
-      t(i.trim());
+      t(n.trim());
     });
   });
 }

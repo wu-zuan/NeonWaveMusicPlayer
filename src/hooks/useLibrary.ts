@@ -80,16 +80,34 @@ export function useLibrary() {
     const scanFolder = async (folderPath: string): Promise<Track[]> => {
         try {
             const files = await window.ipcRenderer.listMusicFiles(folderPath)
-            return files.map((filePath) => {
+
+            // Parallel fetch metadata
+            const tracks = await Promise.all(files.map(async (filePath) => {
                 const filename = filePath.replace(/^.*[\\/]/, '')
-                return {
-                    path: filePath,
-                    title: filename,
-                    artist: '未知演出者',
-                    album: '未知專輯',
-                    duration: 0
+                try {
+                    const meta = await window.ipcRenderer.getAudioMetadata(filePath)
+                    return {
+                        path: filePath,
+                        title: meta?.title || filename,
+                        artist: meta?.artist || '未知演出者',
+                        album: meta?.album || '未知專輯',
+                        duration: meta?.duration || 0,
+                        codec: meta?.codec,
+                        bitrate: meta?.bitrate,
+                        sampleRate: meta?.sampleRate
+                    }
+                } catch {
+                    return {
+                        path: filePath,
+                        title: filename,
+                        artist: '未知演出者',
+                        album: '未知專輯',
+                        duration: 0
+                    }
                 }
-            })
+            }))
+
+            return tracks
         } catch (e) {
             console.error("Failed to scan folder", folderPath, e)
             return []

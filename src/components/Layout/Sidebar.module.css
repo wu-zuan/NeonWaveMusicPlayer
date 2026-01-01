@@ -5,8 +5,9 @@
     flex-direction: column;
     padding: 24px;
     box-sizing: border-box;
-    background: var(--glass-bg);
+    background: rgba(10, 10, 15, 0.4);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--glass-border);
 }
 
@@ -23,7 +24,7 @@
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
-    box-shadow: 0 0 15px var(--accent-glow);
+    box-shadow: 0 0 15px var(--accent-primary);
 }
 
 .title {
@@ -43,7 +44,6 @@
     flex: 1;
     overflow-y: auto;
     padding-right: 8px;
-    /* For scrollbar */
 }
 
 /* Scrollbar styling */
@@ -71,7 +71,6 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    /* For delete btn */
     padding: 12px 16px;
     border-radius: 12px;
     background: transparent;
@@ -81,6 +80,28 @@
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
+}
+
+.navItem:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    transform: translateX(4px);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+}
+
+.navItem.active {
+    background: rgba(0, 255, 242, 0.1);
+    color: var(--accent-primary);
+    border-color: rgba(0, 243, 255, 0.2);
+    box-shadow: 0 0 20px rgba(0, 255, 242, 0.2);
+}
+
+.navItemContent {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    overflow: hidden;
 }
 
 .actions {
@@ -113,50 +134,6 @@
     color: var(--text-main);
 }
 
-/* Deprecated deleteBtn if used elsewhere, keep it mapped or just remove */
-.deleteBtn {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    opacity: 0;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.navItemContent {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-    overflow: hidden;
-}
-
-.truncate {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.navItem:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-main);
-    transform: translateX(4px);
-}
-
-.navItem.active {
-    background: var(--glass-highlight);
-    color: var(--accent-primary);
-    border-color: rgba(0, 243, 255, 0.1);
-    box-shadow: 0 4px 20px -5px var(--accent-glow);
-}
-
-.openButton {
-    display: none;
-    /* Deprecated */
-}
-
 .miniAddBtn {
     background: rgba(255, 255, 255, 0.1);
     border: none;
@@ -174,26 +151,13 @@
 .miniAddBtn:hover {
     background: var(--accent-primary);
     color: #000;
+    box-shadow: 0 0 10px var(--accent-primary);
 }
 
-.deleteBtn {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    opacity: 0;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.navItem:hover .deleteBtn {
-    opacity: 1;
-}
-
-.deleteBtn:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .scrollableNav {
