@@ -147,6 +147,7 @@
     margin-bottom: 24px;
     background: linear-gradient(to right, #fff, var(--accent-primary));
     -webkit-background-clip: text;
+    background-clip: text;
     color: transparent;
     padding-left: 4px;
 }

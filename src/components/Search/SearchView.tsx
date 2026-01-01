@@ -11,13 +11,7 @@ interface SearchResult {
     url: string
 }
 
-const ARTIST_NAMES = [
-    '周杰倫', '林俊傑', '鄧紫棋', '陳奕迅', '五月天', '蔡依林', '周興哲', '張惠妹', '薛之謙', '李榮浩',
-    '王力宏', '孫燕姿', '張學友', '劉德華', '莫文蔚', '田馥甄', '梁靜茹', '蔡健雅', '蕭敬騰', '林宥嘉',
-    '楊丞琳', '羅志祥', '潘瑋柏', 'A-Lin', '王心凌', '伍佰', '徐佳瑩', '吳青峰', '蘇打綠', '告五人',
-    '八三夭', '茄子蛋', '謝和弦', '盧廣仲', '韋禮安', '張韶涵', '動力火車', 'F.I.R.', 'Tank', '郭靜',
-    '丁噹', '郁可唯', '華晨宇', '毛不易', '汪蘇瀧', '許嵩', '胡夏', '高爾宣', '瘦子E.SO', '玖壹壹'
-]
+import { ARTIST_NAMES } from '../../data/artists'
 
 const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) => {
     const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v2_${name}`))
