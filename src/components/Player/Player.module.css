@@ -4,7 +4,7 @@
     left: 0;
     right: 0;
     height: 96px;
-    background: rgba(19, 19, 31, 0.6);
+    background: rgba(10, 15, 30, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--glass-border);
@@ -13,7 +13,7 @@
     justify-content: space-between;
     padding: 0 32px;
     z-index: 100;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
 }
 
 .nowPlaying {
@@ -38,18 +38,27 @@
 .trackInfo {
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
 }
 
 .trackTitle {
     color: var(--text-main);
-    font-weight: 500;
-    font-size: 14px;
-    margin-bottom: 2px;
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
 }
 
 .trackArtist {
     color: var(--text-muted);
     font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .controls {
@@ -100,10 +109,12 @@
 .playBtn:hover {
     transform: scale(1.05);
     box-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+    background: var(--accent-primary);
 }
 
 .activeControl {
     color: var(--accent-primary);
+    text-shadow: 0 0 10px var(--accent-primary);
 }
 
 .progressContainer {
@@ -113,32 +124,38 @@
     width: 100%;
     max-width: 600px;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 11px;
+    font-family: monospace;
 }
 
 .timeSlider {
     flex: 1;
     -webkit-appearance: none;
+    appearance: none;
     height: 4px;
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.1);
     outline: none;
     cursor: pointer;
+    overflow: hidden;
 }
 
 .timeSlider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 12px;
-    height: 12px;
+    appearance: none;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: #fff;
     cursor: pointer;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    box-shadow: -1005px 0 0 1000px var(--accent-primary), 0 0 10px rgba(255, 255, 255, 0.5);
     transition: transform 0.1s;
+    border: 0;
 }
 
 .timeSlider::-webkit-slider-thumb:hover {
     transform: scale(1.2);
+    background: var(--accent-primary);
 }
 
 .extra {

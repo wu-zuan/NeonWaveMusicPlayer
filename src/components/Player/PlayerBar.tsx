@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Activity } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 import { AudioRadar } from './AudioRadar'
@@ -191,7 +191,8 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                 <div>
                                     <div style={{ color: 'var(--text-main)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        🧠 專注模式
+                                        <Brain size={14} color="var(--accent-primary)" />
+                                        專注模式
                                     </div>
                                     <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>消除殘響，增強人聲清晰度</div>
                                 </div>
@@ -215,7 +216,8 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                 <div>
                                     <div style={{ color: 'var(--text-main)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        ⚖️ 音量平衡
+                                        <Activity size={14} color="var(--accent-primary)" />
+                                        音量平衡
                                     </div>
                                     <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>動態壓縮，防止爆音</div>
                                 </div>
@@ -242,7 +244,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                     {isFocus && <span style={{ fontSize: '10px', color: 'var(--accent-secondary)' }}>專注模式下不可用</span>}
                                 </div>
                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                    {['none', 'room', 'hall', 'concert', 'driver'].map(mode => (
+                                    {['none', 'room', 'hall', 'concert'].map(mode => (
                                         <button
                                             key={mode}
                                             onClick={() => handleSpace(mode)}
@@ -256,7 +258,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                                 whiteSpace: 'nowrap'
                                             }}
                                         >
-                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '空間' : mode === 'concert' ? '演唱會' : '車內'}
+                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '空間' : '演唱會'}
                                         </button>
                                     ))}
                                 </div>

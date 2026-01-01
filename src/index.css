@@ -4,9 +4,8 @@
   font-weight: 400;
 
   color-scheme: dark;
-  color: rgba(255, 255, 255, 0.87);
+  color: #f8fafc;
   background-color: transparent;
-  /* Changed from #242424 to allow layers */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -15,27 +14,24 @@
 
   /* Neon Theme Colors */
   --accent-primary: #00fff2;
-  /* Cyan Neon */
   --accent-secondary: #ff00ff;
-  /* Magenta Neon */
-  --bg-dark: #0a0a0f;
-  --glass-bg: rgba(20, 20, 30, 0.6);
+  --bg-dark: #020617;
+  --glass-bg: rgba(15, 23, 42, 0.7);
   --glass-border: rgba(255, 255, 255, 0.08);
   --text-main: #ffffff;
-  --text-muted: #8888aa;
+  --text-muted: #94a3b8;
 }
 
 body {
   margin: 0;
   padding: 0;
-  /* Deep Aurora Background */
-  background: linear-gradient(-45deg, #050510, #1a1a2e, #16213e, #0f3460);
+  /* Premium Deep Aurora */
+  background: linear-gradient(-45deg, #020617, #0f172a, #172554, #1e1b4b);
   background-size: 300% 300%;
   animation: aurora 20s ease infinite;
 
   color: var(--text-main);
   font-family: var(--font-family);
-  /* Or hardcoded 'Inter' since var might be missing */
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
