@@ -204,13 +204,14 @@ export class AudioEngine {
                 targetDry = 1.0   // Full Dry Signal (Fixes "weird" vocals)
                 targetCutoff = 16000 // High Fidelity
                 break;
-            case 'hall':
-                wetAmount = 0.4
-                duration = 2.0
-                decay = 3.0
-                preDelay = 0.02
+            case 'hall': // Hotel Lobby (Marble/Glass)
+                wetAmount = 0.45  // Airy ambience
+                duration = 2.5    // Spacious
+                decay = 3.0       // Hard surface decay
+                preDelay = 0.03   // Large open space
                 lowPass = true
-                targetCutoff = 16000
+                targetDry = 1.0
+                targetCutoff = 17000 // Bright, reflective
                 break;
             case 'room': // Real Bedroom (Tight & Damp)
                 wetAmount = 0.45

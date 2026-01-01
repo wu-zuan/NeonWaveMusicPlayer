@@ -68,8 +68,8 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             newDist = 7.5
             newPos = { x: 0, z: 0 } // Immerse inside center
         } else if (val === 'hall') {
-            newDist = 4.0
-            newPos = { x: 0, z: -4 } // Stage front
+            newDist = 5.0
+            newPos = { x: 0, z: -3.5 } // Wide open lobby
         } else if (val === 'room') {
             newDist = 2.5
             newPos = { x: 0, z: -2 } // Desk speakers relative to head
