@@ -9332,8 +9332,9 @@ function ef() {
     },
     webPreferences: {
       preload: wt.join(Qc, "preload.mjs"),
-      webSecurity: !1
+      webSecurity: !1,
       // simplified for local file access in dev
+      backgroundThrottling: !1
     }
   }), de.webContents.on("did-finish-load", () => {
     de == null || de.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());

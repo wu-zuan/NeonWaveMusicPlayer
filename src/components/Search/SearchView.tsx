@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Search, Download, Play, Loader2 } from 'lucide-react'
+import { Search, Download, Loader2 } from 'lucide-react'
 import styles from './Search.module.css'
 
 interface SearchResult {
