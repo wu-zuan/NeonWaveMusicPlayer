@@ -7,6 +7,7 @@ export class AudioEngine {
     private distanceFilter: BiquadFilterNode
     private focusEQ: BiquadFilterNode
     private masterGain: GainNode
+    private compressor: DynamicsCompressorNode // Volume Normalization
 
     // Reverb (Spatial)
     private convolver: ConvolverNode
@@ -53,11 +54,19 @@ export class AudioEngine {
         // 4. Master
         this.masterGain = this.context.createGain()
 
+        // 5. Normalizer (Compressor)
+        this.compressor = this.context.createDynamicsCompressor()
+        // Default DISABLED settings
+        this.compressor.threshold.value = 0
+        this.compressor.knee.value = 40
+        this.compressor.ratio.value = 1
+        this.compressor.attack.value = 0
+        this.compressor.release.value = 0.25
+
         // Graph Construction
         // Path A (Dry/Direct): Source -> Panner -> FocusEQ -> DistanceFilter -> DryGain -> Master
-        // Path B (Wet/Reflect): Source -> Convolver -> ReverbGain -> Master
-
-        // Note: We connect source in .connect()
+        // Path B (Wet/Reflect): Source -> Panner -> Convolver -> ReverbGain -> Master
+        // Output: Master -> Compressor -> Destination
 
         // Connect Dry Path
         this.panner.connect(this.focusEQ)
@@ -66,12 +75,13 @@ export class AudioEngine {
         this.dryGain.connect(this.masterGain)
 
         // Connect Wet Path (Now fed by Panner for Spatial Reverb)
-        this.panner.connect(this.convolver) // <--- NEW connection
+        this.panner.connect(this.convolver)
         this.convolver.connect(this.reverbGain)
         this.reverbGain.connect(this.masterGain)
 
-        // Master -> Out
-        this.masterGain.connect(this.context.destination)
+        // Master -> Compressor -> Out
+        this.masterGain.connect(this.compressor)
+        this.compressor.connect(this.context.destination)
 
         // Generate a basic impulse response for testing space
         this.generateSimpleImpulse()
@@ -165,6 +175,22 @@ export class AudioEngine {
         this.reverbGain.gain.setTargetAtTime(wetAmount, this.context.currentTime, 0.5)
 
         // In real impl, we would swap Convolver buffer here for different impulse responses.
+    }
+
+    setNormalization(enable: boolean) {
+        const t = this.context.currentTime
+        if (enable) {
+            // "Mastering" Style Compression
+            this.compressor.threshold.setTargetAtTime(-24, t, 0.1)
+            this.compressor.knee.setTargetAtTime(30, t, 0.1)
+            this.compressor.ratio.setTargetAtTime(12, t, 0.1)
+            this.compressor.attack.setTargetAtTime(0.003, t, 0.1)
+            this.compressor.release.setTargetAtTime(0.25, t, 0.1)
+        } else {
+            // Disable (Pass-through)
+            this.compressor.threshold.setTargetAtTime(0, t, 0.1)
+            this.compressor.ratio.setTargetAtTime(1, t, 0.1)
+        }
     }
 
     setFocusMode(enable: boolean) {

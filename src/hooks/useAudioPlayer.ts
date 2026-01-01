@@ -204,6 +204,7 @@ export function useAudioPlayer() {
             setIs8D(false)
             engineRef.current?.setPosition(x, y, z)
         },
-        setFocusMode: (enable: boolean) => engineRef.current?.setFocusMode(enable)
+        setFocusMode: (enable: boolean) => engineRef.current?.setFocusMode(enable),
+        setNormalization: (enable: boolean) => engineRef.current?.setNormalization(enable)
     }
 }

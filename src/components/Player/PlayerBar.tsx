@@ -26,6 +26,7 @@ interface PlayerBarProps {
     onSetSpace?: (s: string) => void
     onSetPosition?: (x: number, y: number, z: number) => void
     onSetFocusMode?: (enable: boolean) => void
+    onSetNormalization?: (enable: boolean) => void
 }
 
 export const PlayerBar: React.FC<PlayerBarProps> = ({
@@ -33,12 +34,13 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     isShuffle, repeatMode,
     onTogglePlay, onSeek, onVolumeChange, onToggle8D,
     onToggleShuffle, onToggleRepeat, onNext, onPrev,
-    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode
+    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode, onSetNormalization
 }) => {
     const [showSpatial, setShowSpatial] = useState(false)
     const [distVal, setDistVal] = useState(0)
     const [spaceMode, setSpaceMode] = useState('none')
     const [isFocus, setIsFocus] = useState(false)
+    const [isNorm, setIsNorm] = useState(false)
     const [radarPos, setRadarPos] = useState({ x: 0, z: 0 })
 
     const handleDistance = (val: number) => {
@@ -60,6 +62,12 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             setSpaceMode('none')
             setRadarPos({ x: 0, z: 0 })
         }
+    }
+
+    const handleNorm = () => {
+        const newVal = !isNorm
+        setIsNorm(newVal)
+        onSetNormalization?.(newVal)
     }
 
     const formatTime = (t: number) => {
@@ -118,6 +126,24 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                             }}
                         >
                             {isFocus ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
+
+                    {/* Normalization Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <label style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            ⚖️ 音量平衡
+                        </label>
+                        <button
+                            onClick={handleNorm}
+                            style={{
+                                background: isNorm ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
+                                color: isNorm ? '#000' : '#fff',
+                                border: 'none', borderRadius: '12px', padding: '4px 12px', fontSize: '11px', cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {isNorm ? 'ON' : 'OFF'}
                         </button>
                     </div>
 
