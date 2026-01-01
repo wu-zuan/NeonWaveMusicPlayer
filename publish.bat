@@ -16,31 +16,42 @@ if %errorlevel% neq 0 (
 )
 
 REM --- AUTO-DETECT GITHUB TOKEN ---
-REM 1. Check if GH_TOKEN or GITHUB_TOKEN is already set in system
+REM 1. Check current session
 if not "%GH_TOKEN%"=="" goto TokenFound
-if not "%GITHUB_TOKEN%"=="" (
-    set GH_TOKEN=%GITHUB_TOKEN%
-    goto TokenFound
-)
+REM 2. Check system environment (in case it was set but not loaded in this session yet)
+for /f "tokens=3*" %%a in ('reg query HKCU\Environment /v GH_TOKEN 2^>nul') do set GH_TOKEN=%%a
+if not "%GH_TOKEN%"=="" goto TokenFound
 
-REM 2. Try to get token from GitHub CLI (gh) if installed
+
+REM 3. Try GitHub CLI
 where gh >nul 2>nul
 if %errorlevel% equ 0 (
     echo [Info] GitHub CLI detected. Attempting to fetch auth token...
     for /f %%t in ('gh auth token') do set GH_TOKEN=%%t
 )
+if not "%GH_TOKEN%"=="" goto TokenFound
 
-if not "%GH_TOKEN%"=="" (
-    echo [Success] GitHub Token retrieved from gh cli.
-    goto TokenFound
+REM 4. IF STILL MISSING: ONE-TIME PROMPT
+echo.
+echo [!] Electron-Builder needs a specific API Token to upload files.
+echo     (This is different from your Git login)
+echo.
+echo     We need this ONLY ONCE. I will save it to your system for you.
+echo.
+set /p "GH_TOKEN=Please paste your GitHub Token (ghp_...): "
+
+if "%GH_TOKEN%"=="" (
+    echo.
+    echo [Error] No token provided. I cannot upload the release files.
+    echo         The build will finish, but you will have to upload manually.
+    pause
+    exit /b
+) else (
+    echo.
+    echo [Setup] Saving token to system environment variables...
+    setx GH_TOKEN "%GH_TOKEN%"
+    echo [Setup] Token saved! You won't need to do this again.
 )
-
-REM 3. If no token found, warn user but proceed (Upload might fail)
-echo.
-echo [Warning] No GitHub Token detected (GH_TOKEN system var or GitHub CLI).
-echo           Git operations will work if you are logged in, 
-echo           BUT the automatic release upload via electron-builder WILL FAIL.
-echo.
 
 :TokenFound
 REM Export to environment for electron-builder
@@ -75,7 +86,8 @@ if %errorlevel% equ 0 (
     echo    - Created tag v!VERSION!
     call git push origin v!VERSION!
 ) else (
-    echo    - Tag v!VERSION! already exists or failed. (Assuming verify run)
+    echo    - Tag v!VERSION! already exists or failed. (Checking if remote needs update)
+    call git push origin v!VERSION! >nul 2>&1
 )
 
 
@@ -95,8 +107,10 @@ call npx electron-builder --win --publish always
 if %errorlevel% neq 0 (
     echo.
     echo [X] Error occurred.
-    echo     If the error is "HttpError: 401 Unauthorized", it means electron-builder needs a token.
-    echo     Log in with GitHub CLI 'gh auth login' or set GH_TOKEN environment variable.
+    echo     Possible reasons:
+    echo     1. Token is invalid or expired.
+    echo     2. Network issue.
+    echo     3. Tag already exists as a draft release.
     pause
     exit /b
 )
