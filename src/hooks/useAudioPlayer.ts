@@ -33,36 +33,6 @@ export function useAudioPlayer() {
     // Helper to get random index
     const getRandomIndex = (max: number) => Math.floor(Math.random() * max)
 
-    useEffect(() => {
-        engineRef.current = new AudioEngine()
-        const audio = audioRef.current
-        audio.crossOrigin = "anonymous"
-
-        try { engineRef.current.connect(audio) } catch (e) {
-            console.warn("Connection error", e)
-        }
-
-        const onTimeUpdate = () => setCurrentTime(audio.currentTime)
-        const onDurationChange = () => setDuration(audio.duration)
-        const onEnded = () => handleNext(true) // Auto next
-        const onPlay = () => setIsPlaying(true)
-        const onPause = () => setIsPlaying(false)
-
-        audio.addEventListener('timeupdate', onTimeUpdate)
-        audio.addEventListener('durationchange', onDurationChange)
-        audio.addEventListener('ended', onEnded)
-        audio.addEventListener('play', onPlay)
-        audio.addEventListener('pause', onPause)
-
-        return () => {
-            audio.removeEventListener('timeupdate', onTimeUpdate)
-            audio.removeEventListener('durationchange', onDurationChange)
-            audio.removeEventListener('ended', onEnded)
-            audio.removeEventListener('play', onPlay)
-            audio.removeEventListener('pause', onPause)
-            audio.pause()
-        }
-    }, [])
 
     // Effects for Audio Engine
     useEffect(() => { engineRef.current?.toggle8D(is8D) }, [is8D])
@@ -163,7 +133,43 @@ export function useAudioPlayer() {
         const prevIdx = (idx - 1 + playlist.length) % playlist.length
         playTrack(playlist[prevIdx])
 
+
     }, [currentTrack, playlist, history])
+
+    // Audio Engine Init
+    useEffect(() => {
+        engineRef.current = new AudioEngine()
+        const audio = audioRef.current
+        audio.crossOrigin = "anonymous"
+        try { engineRef.current.connect(audio) } catch (e) {
+            console.warn("Connection error", e)
+        }
+        // Cleanup? AudioContext might need close, but usually fine for singleton app.
+    }, [])
+
+    // Event Listeners
+    useEffect(() => {
+        const audio = audioRef.current
+        const onTimeUpdate = () => setCurrentTime(audio.currentTime)
+        const onDurationChange = () => setDuration(audio.duration)
+        const onEnded = () => handleNext(true)
+        const onPlay = () => setIsPlaying(true)
+        const onPause = () => setIsPlaying(false)
+
+        audio.addEventListener('timeupdate', onTimeUpdate)
+        audio.addEventListener('durationchange', onDurationChange)
+        audio.addEventListener('ended', onEnded)
+        audio.addEventListener('play', onPlay)
+        audio.addEventListener('pause', onPause)
+
+        return () => {
+            audio.removeEventListener('timeupdate', onTimeUpdate)
+            audio.removeEventListener('durationchange', onDurationChange)
+            audio.removeEventListener('ended', onEnded)
+            audio.removeEventListener('play', onPlay)
+            audio.removeEventListener('pause', onPause)
+        }
+    }, [handleNext])
 
 
     const togglePlay = () => isPlaying ? audioRef.current.pause() : audioRef.current.play()
