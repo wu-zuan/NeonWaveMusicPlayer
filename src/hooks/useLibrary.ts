@@ -23,8 +23,8 @@ export function useLibrary() {
                 return {
                     path: filePath,
                     title: filename,
-                    artist: 'Unknown Artist',
-                    album: 'Unknown Album',
+                    artist: '未知演出者',
+                    album: '未知專輯',
                     duration: 0
                 }
             })

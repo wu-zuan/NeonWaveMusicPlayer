@@ -17,7 +17,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, onClick }
             </div>
             <div className={styles.info}>
                 <div className={styles.title}>{track.title}</div>
-                <div className={styles.artist}>{track.artist || 'Unknown Artist'}</div>
+                <div className={styles.artist}>{track.artist || '未知演出者'}</div>
             </div>
             <div className={styles.duration}>
                 {/* Placeholder for duration as metadata loading is async/complex */}

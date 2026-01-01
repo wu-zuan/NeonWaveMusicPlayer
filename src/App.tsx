@@ -61,7 +61,7 @@ function App() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               height: '100%', color: 'var(--text-muted)'
             }}>
-              <h2>Online Search & Download (Coming Soon)</h2>
+              <h2>線上搜尋與下載 (敬請期待)</h2>
             </div>
           )}
 

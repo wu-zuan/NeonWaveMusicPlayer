@@ -23,7 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenFolder, currentView, onC
                     onClick={() => onChangeView('library')}
                 >
                     <Music size={20} />
-                    <span>Library</span>
+                    <span>音樂庫</span>
                 </button>
 
                 <button
@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenFolder, currentView, onC
                     onClick={() => onChangeView('search')}
                 >
                     <Search size={20} />
-                    <span>Online Search</span>
+                    <span>線上搜尋</span>
                 </button>
 
                 <button
@@ -39,13 +39,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenFolder, currentView, onC
                     onClick={() => onChangeView('settings')}
                 >
                     <Settings size={20} />
-                    <span>Settings</span>
+                    <span>設定</span>
                 </button>
             </nav>
 
             <button className={styles.openButton} onClick={onOpenFolder}>
                 <FolderOpen size={20} color="var(--accent-secondary)" />
-                <span>Open Folder</span>
+                <span>開啟資料夾</span>
             </button>
         </aside>
     )
