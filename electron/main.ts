@@ -236,6 +236,22 @@ app.whenReady().then(() => {
         }
       }
 
+      // 3. Fallback to TheAudioDB (Test API)
+      try {
+        const audioDbUrl = `https://www.theaudiodb.com/api/v1/json/2/search.php?s=${encodeURIComponent(artistName)}`
+        const resAudioDb = await fetch(audioDbUrl)
+        if (resAudioDb.ok) {
+          const dataAudioDb: any = await resAudioDb.json()
+          if (dataAudioDb && dataAudioDb.artists && dataAudioDb.artists.length > 0) {
+            const artistObj = dataAudioDb.artists[0]
+            const pic = artistObj.strArtistThumb || artistObj.strArtistFanart
+            if (pic) return pic
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+
       return null
     } catch (e) {
       console.error('Error fetching artist image:', e)

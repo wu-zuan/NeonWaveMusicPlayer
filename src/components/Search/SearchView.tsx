@@ -13,7 +13,7 @@ interface SearchResult {
 }
 
 const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) => {
-    const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v3_${name}`))
+    const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v4_${name}`))
     const [isVisible, setIsVisible] = useState(false)
     const cardRef = useRef<HTMLDivElement>(null)
 
@@ -47,11 +47,11 @@ const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) =>
                 const url = await window.ipcRenderer.getArtistImage(name)
                 if (url) {
                     setImg(url)
-                    localStorage.setItem(`artist_img_v3_${name}`, url)
+                    localStorage.setItem(`artist_img_v4_${name}`, url)
                 } else {
                     const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`
                     setImg(fallback)
-                    localStorage.setItem(`artist_img_v3_${name}`, fallback)
+                    localStorage.setItem(`artist_img_v4_${name}`, fallback)
                 }
             } catch (e) {
                 console.error(e)
