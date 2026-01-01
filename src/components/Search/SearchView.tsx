@@ -140,9 +140,9 @@ export const SearchView = () => {
             if (savedPath) {
                 alert(`✅ 下載完成！\n已儲存至：\n${savedPath}`)
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e)
-            alert("❌ 下載失敗，請稍後再試。")
+            alert(`❌ 下載失敗：\n${e.message || '未知錯誤'}`)
         }
     }
 

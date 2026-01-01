@@ -208,58 +208,57 @@ app.whenReady().then(() => {
   ipcMain.handle('download:youtube', async (_, url, inputTitle) => {
     try {
       const require = createRequire(import.meta.url)
-      // Use the more maintained fork
+      const fs = require('fs') // Standard require
       const ytdl = require('@distube/ytdl-core')
 
-      if (!ytdl.validateURL(url)) throw new Error('Invalid URL')
+      if (!ytdl.validateURL(url)) throw new Error('無效的 YouTube 網址')
 
-      // 1. Get Info first (validates access and gets full metadata)
+      // 1. Get Info
       let info
       try {
         info = await ytdl.getInfo(url)
       } catch (err) {
-        console.error('Failed to get info:', err)
-        throw new Error('Video unavailable or blocked. (Info fetch failed)')
+        console.error('Info Fetch Error:', err)
+        throw new Error('無法取得影片資訊 (可能受限或連結無效)')
       }
 
       const safeTitle = (info.videoDetails.title || inputTitle).replace(/[\\/:*?"<>|]/g, '_').trim()
 
-      // 2. Pick download path
+      // 2. Pick path
       const { filePath } = await dialog.showSaveDialog(win!, {
         title: '下載歌曲',
         defaultPath: `${safeTitle}.mp3`,
         filters: [{ name: 'Audio', extensions: ['mp3'] }]
       })
 
-      if (!filePath) return null // User canceled
+      if (!filePath) return null
 
       return new Promise((resolve, reject) => {
-        // 3. Start Stream
+        // 3. Download
+        // Using 'highestaudio' to get best quality opus/aac
         const stream = ytdl.downloadFromInfo(info, {
           quality: 'highestaudio',
-          filter: 'audioonly'
         })
+
+        const writer = fs.createWriteStream(filePath)
+
+        stream.pipe(writer)
 
         stream.on('error', (err: any) => {
-          console.error('YTDL Stream Error:', err)
-          reject(err)
+          console.error('Download Stream Error:', err)
+          reject(new Error(`串流錯誤: ${err.message}`))
         })
 
-        import('node:fs').then(fsSync => {
-          const writer = fsSync.createWriteStream(filePath)
-          stream.pipe(writer)
-
-          writer.on('finish', () => resolve(filePath))
-          writer.on('error', (err: any) => {
-            console.error('File Write Error:', err)
-            reject(err)
-          })
+        writer.on('finish', () => resolve(filePath))
+        writer.on('error', (err: any) => {
+          console.error('File Write Error:', err)
+          reject(new Error(`寫入錯誤: ${err.message}`))
         })
       })
 
     } catch (e: any) {
-      console.error("Download handler failed:", e)
-      throw e
+      console.error("Download fatal error:", e)
+      throw new Error(e.message) // Propagate pure message
     }
   })
 
