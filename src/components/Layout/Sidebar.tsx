@@ -1,5 +1,5 @@
 import React from 'react'
-import { FolderOpen, Search, Settings, Music, Disc, Heart, ListMusic, Trash2, Edit2 } from 'lucide-react'
+import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2 } from 'lucide-react'
 import styles from './Sidebar.module.css'
 import { Playlist } from '../../hooks/useLibrary'
 
