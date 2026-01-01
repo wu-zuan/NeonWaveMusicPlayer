@@ -42,6 +42,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     const [isFocus, setIsFocus] = useState(false)
     const [isNorm, setIsNorm] = useState(false)
     const [radarPos, setRadarPos] = useState({ x: 0, z: 0 })
+    const [activeTab, setActiveTab] = useState<'effects' | 'spatial'>('effects')
 
     const handleDistance = (val: number) => {
         setDistVal(val)
@@ -51,6 +52,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     const handleSpace = (val: string) => {
         setSpaceMode(val)
         onSetSpace?.(val)
+        if (val !== 'none') {
+            setIsFocus(false)
+            onSetFocusMode?.(false)
+        }
     }
 
     const handleFocus = () => {
@@ -94,7 +99,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     position: 'absolute',
                     bottom: '110px',
                     right: '30px',
-                    width: '280px',
+                    width: '300px',
                     background: 'rgba(19, 19, 31, 0.95)',
                     backdropFilter: 'blur(20px)',
                     border: '1px solid var(--glass-border)',
@@ -102,105 +107,171 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     padding: '20px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '16px',
+                    gap: '12px',
                     boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
                     zIndex: 200
                 }}>
-                    <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AudioWaveform size={16} color="var(--accent-primary)" />
-                        NeonSpace 音訊核心
-                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AudioWaveform size={16} color="var(--accent-primary)" />
+                            NeonSpace 音訊核心
+                        </h3>
+                    </div>
 
-                    {/* Focus Mode Toggle */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <label style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            🧠 專注模式
-                        </label>
+                    {/* Tabs */}
+                    <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
                         <button
-                            onClick={handleFocus}
+                            onClick={() => setActiveTab('effects')}
                             style={{
-                                background: isFocus ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
-                                color: isFocus ? '#000' : '#fff',
-                                border: 'none', borderRadius: '12px', padding: '4px 12px', fontSize: '11px', cursor: 'pointer',
+                                flex: 1, padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 500,
+                                background: activeTab === 'effects' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                color: activeTab === 'effects' ? 'var(--text-main)' : 'var(--text-muted)',
                                 transition: 'all 0.2s'
                             }}
                         >
-                            {isFocus ? 'ON' : 'OFF'}
+                            🎛️ 音效特效
                         </button>
-                    </div>
-
-                    {/* Normalization Toggle */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <label style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            ⚖️ 音量平衡
-                        </label>
                         <button
-                            onClick={handleNorm}
+                            onClick={() => setActiveTab('spatial')}
                             style={{
-                                background: isNorm ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
-                                color: isNorm ? '#000' : '#fff',
-                                border: 'none', borderRadius: '12px', padding: '4px 12px', fontSize: '11px', cursor: 'pointer',
+                                flex: 1, padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 500,
+                                background: activeTab === 'spatial' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                color: activeTab === 'spatial' ? 'var(--text-main)' : 'var(--text-muted)',
                                 transition: 'all 0.2s'
                             }}
                         >
-                            {isNorm ? 'ON' : 'OFF'}
+                            📡 3D 空間
                         </button>
                     </div>
 
-                    {/* Space Mode */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>真實空間模擬</label>
-                        <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px', overflowX: 'auto' }}>
-                            {['none', 'room', 'hall', 'concert', 'driver'].map(mode => (
+                    {/* Tab Content: Effects */}
+                    {activeTab === 'effects' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '4px' }}>
+                            {/* Focus Mode */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <div>
+                                    <div style={{ color: 'var(--text-main)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        🧠 專注模式
+                                    </div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>消除殘響，增強人聲清晰度</div>
+                                </div>
                                 <button
-                                    key={mode}
-                                    onClick={() => handleSpace(mode)}
+                                    onClick={handleFocus}
                                     style={{
-                                        flex: 1,
-                                        minWidth: '36px',
-                                        background: spaceMode === mode ? 'var(--accent-primary)' : 'transparent',
-                                        color: spaceMode === mode ? '#000' : 'var(--text-muted)',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        fontSize: '11px',
-                                        padding: '6px 0',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        whiteSpace: 'nowrap'
+                                        width: '40px', height: '22px', borderRadius: '11px', border: 'none', cursor: 'pointer',
+                                        background: isFocus ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
+                                        position: 'relative', transition: 'all 0.3s'
                                     }}
                                 >
-                                    {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '大廳' : mode === 'concert' ? '演唱會' : '車內'}
+                                    <div style={{
+                                        position: 'absolute', top: '2px', left: isFocus ? '20px' : '2px',
+                                        width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
+                                        transition: 'all 0.3s', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                    }} />
                                 </button>
-                            ))}
-                        </div>
-                    </div>
+                            </div>
 
-                    {/* Distance */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>音場距離</label>
-                            <span style={{ color: 'var(--accent-primary)', fontSize: '12px' }}>{distVal}m</span>
-                        </div>
-                        <input
-                            type="range" min={0} max={10} step={0.5}
-                            value={distVal}
-                            onChange={(e) => handleDistance(Number(e.target.value))}
-                            style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
-                        />
-                    </div>
+                            {/* Normalization */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <div>
+                                    <div style={{ color: 'var(--text-main)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        ⚖️ 音量平衡
+                                    </div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>動態壓縮，防止爆音</div>
+                                </div>
+                                <button
+                                    onClick={handleNorm}
+                                    style={{
+                                        width: '40px', height: '22px', borderRadius: '11px', border: 'none', cursor: 'pointer',
+                                        background: isNorm ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
+                                        position: 'relative', transition: 'all 0.3s'
+                                    }}
+                                >
+                                    <div style={{
+                                        position: 'absolute', top: '2px', left: isNorm ? '20px' : '2px',
+                                        width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
+                                        transition: 'all 0.3s', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                    }} />
+                                </button>
+                            </div>
 
-                    {/* Position */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>3D 音源定位</label>
-                        <AudioRadar
-                            currentX={radarPos.x}
-                            currentZ={radarPos.z}
-                            onSetPosition={(x, y, z) => {
-                                setRadarPos({ x, z })
-                                onSetPosition?.(x, y, z)
-                            }}
-                        />
-                    </div>
+                            {/* Space Mode */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: isFocus ? 0.5 : 1, pointerEvents: isFocus ? 'none' : 'auto', transition: 'all 0.3s' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>真實空間模擬</label>
+                                    {isFocus && <span style={{ fontSize: '10px', color: 'var(--accent-secondary)' }}>專注模式下不可用</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {['none', 'room', 'hall', 'concert', 'driver'].map(mode => (
+                                        <button
+                                            key={mode}
+                                            onClick={() => handleSpace(mode)}
+                                            style={{
+                                                flex: 1, minWidth: '50px',
+                                                background: spaceMode === mode ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                                color: spaceMode === mode ? '#000' : 'var(--text-muted)',
+                                                border: '1px solid',
+                                                borderColor: spaceMode === mode ? 'var(--accent-primary)' : 'transparent',
+                                                borderRadius: '6px', fontSize: '11px', padding: '6px 0', cursor: 'pointer', transition: 'all 0.2s',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '大廳' : mode === 'concert' ? '演唱會' : '車內'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tab Content: Spatial */}
+                    {activeTab === 'spatial' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, position: 'relative' }}>
+                            {isFocus && (
+                                <div style={{
+                                    position: 'absolute', inset: 0, zIndex: 10,
+                                    background: 'rgba(10,10,20,0.6)', backdropFilter: 'blur(2px)', borderRadius: '8px',
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}>
+                                    <span style={{ fontSize: '24px' }}>🚫</span>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-main)' }}>專注模式已啟用</span>
+                                    <button onClick={handleFocus} style={{ padding: '4px 12px', borderRadius: '4px', border: '1px solid var(--accent-primary)', background: 'transparent', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '11px' }}>
+                                        關閉專注模式
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Distance */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>音場距離</label>
+                                    <span style={{ color: 'var(--accent-primary)', fontSize: '12px' }}>{distVal}m</span>
+                                </div>
+                                <input
+                                    type="range" min={0} max={10} step={0.5}
+                                    value={distVal}
+                                    onChange={(e) => handleDistance(Number(e.target.value))}
+                                    style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
+                                />
+                            </div>
+
+                            {/* Position */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                                <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>3D 音源定位</label>
+                                <div style={{ flex: 1, minHeight: '180px', display: 'flex', flexDirection: 'column' }}>
+                                    <AudioRadar
+                                        currentX={radarPos.x}
+                                        currentZ={radarPos.z}
+                                        onSetPosition={(x, y, z) => {
+                                            if (isFocus) return // Should be blocked by overlay anyway
+                                            setRadarPos({ x, z })
+                                            onSetPosition?.(x, y, z)
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
