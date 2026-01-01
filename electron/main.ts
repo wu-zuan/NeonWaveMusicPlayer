@@ -48,7 +48,8 @@ function createWindow() {
     },
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
-      webSecurity: false // simplified for local file access in dev
+      webSecurity: false, // simplified for local file access in dev
+      backgroundThrottling: false
     },
   })
 
