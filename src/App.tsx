@@ -10,6 +10,8 @@ import { useLibrary } from './hooks/useLibrary'
 import { useAppDetection } from './hooks/useAppDetection'
 import './index.css'
 
+import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
+
 function App() {
   const {
     playlists, favorites, allTracks,
@@ -17,6 +19,7 @@ function App() {
   } = useLibrary()
 
   const [view, setView] = useState('all_songs')
+  const [showLyrics, setShowLyrics] = useState(false)
 
   const {
     isPlaying, currentTrack, currentTime, duration, volume, is8D,
@@ -96,6 +99,14 @@ function App() {
           )}
         </div>
 
+        <LyricsOverlay
+          visible={showLyrics}
+          onClose={() => setShowLyrics(false)}
+          trackTitle={currentTrack?.title || ''}
+          trackArtist={currentTrack?.artist || ''}
+          currentTime={currentTime}
+        />
+
         <PlayerBar
           isPlaying={isPlaying}
           currentTrack={currentTrack}
@@ -119,6 +130,7 @@ function App() {
           onSetFocusMode={setFocusMode}
           onSetNormalization={setNormalization}
           onSetCrowd={setCrowd}
+          onToggleLyrics={() => setShowLyrics(!showLyrics)}
         />
       </main>
     </div>

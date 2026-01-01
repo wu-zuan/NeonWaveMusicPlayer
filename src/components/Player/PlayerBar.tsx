@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Activity } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Activity, Mic2 } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 import { AudioRadar } from './AudioRadar'
@@ -28,6 +28,7 @@ interface PlayerBarProps {
     onSetFocusMode?: (enable: boolean) => void
     onSetNormalization?: (enable: boolean) => void
     onSetCrowd?: (enable: boolean) => void
+    onToggleLyrics?: () => void
 }
 
 export const PlayerBar: React.FC<PlayerBarProps> = ({
@@ -35,7 +36,8 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     isShuffle, repeatMode,
     onTogglePlay, onSeek, onVolumeChange, onToggle8D,
     onToggleShuffle, onToggleRepeat, onNext, onPrev,
-    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode, onSetNormalization, onSetCrowd
+    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode, onSetNormalization, onSetCrowd,
+    onToggleLyrics
 }) => {
     const [showSpatial, setShowSpatial] = useState(false)
     const [distVal, setDistVal] = useState(0)
@@ -444,6 +446,15 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     title="8D 環繞音效"
                 >
                     8D
+                </button>
+
+                <button
+                    className={`${styles.actionBtn}`}
+                    onClick={onToggleLyrics}
+                    title="歌詞"
+                    style={{ marginRight: '12px' }}
+                >
+                    <Mic2 size={18} />
                 </button>
 
                 <div className="flex items-center gap-2 w-32">

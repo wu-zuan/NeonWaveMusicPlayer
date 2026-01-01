@@ -259,6 +259,19 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('search:lyrics', async (_, title, artist) => {
+    try {
+      const url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const data: any = await res.json()
+      return data.syncedLyrics || data.plainLyrics || null
+    } catch (e) {
+      console.error('Error fetching lyrics:', e)
+      return null
+    }
+  })
+
   // Update IPC
   ipcMain.handle('update:check', () => {
     autoUpdater.checkForUpdatesAndNotify()
