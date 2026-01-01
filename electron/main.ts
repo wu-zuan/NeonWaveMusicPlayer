@@ -1,10 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
-// @ts-ignore
-import yts from 'yt-search'
+
+const require = createRequire(import.meta.url)
+const yts = require('yt-search')
 
 // Allow updating to pre-releases if needed
 autoUpdater.allowPrerelease = true
