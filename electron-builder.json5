@@ -2,7 +2,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.wuzuan.neonwave",
-  "guid": "5f9d1c7a-3b2e-4a8f-9c6d-0e4b1a2f3d5c",
   "asar": true,
   "productName": "NeonWave",
   "directories": {
@@ -32,7 +31,8 @@
   "nsis": {
     "oneClick": true,
     "perMachine": false,
-    "deleteAppDataOnUninstall": false
+    "deleteAppDataOnUninstall": false,
+    "guid": "5f9d1c7a-3b2e-4a8f-9c6d-0e4b1a2f3d5c"
   },
   "linux": {
     "target": [
