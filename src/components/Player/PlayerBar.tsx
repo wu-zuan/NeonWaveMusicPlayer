@@ -39,6 +39,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     const [distVal, setDistVal] = useState(0)
     const [spaceMode, setSpaceMode] = useState('none')
     const [isFocus, setIsFocus] = useState(false)
+    const [radarPos, setRadarPos] = useState({ x: 0, z: 0 })
 
     const handleDistance = (val: number) => {
         setDistVal(val)
@@ -57,6 +58,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         if (newVal) {
             setDistVal(0.5)
             setSpaceMode('none')
+            setRadarPos({ x: 0, z: 0 })
         }
     }
 
@@ -162,7 +164,14 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     {/* Position */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>3D 音源定位</label>
-                        <AudioRadar onSetPosition={(x, y, z) => onSetPosition?.(x, y, z)} />
+                        <AudioRadar
+                            currentX={radarPos.x}
+                            currentZ={radarPos.z}
+                            onSetPosition={(x, y, z) => {
+                                setRadarPos({ x, z })
+                                onSetPosition?.(x, y, z)
+                            }}
+                        />
                     </div>
                 </div>
             )}

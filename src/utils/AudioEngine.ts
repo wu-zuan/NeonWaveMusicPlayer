@@ -65,7 +65,8 @@ export class AudioEngine {
         this.distanceFilter.connect(this.dryGain)
         this.dryGain.connect(this.masterGain)
 
-        // Connect Wet Path
+        // Connect Wet Path (Now fed by Panner for Spatial Reverb)
+        this.panner.connect(this.convolver) // <--- NEW connection
         this.convolver.connect(this.reverbGain)
         this.reverbGain.connect(this.masterGain)
 
@@ -98,10 +99,8 @@ export class AudioEngine {
         this.resume()
         try {
             this.source = this.context.createMediaElementSource(audioElement)
-            // Connect to Panner (Direct)
+            // Connect to Panner (Direct) - Reverb is now chained after Panner
             this.source.connect(this.panner)
-            // Connect to Convolver (Ambient/Space)
-            this.source.connect(this.convolver)
         } catch (e) {
             console.warn("Audio source connect error:", e)
         }
