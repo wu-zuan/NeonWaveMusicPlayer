@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Search, Download, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import styles from './Search.module.css'
 
@@ -11,18 +11,49 @@ interface SearchResult {
     url: string
 }
 
-const RECOMMENDED_ARTISTS = [
-    { name: '周杰倫', img: 'https://ui-avatars.com/api/?name=Jay+Chou&background=00fff2&color=000&size=200' },
-    { name: '林俊傑', img: 'https://ui-avatars.com/api/?name=JJ+Lin&background=ff00ff&color=fff&size=200' },
-    { name: '鄧紫棋', img: 'https://ui-avatars.com/api/?name=GEM&background=random&size=200' },
-    { name: '陳奕迅', img: 'https://ui-avatars.com/api/?name=Eason&background=random&size=200' },
-    { name: '五月天', img: 'https://ui-avatars.com/api/?name=Mayday&background=random&size=200' },
-    { name: '蔡依林', img: 'https://ui-avatars.com/api/?name=Jolin&background=random&size=200' },
-    { name: '周興哲', img: 'https://ui-avatars.com/api/?name=Eric&background=random&size=200' },
-    { name: '張惠妹', img: 'https://ui-avatars.com/api/?name=A-Mei&background=random&size=200' },
-    { name: '薛之謙', img: 'https://ui-avatars.com/api/?name=Joker&background=random&size=200' },
-    { name: '李榮浩', img: 'https://ui-avatars.com/api/?name=Li&background=random&size=200' },
+const ARTIST_NAMES = [
+    '周杰倫', '林俊傑', '鄧紫棋', '陳奕迅', '五月天', '蔡依林', '周興哲', '張惠妹', '薛之謙', '李榮浩',
+    '王力宏', '孫燕姿', '張學友', '劉德華', '莫文蔚', '田馥甄', '梁靜茹', '蔡健雅', '蕭敬騰', '林宥嘉',
+    '楊丞琳', '羅志祥', '潘瑋柏', 'A-Lin', '王心凌', '伍佰', '徐佳瑩', '吳青峰', '蘇打綠', '告五人',
+    '八三夭', '茄子蛋', '謝和弦', '盧廣仲', '韋禮安', '張韶涵', '動力火車', 'F.I.R.', 'Tank', '郭靜',
+    '丁噹', '郁可唯', '華晨宇', '毛不易', '汪蘇瀧', '許嵩', '胡夏', '高爾宣', '瘦子E.SO', '玖壹壹'
 ]
+
+const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) => {
+    const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v2_${name}`))
+
+    useEffect(() => {
+        if (img && img !== 'null' && !img.includes('ui-avatars')) return
+
+        // Delay fetch slightly to avoid congestion if mounting many
+        const timer = setTimeout(() => {
+            window.ipcRenderer.getArtistImage(name).then(url => {
+                if (url) {
+                    setImg(url)
+                    localStorage.setItem(`artist_img_v2_${name}`, url)
+                } else {
+                    const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`
+                    setImg(fallback)
+                    localStorage.setItem(`artist_img_v2_${name}`, fallback)
+                }
+            })
+        }, Math.random() * 2000) // Stagger requests
+
+        return () => clearTimeout(timer)
+    }, [name])
+
+    return (
+        <div className={styles.artistCard} onClick={onClick}>
+            <img
+                src={img || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`}
+                alt={name}
+                className={styles.artistImage}
+                loading="lazy"
+            />
+            <span className={styles.artistName}>{name}</span>
+        </div>
+    )
+}
 
 export const SearchView = () => {
     const [query, setQuery] = useState('')
@@ -106,15 +137,12 @@ export const SearchView = () => {
                     <div>
                         <h2 className={styles.sectionTitle}>💎 華語歌手推薦</h2>
                         <div className={styles.artistGrid}>
-                            {RECOMMENDED_ARTISTS.map(artist => (
-                                <div
-                                    key={artist.name}
-                                    className={styles.artistCard}
-                                    onClick={() => handleSearch(artist.name)}
-                                >
-                                    <img src={artist.img} alt={artist.name} className={styles.artistImage} />
-                                    <span className={styles.artistName}>{artist.name}</span>
-                                </div>
+                            {ARTIST_NAMES.map(name => (
+                                <ArtistCard
+                                    key={name}
+                                    name={name}
+                                    onClick={() => handleSearch(name)}
+                                />
                             ))}
                         </div>
                     </div>

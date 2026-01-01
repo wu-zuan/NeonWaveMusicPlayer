@@ -13,6 +13,7 @@ interface Window {
         getAppVersion(): Promise<string>
         onUpdateStatus(callback: (status: any) => void): () => void
         searchYouTube(query: string): Promise<any[]>
+        getArtistImage(name: string): Promise<string | null>
 
         on(channel: string, listener: (...args: any[]) => void): void
         off(channel: string, listener: (...args: any[]) => void): void

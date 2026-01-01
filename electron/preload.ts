@@ -33,5 +33,6 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     ipcRenderer.on('update-status', (_, data) => callback(data))
     return () => ipcRenderer.removeAllListeners('update-status')
   },
+  getArtistImage: (name: string) => ipcRenderer.invoke('search:artistImage', name),
   searchYouTube: (query: string) => ipcRenderer.invoke('search:youtube', query)
 })

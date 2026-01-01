@@ -205,6 +205,21 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('search:artistImage', async (_, artistName) => {
+    try {
+      const url = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}&limit=1`
+      const res = await fetch(url)
+      const data: any = await res.json()
+      if (data && data.data && data.data.length > 0) {
+        return data.data[0].picture_medium || data.data[0].picture_big || null
+      }
+      return null
+    } catch (e) {
+      console.error('Error fetching artist image:', e)
+      return null
+    }
+  })
+
   // Update IPC
   ipcMain.handle('update:check', () => {
     autoUpdater.checkForUpdatesAndNotify()
