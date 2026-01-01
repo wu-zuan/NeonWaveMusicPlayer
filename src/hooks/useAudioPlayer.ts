@@ -197,6 +197,10 @@ export function useAudioPlayer() {
         // Advanced Audio Controls
         setDistance: (meters: number) => engineRef.current?.setDistance(meters),
         setSpaceMode: (mode: string) => engineRef.current?.setSpaceMode(mode),
-        setPosition: (x: number, y: number, z: number) => engineRef.current?.setPosition(x, y, z)
+        setPosition: (x: number, y: number, z: number) => {
+            setIs8D(false)
+            engineRef.current?.setPosition(x, y, z)
+        },
+        setFocusMode: (enable: boolean) => engineRef.current?.setFocusMode(enable)
     }
 }

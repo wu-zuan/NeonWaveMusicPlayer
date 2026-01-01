@@ -5,6 +5,7 @@ export class AudioEngine {
     // Nodes
     private panner: PannerNode
     private distanceFilter: BiquadFilterNode
+    private focusEQ: BiquadFilterNode
     private masterGain: GainNode
 
     // Reverb (Spatial)
@@ -29,7 +30,14 @@ export class AudioEngine {
         this.panner.rolloffFactor = 1
         this.panner.coneInnerAngle = 360
 
-        // 2. Distance Filter (Air Absorption)
+        // 2a. Focus EQ (Clarity Boost)
+        this.focusEQ = this.context.createBiquadFilter()
+        this.focusEQ.type = 'peaking'
+        this.focusEQ.frequency.value = 2500
+        this.focusEQ.Q.value = 1
+        this.focusEQ.gain.value = 0
+
+        // 2b. Distance Filter (Air Absorption)
         this.distanceFilter = this.context.createBiquadFilter()
         this.distanceFilter.type = 'lowpass'
         this.distanceFilter.frequency.value = 20000 // Full bandwidth initially
@@ -46,13 +54,14 @@ export class AudioEngine {
         this.masterGain = this.context.createGain()
 
         // Graph Construction
-        // Path A (Dry/Direct): Source -> Panner -> DistanceFilter -> DryGain -> Master
+        // Path A (Dry/Direct): Source -> Panner -> FocusEQ -> DistanceFilter -> DryGain -> Master
         // Path B (Wet/Reflect): Source -> Convolver -> ReverbGain -> Master
 
         // Note: We connect source in .connect()
 
         // Connect Dry Path
-        this.panner.connect(this.distanceFilter)
+        this.panner.connect(this.focusEQ)
+        this.focusEQ.connect(this.distanceFilter)
         this.distanceFilter.connect(this.dryGain)
         this.dryGain.connect(this.masterGain)
 
@@ -157,6 +166,27 @@ export class AudioEngine {
         this.reverbGain.gain.setTargetAtTime(wetAmount, this.context.currentTime, 0.5)
 
         // In real impl, we would swap Convolver buffer here for different impulse responses.
+    }
+
+    setFocusMode(enable: boolean) {
+        const t = this.context.currentTime
+        if (enable) {
+            this.is8DEnabled = false
+            this.stopRotation()
+
+            // Cut Reverb
+            this.reverbGain.gain.setTargetAtTime(0, t, 0.2)
+            // Close Distance
+            this.setDistance(0.5)
+            // Center Position
+            this.setPosition(0, 0, 0)
+            // EQ Boost (Clarity at 2.5kHz)
+            this.focusEQ.gain.setTargetAtTime(5, t, 0.2)
+            this.focusEQ.Q.value = 0.5
+        } else {
+            // Reset EQ only
+            this.focusEQ.gain.setTargetAtTime(0, t, 0.2)
+        }
     }
 
     // --- Legacy 8D (now uses setPosition) ---

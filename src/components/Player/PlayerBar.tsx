@@ -25,6 +25,7 @@ interface PlayerBarProps {
     onSetDistance?: (d: number) => void
     onSetSpace?: (s: string) => void
     onSetPosition?: (x: number, y: number, z: number) => void
+    onSetFocusMode?: (enable: boolean) => void
 }
 
 export const PlayerBar: React.FC<PlayerBarProps> = ({
@@ -32,11 +33,12 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     isShuffle, repeatMode,
     onTogglePlay, onSeek, onVolumeChange, onToggle8D,
     onToggleShuffle, onToggleRepeat, onNext, onPrev,
-    onSetDistance, onSetSpace, onSetPosition
+    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode
 }) => {
     const [showSpatial, setShowSpatial] = useState(false)
     const [distVal, setDistVal] = useState(0)
     const [spaceMode, setSpaceMode] = useState('none')
+    const [isFocus, setIsFocus] = useState(false)
 
     const handleDistance = (val: number) => {
         setDistVal(val)
@@ -46,6 +48,16 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     const handleSpace = (val: string) => {
         setSpaceMode(val)
         onSetSpace?.(val)
+    }
+
+    const handleFocus = () => {
+        const newVal = !isFocus
+        setIsFocus(newVal)
+        onSetFocusMode?.(newVal)
+        if (newVal) {
+            setDistVal(0.5)
+            setSpaceMode('none')
+        }
     }
 
     const formatTime = (t: number) => {
@@ -88,6 +100,24 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                         <AudioWaveform size={16} color="var(--accent-primary)" />
                         NeonSpace 音訊核心
                     </h3>
+
+                    {/* Focus Mode Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <label style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🧠 專注模式
+                        </label>
+                        <button
+                            onClick={handleFocus}
+                            style={{
+                                background: isFocus ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
+                                color: isFocus ? '#000' : '#fff',
+                                border: 'none', borderRadius: '12px', padding: '4px 12px', fontSize: '11px', cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {isFocus ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
 
                     {/* Space Mode */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
