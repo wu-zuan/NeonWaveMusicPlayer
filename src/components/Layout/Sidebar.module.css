@@ -9,6 +9,7 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--glass-border);
+    -webkit-app-region: drag;
 }
 
 .brand {
@@ -82,6 +83,7 @@
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
+    -webkit-app-region: no-drag;
 }
 
 .navItem:hover {
@@ -129,6 +131,7 @@
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    -webkit-app-region: no-drag;
 }
 
 .actionBtn:hover {
@@ -148,6 +151,7 @@
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.2s;
+    -webkit-app-region: no-drag;
 }
 
 .miniAddBtn:hover {
