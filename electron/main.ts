@@ -208,7 +208,8 @@ app.whenReady().then(() => {
   ipcMain.handle('download:youtube', async (_, url, title) => {
     try {
       const require = createRequire(import.meta.url)
-      const ytdl = require('ytdl-core')
+      // Use the more maintained fork
+      const ytdl = require('@distube/ytdl-core')
 
       if (!ytdl.validateURL(url)) throw new Error('Invalid URL')
 
@@ -222,22 +223,28 @@ app.whenReady().then(() => {
       if (!filePath) return null // User canceled
 
       return new Promise((resolve, reject) => {
+        // 'highestaudio' usually returns webm/opus or m4a/aac. 
         const stream = ytdl(url, { quality: 'highestaudio', filter: 'audioonly' })
 
-        // We need fs-extra or similar to write, or just use fs/promises? No, stream needs createWriteStream
-        // Since we are in main.ts, we can use fs.createWriteStream but we imported fs from 'node:fs/promises'
-        // Let's dynamic import standard fs for streams
+        stream.on('error', (err: any) => {
+          console.error('YTDL Stream Error:', err)
+          reject(err)
+        })
+
         import('node:fs').then(fsSync => {
           const writer = fsSync.createWriteStream(filePath)
           stream.pipe(writer)
 
           writer.on('finish', () => resolve(filePath))
-          writer.on('error', reject)
+          writer.on('error', (err: any) => {
+            console.error('File Write Error:', err)
+            reject(err)
+          })
         })
       })
 
     } catch (e: any) {
-      console.error("Download failed:", e)
+      console.error("Download handler failed:", e)
       throw e
     }
   })
