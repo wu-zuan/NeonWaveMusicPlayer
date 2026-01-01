@@ -1,5 +1,5 @@
-import React from 'react'
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1 } from 'lucide-react'
+import React, { useState } from 'react'
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 
@@ -20,14 +20,31 @@ interface PlayerBarProps {
     onToggleRepeat: () => void
     onNext?: () => void
     onPrev?: () => void
+    // Advanced
+    onSetDistance?: (d: number) => void
+    onSetSpace?: (s: string) => void
 }
 
 export const PlayerBar: React.FC<PlayerBarProps> = ({
     isPlaying, currentTrack, currentTime, duration, volume, is8D,
     isShuffle, repeatMode,
     onTogglePlay, onSeek, onVolumeChange, onToggle8D,
-    onToggleShuffle, onToggleRepeat, onNext, onPrev
+    onToggleShuffle, onToggleRepeat, onNext, onPrev,
+    onSetDistance, onSetSpace
 }) => {
+    const [showSpatial, setShowSpatial] = useState(false)
+    const [distVal, setDistVal] = useState(0)
+    const [spaceMode, setSpaceMode] = useState('none')
+
+    const handleDistance = (val: number) => {
+        setDistVal(val)
+        onSetDistance?.(val)
+    }
+
+    const handleSpace = (val: string) => {
+        setSpaceMode(val)
+        onSetSpace?.(val)
+    }
 
     const formatTime = (t: number) => {
         if (isNaN(t)) return '0:00'
@@ -36,13 +53,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         return `${m}:${s.toString().padStart(2, '0')}`
     }
 
-    // Calculate background gradient for slider
     const progressPercent = duration ? (currentTime / duration) * 100 : 0
-
     const sliderStyle = {
         background: `linear-gradient(to right, var(--accent-primary) ${progressPercent}%, rgba(255,255,255,0.1) ${progressPercent}%)`
     }
-
     const volPercent = volume * 100
     const volStyle = {
         background: `linear-gradient(to right, #fff ${volPercent}%, rgba(255,255,255,0.1) ${volPercent}%)`
@@ -50,6 +64,71 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
 
     return (
         <div className={styles.bar}>
+            {/* Spatial Control Popup */}
+            {showSpatial && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: '110px',
+                    right: '30px',
+                    width: '280px',
+                    background: 'rgba(19, 19, 31, 0.95)',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                    zIndex: 200
+                }}>
+                    <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AudioWaveform size={16} color="var(--accent-primary)" />
+                        NeonSpace 音訊核心
+                    </h3>
+
+                    {/* Space Mode */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>真實空間模擬</label>
+                        <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
+                            {['none', 'room', 'hall', 'driver'].map(mode => (
+                                <button
+                                    key={mode}
+                                    onClick={() => handleSpace(mode)}
+                                    style={{
+                                        flex: 1,
+                                        background: spaceMode === mode ? 'var(--accent-primary)' : 'transparent',
+                                        color: spaceMode === mode ? '#000' : 'var(--text-muted)',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        padding: '6px 0',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '大廳' : '車內'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Distance */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>音場距離</label>
+                            <span style={{ color: 'var(--accent-primary)', fontSize: '12px' }}>{distVal}m</span>
+                        </div>
+                        <input
+                            type="range" min={0} max={10} step={0.5}
+                            value={distVal}
+                            onChange={(e) => handleDistance(Number(e.target.value))}
+                            style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* Track Info */}
             <div className={styles.nowPlaying}>
                 <div className={styles.art}>
@@ -110,6 +189,15 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
 
             {/* Extras */}
             <div className={styles.extra}>
+                <button
+                    className={`${styles.actionBtn} ${showSpatial ? styles.activeControl : ''}`}
+                    onClick={() => setShowSpatial(!showSpatial)}
+                    title="空間音效設定"
+                    style={{ marginRight: '12px' }}
+                >
+                    <Sliders size={18} />
+                </button>
+
                 <button
                     className={`${styles.toggle8D} ${is8D ? styles.active8D : ''}`}
                     onClick={onToggle8D}

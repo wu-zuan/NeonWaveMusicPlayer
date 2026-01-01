@@ -12,7 +12,8 @@ git add .
 try {
     git commit -m "chore: release v$version"
     Write-Host "   Commit created." -ForegroundColor Gray
-} catch {
+}
+catch {
     Write-Host "   Nothing to commit." -ForegroundColor Gray
 }
 
@@ -22,35 +23,32 @@ Write-Host "   Code pushed to main." -ForegroundColor Green
 # 3. Handle Tag
 if ($(git tag -l "v$version")) {
     Write-Host "⚠️ Tag v$version already exists. Skipping tag creation." -ForegroundColor Yellow
-} else {
+}
+else {
     git tag "v$version"
     git push origin "v$version"
     Write-Host "🏷️  Tag v$version pushed." -ForegroundColor Green
 }
 
-# 4. Build
-Write-Host "🔨 Building project (this may take a minute)..." -ForegroundColor Cyan
-npm run build
+# 4. Build & Publish
+Write-Host "🔨 Building and Publishing (this may take a few minutes)..." -ForegroundColor Cyan
+
+# Run checks and build
+npm run typecheck
+npx vite build
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Build failed. Aborting." -ForegroundColor Red
     exit
 }
 
-# 5. Instructions for Upload
-$releasePath = "release\$version"
-Write-Host "`n✅ Build Complete!" -ForegroundColor Green
-Write-Host "----------------------------------------------------------------"
-Write-Host "⚠️  MANUAL UPLOAD REQUIRED FOR AUTO-UPDATES ⚠️" -ForegroundColor Yellow
-Write-Host "1. I have opened the GitHub Release page for you."
-Write-Host "2. Create a new release for tag: v$version"
-Write-Host "3. Drag and drop these 3 files from '$releasePath' folder:"
-Write-Host "   📄 NeonWave-Windows-$version-Setup.exe"
-Write-Host "   📄 NeonWave-Windows-$version-Setup.exe.blockmap"
-Write-Host "   📄 latest.yml"
-Write-Host "4. Click 'Publish release'."
-Write-Host "----------------------------------------------------------------"
+# Package and Publish
+# Ensure GH_TOKEN is available in env or via cli logic normally, but here we assume local setup is good.
+npx electron-builder --publish always
 
-# 6. Open Folder and URL
-Invoke-Item $releasePath
-Start-Process "https://github.com/DM-WuzuanTW/NeonWaveMusicPlayer/releases/new?tag=v$version&title=v$version"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Packaging/Publishing failed." -ForegroundColor Red
+    exit
+}
+
+Write-Host "`n✅ Release v$version Published Successfully!" -ForegroundColor Green

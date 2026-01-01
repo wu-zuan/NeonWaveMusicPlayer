@@ -8623,15 +8623,14 @@ kr.NsisUpdater = Jw;
     get: () => _ || y()
   });
 })(Ye);
-const Qw = bf(import.meta.url), Zw = Qw("yt-search");
 Ye.autoUpdater.allowPrerelease = !0;
-const e_ = ft.requestSingleInstanceLock();
-e_ ? ft.on("second-instance", () => {
+const Qw = ft.requestSingleInstanceLock();
+Qw ? ft.on("second-instance", () => {
   z && (z.isMinimized() && z.restore(), z.focus());
 }) : ft.quit();
 const vu = Qe.dirname(Of(import.meta.url));
 process.env.APP_ROOT = Qe.join(vu, "..");
-const fo = process.env.VITE_DEV_SERVER_URL, __ = Qe.join(process.env.APP_ROOT, "dist-electron"), wu = Qe.join(process.env.APP_ROOT, "dist");
+const fo = process.env.VITE_DEV_SERVER_URL, v_ = Qe.join(process.env.APP_ROOT, "dist-electron"), wu = Qe.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = fo ? Qe.join(process.env.APP_ROOT, "public") : wu;
 let z;
 function _u() {
@@ -8703,13 +8702,13 @@ ft.whenReady().then(() => {
     }
   }), Ct.handle("search:youtube", async (e, t) => {
     try {
-      return (await Zw(t)).videos.slice(0, 20).map((n) => ({
-        id: n.videoId,
-        title: n.title,
-        artist: n.author.name,
-        duration: n.seconds,
-        thumbnail: n.thumbnail,
-        url: n.url
+      return (await bf(import.meta.url)("yt-search")(t)).videos.slice(0, 20).map((o) => ({
+        id: o.videoId,
+        title: o.title,
+        artist: o.author.name,
+        duration: o.seconds,
+        thumbnail: o.thumbnail,
+        url: o.url
       }));
     } catch (r) {
       return console.error(r), [];
@@ -8721,7 +8720,7 @@ ft.whenReady().then(() => {
   }), Ct.handle("app:version", () => ft.getVersion());
 });
 export {
-  __ as MAIN_DIST,
+  v_ as MAIN_DIST,
   wu as RENDERER_DIST,
   fo as VITE_DEV_SERVER_URL
 };

@@ -187,6 +187,10 @@ export function useAudioPlayer() {
         toggleRepeat: () => setRepeatMode(m => m === 'none' ? 'all' : m === 'all' ? 'one' : 'none'),
         seek,
         handleNext: () => handleNext(false),
-        handlePrev: () => handlePrev()
+        handlePrev: () => handlePrev(),
+        // Advanced Audio Controls
+        setDistance: (meters: number) => engineRef.current?.setDistance(meters),
+        setSpaceMode: (mode: string) => engineRef.current?.setSpaceMode(mode),
+        setPosition: (x: number, y: number, z: number) => engineRef.current?.setPosition(x, y, z)
     }
 }
