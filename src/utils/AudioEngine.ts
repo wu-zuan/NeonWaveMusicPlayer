@@ -5,7 +5,7 @@ export class AudioEngine {
     private gain: GainNode
     private is8DEnabled: boolean = false
     private rotationAngle: number = 0
-    private animationFrameId: number | null = null
+    private intervalId: number | null = null
 
     constructor() {
         this.context = new (window.AudioContext || (window as any).webkitAudioContext)()
@@ -64,13 +64,14 @@ export class AudioEngine {
     }
 
     private startRotation() {
-        if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId)
+        if (this.intervalId) clearInterval(this.intervalId)
 
         let lastTime = performance.now()
 
-        const loop = (time: number) => {
+        const loop = () => {
             if (!this.is8DEnabled) return
 
+            const time = performance.now()
             const delta = (time - lastTime) / 1000
             lastTime = time
 
@@ -83,19 +84,20 @@ export class AudioEngine {
             const z = Math.cos(this.rotationAngle) * radius
 
             // Update panner position
-            // Using setTargetAtTime avoids zipper noise but direct assignment is usually fine for RAF
-            this.panner.positionX.value = x
-            this.panner.positionZ.value = z
-
-            this.animationFrameId = requestAnimationFrame(loop)
+            // Using setTargetAtTime avoids zipper noise but direct assignment is usually fine for RAF/Interval if frequent
+            // We use setTargetAtTime for smoother audio even if JS jitters
+            this.panner.positionX.setTargetAtTime(x, this.context.currentTime, 0.02)
+            this.panner.positionZ.setTargetAtTime(z, this.context.currentTime, 0.02)
         }
-        this.animationFrameId = requestAnimationFrame(loop)
+
+        // Run at approx 60fps (16ms)
+        this.intervalId = window.setInterval(loop, 16)
     }
 
     private stopRotation() {
-        if (this.animationFrameId) {
-            cancelAnimationFrame(this.animationFrameId)
-            this.animationFrameId = null
+        if (this.intervalId) {
+            clearInterval(this.intervalId)
+            this.intervalId = null
         }
     }
 }
