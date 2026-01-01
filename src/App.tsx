@@ -9,8 +9,12 @@ import { useLibrary } from './hooks/useLibrary'
 import './index.css'
 
 function App() {
-  const { tracks, openLibrary } = useLibrary()
-  const [view, setView] = useState('library')
+  const {
+    playlists, favorites, allTracks,
+    addFolder, removeFolder, toggleFavorite
+  } = useLibrary()
+
+  const [view, setView] = useState('all_songs')
 
   const {
     isPlaying, currentTrack, currentTime, duration, volume, is8D,
@@ -19,10 +23,31 @@ function App() {
     toggleShuffle, toggleRepeat, handleNext, handlePrev
   } = useAudioPlayer()
 
+  // Determine which tracks to show based on view
+  let displayedTracks = allTracks
+  let viewTitle = '所有歌曲'
+
+  if (view === 'all_songs') {
+    displayedTracks = allTracks
+    viewTitle = '所有歌曲'
+  } else if (view === 'favorites') {
+    displayedTracks = favorites
+    viewTitle = '我的最愛'
+  } else {
+    // Find playlist by ID/Path
+    const pl = playlists.find(p => p.id === view)
+    if (pl) {
+      displayedTracks = pl.tracks
+      viewTitle = pl.name
+    }
+  }
+
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       <Sidebar
-        onOpenFolder={openLibrary}
+        playlists={playlists}
+        onOpenFolder={addFolder}
+        onRemoveFolder={removeFolder}
         currentView={view}
         onChangeView={setView}
       />
@@ -35,11 +60,14 @@ function App() {
         position: 'relative'
       }}>
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '100px' }}>
-          {view === 'library' && (
+          {(view === 'all_songs' || view === 'favorites' || playlists.some(p => p.id === view)) && (
             <TrackList
-              tracks={tracks}
+              title={viewTitle}
+              tracks={displayedTracks}
               currentTrack={currentTrack}
-              onPlay={(track) => playTrack(track, tracks)}
+              onPlay={(track) => playTrack(track, displayedTracks)}
+              onToggleFavorite={toggleFavorite}
+              favorites={favorites}
             />
           )}
 

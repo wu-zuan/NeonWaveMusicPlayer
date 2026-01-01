@@ -1,15 +1,17 @@
 import React from 'react'
-import { Music, AudioWaveform } from 'lucide-react'
+import { Music, AudioWaveform, Heart } from 'lucide-react'
 import styles from './Playlist.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 
 interface TrackItemProps {
     track: Track
     isActive: boolean
+    isFavorite?: boolean
     onClick: () => void
+    onToggleFavorite?: () => void
 }
 
-export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, onClick }) => {
+export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, isFavorite, onClick, onToggleFavorite }) => {
     return (
         <div className={`${styles.trackItem} ${isActive ? styles.active : ''}`} onClick={onClick}>
             <div className={styles.icon}>
@@ -19,8 +21,18 @@ export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, onClick }
                 <div className={styles.title}>{track.title}</div>
                 <div className={styles.artist}>{track.artist || '未知演出者'}</div>
             </div>
+
+            <button
+                className={styles.favBtn}
+                onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleFavorite && onToggleFavorite()
+                }}
+            >
+                <Heart size={16} fill={isFavorite ? "var(--accent-primary)" : "none"} color={isFavorite ? "var(--accent-primary)" : "var(--text-muted)"} />
+            </button>
+
             <div className={styles.duration}>
-                {/* Placeholder for duration as metadata loading is async/complex */}
                 {track.duration ? formatTime(track.duration) : ''}
             </div>
         </div>

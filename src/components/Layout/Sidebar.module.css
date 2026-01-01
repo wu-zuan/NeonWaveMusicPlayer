@@ -35,53 +35,134 @@
     margin: 0;
 }
 
-.nav {
+/* New Menu Layout */
+.menu {
     display: flex;
     flex-direction: column;
     gap: 8px;
     flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    /* For scrollbar */
+}
+
+/* Scrollbar styling */
+.menu::-webkit-scrollbar {
+    width: 4px;
+}
+
+.menu::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.sectionTitle {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    padding-left: 12px;
 }
 
 .navItem {
     display: flex;
     align-items: center;
-    gap: 12px;
+    justify-content: space-between;
+    /* For delete btn */
     padding: 12px 16px;
     border-radius: 12px;
+    background: transparent;
     color: var(--text-muted);
-    transition: all 0.3s ease;
-    font-weight: 500;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
 }
 
-.navItem:hover {
-    background: var(--glass-highlight);
-    color: var(--text-main);
-}
-
-.active {
-    background: rgba(0, 242, 254, 0.1);
-    color: var(--accent-primary);
-    border-color: rgba(0, 242, 254, 0.2);
-    box-shadow: 0 0 20px rgba(0, 242, 254, 0.05);
-}
-
-.openButton {
+.navItemContent {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 16px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--glass-border);
-    color: var(--text-main);
-    margin-top: auto;
-    transition: all 0.3s ease;
+    flex: 1;
+    overflow: hidden;
 }
 
-.openButton:hover {
+.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.navItem:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    transform: translateX(4px);
+}
+
+.navItem.active {
+    background: var(--glass-highlight);
+    color: var(--accent-primary);
+    border-color: rgba(0, 243, 255, 0.1);
+    box-shadow: 0 4px 20px -5px var(--accent-glow);
+}
+
+.openButton {
+    display: none;
+    /* Deprecated */
+}
+
+.miniAddBtn {
     background: rgba(255, 255, 255, 0.1);
-    border-color: var(--accent-primary);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    border: none;
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.miniAddBtn:hover {
+    background: var(--accent-primary);
+    color: #000;
+}
+
+.deleteBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    opacity: 0;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.navItem:hover .deleteBtn {
+    opacity: 1;
+}
+
+.deleteBtn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.scrollableNav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.emptyHint {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding-left: 12px;
+    opacity: 0.5;
 }
