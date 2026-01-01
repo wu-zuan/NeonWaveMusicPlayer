@@ -48,6 +48,7 @@ function App() {
         playlists={playlists}
         onOpenFolder={addFolder}
         onRemoveFolder={removeFolder}
+        onRenameFolder={renameFolder}
         currentView={view}
         onChangeView={setView}
       />

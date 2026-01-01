@@ -2,8 +2,13 @@ import { useState, useEffect } from 'react'
 import { Track } from './useAudioPlayer'
 
 // Persist folders in localStorage
-const STORAGE_KEY_FOLDERS = 'neonwave_folders'
+const STORAGE_KEY_FOLDERS_V2 = 'neonwave_folders_v2' // Upgrade storage key for new format
 const STORAGE_KEY_FAVORITES = 'neonwave_favorites'
+
+interface FolderData {
+    path: string
+    name: string
+}
 
 export interface Playlist {
     id: string
@@ -14,12 +19,10 @@ export interface Playlist {
 }
 
 export function useLibrary() {
-    // We will now manage a list of playlists instead of just one list of tracks
     const [playlists, setPlaylists] = useState<Playlist[]>([])
     const [favorites, setFavorites] = useState<Track[]>([])
     const [isLoading, setIsLoading] = useState(false)
 
-    // Load saved folders and favorites on init
     useEffect(() => {
         loadSavedData()
     }, [])
@@ -32,18 +35,35 @@ export function useLibrary() {
             if (favJson) setFavorites(JSON.parse(favJson))
 
             // 2. Load Saved Folders
-            const foldersJson = localStorage.getItem(STORAGE_KEY_FOLDERS)
-            const folderPaths: string[] = foldersJson ? JSON.parse(foldersJson) : []
+            // Try load V2 first
+            let folderData: FolderData[] = []
+            const v2Json = localStorage.getItem(STORAGE_KEY_FOLDERS_V2)
+
+            if (v2Json) {
+                folderData = JSON.parse(v2Json)
+            } else {
+                // Backward compatibility: load V1 (array of strings) and migrate
+                const v1Json = localStorage.getItem('neonwave_folders')
+                if (v1Json) {
+                    const paths: string[] = JSON.parse(v1Json)
+                    folderData = paths.map(p => ({
+                        path: p,
+                        name: p.split(/[\\/]/).pop() || '未命名資料夾'
+                    }))
+                    // Save to new format immediately
+                    localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(folderData))
+                }
+            }
 
             const loadedPlaylists: Playlist[] = []
 
-            for (const path of folderPaths) {
-                const tracks = await scanFolder(path)
+            for (const item of folderData) {
+                const tracks = await scanFolder(item.path)
                 loadedPlaylists.push({
-                    id: path, // use path as ID for simplicity
-                    name: path.split('\\').pop() || '未命名資料夾',
+                    id: item.path,
+                    name: item.name,
                     type: 'folder',
-                    path: path,
+                    path: item.path,
                     tracks: tracks
                 })
             }
@@ -85,23 +105,28 @@ export function useLibrary() {
                 return
             }
 
-            // Check if already exists
-            const savedFolders: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS) || '[]')
-            if (savedFolders.includes(folderPath)) {
+            const currentData: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
+
+            // Check dupes
+            if (currentData.some(f => f.path === folderPath)) {
                 alert('這個資料夾已經在音樂庫中了！')
                 setIsLoading(false)
                 return
             }
 
-            // Save
-            savedFolders.push(folderPath)
-            localStorage.setItem(STORAGE_KEY_FOLDERS, JSON.stringify(savedFolders))
+            // Default name = folder name
+            const defaultName = folderPath.split(/[\\/]/).pop() || '新資料夾'
 
-            // Load and Add to State
+            const newItem: FolderData = { path: folderPath, name: defaultName }
+            const newData = [...currentData, newItem]
+
+            localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
+
+            // Load tracks
             const tracks = await scanFolder(folderPath)
             const newPlaylist: Playlist = {
                 id: folderPath,
-                name: folderPath.split('\\').pop() || '新資料夾',
+                name: defaultName,
                 type: 'folder',
                 path: folderPath,
                 tracks: tracks
@@ -117,10 +142,30 @@ export function useLibrary() {
     }
 
     const removeFolder = (folderPath: string) => {
-        const savedFolders: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS) || '[]')
-        const newFolders = savedFolders.filter(p => p !== folderPath)
-        localStorage.setItem(STORAGE_KEY_FOLDERS, JSON.stringify(newFolders))
+        const currentData: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
+        const newData = currentData.filter(p => p.path !== folderPath)
+        localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
         setPlaylists(prev => prev.filter(p => p.path !== folderPath))
+    }
+
+    const renameFolder = (folderPath: string, newName: string) => {
+        // Update persistent storage
+        const currentData: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
+        const newData = currentData.map(item => {
+            if (item.path === folderPath) {
+                return { ...item, name: newName }
+            }
+            return item
+        })
+        localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
+
+        // Update state
+        setPlaylists(prev => prev.map(pl => {
+            if (pl.path === folderPath) {
+                return { ...pl, name: newName }
+            }
+            return pl
+        }))
     }
 
     const toggleFavorite = (track: Track) => {
@@ -137,7 +182,7 @@ export function useLibrary() {
         })
     }
 
-    // Flatten all tracks for "All Songs" view if needed
+    // Flatten all tracks for "All Songs" view
     const allTracks = playlists.flatMap(p => p.tracks)
 
     return {
@@ -146,6 +191,7 @@ export function useLibrary() {
         allTracks,
         addFolder,
         removeFolder,
+        renameFolder,
         toggleFavorite,
         isLoading,
         refreshLibrary: loadSavedData

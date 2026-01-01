@@ -83,6 +83,48 @@
     font-weight: 500;
 }
 
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.navItem:hover .actions {
+    opacity: 1;
+}
+
+.actionBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.actionBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+}
+
+/* Deprecated deleteBtn if used elsewhere, keep it mapped or just remove */
+.deleteBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    opacity: 0;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
 .navItemContent {
     display: flex;
     align-items: center;
