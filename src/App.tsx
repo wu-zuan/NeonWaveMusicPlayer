@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Layout/Sidebar'
 import { TrackList } from './components/Playlist/TrackList'
 import { PlayerBar } from './components/Player/PlayerBar'
@@ -7,6 +7,7 @@ import { SettingsView } from './components/Layout/SettingsView'
 import { SearchView } from './components/Search/SearchView'
 import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { useLibrary } from './hooks/useLibrary'
+import { useAppDetection } from './hooks/useAppDetection'
 import './index.css'
 
 function App() {
@@ -24,6 +25,18 @@ function App() {
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
     setDistance, setSpaceMode, setPosition, setFocusMode
   } = useAudioPlayer()
+
+  // Auto-Detect Context
+  const { contextMode } = useAppDetection()
+
+  useEffect(() => {
+    if (contextMode === 'work') {
+      setFocusMode(true)
+    } else if (contextMode === 'normal') {
+      setFocusMode(false)
+    }
+    // 'game' mode currently does nothing specific, maybe future: lower volume
+  }, [contextMode])
 
   // Determine which tracks to show based on view
   let displayedTracks = allTracks

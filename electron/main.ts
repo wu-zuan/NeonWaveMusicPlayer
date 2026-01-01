@@ -4,6 +4,20 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
+import { exec } from 'node:child_process'
+
+function runPowerShell(scriptPath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, (error, stdout, stderr) => {
+      if (error) {
+        // reject(error) // Don't reject, just return unknown
+        resolve("unknown")
+        return
+      }
+      resolve(stdout.trim())
+    })
+  })
+}
 
 // Allow updating to pre-releases if needed
 autoUpdater.allowPrerelease = true
@@ -144,6 +158,13 @@ app.whenReady().then(() => {
       console.error('Error reading file:', error)
       return null
     }
+  })
+
+  ipcMain.handle('app:active-window', async () => {
+    // Logic for path: in Prod, we assume scripts are in resources or similar.
+    // For now, stick to dev path relative to APP_ROOT.
+    const scriptPath = path.join(process.env.APP_ROOT, 'scripts/get-active-window.ps1')
+    return await runPowerShell(scriptPath)
   })
 
   ipcMain.handle('search:youtube', async (_, query) => {
