@@ -5,6 +5,9 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
 
+// Allow updating to pre-releases if needed
+autoUpdater.allowPrerelease = true
+
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
