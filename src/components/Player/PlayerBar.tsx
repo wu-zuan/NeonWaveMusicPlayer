@@ -60,15 +60,30 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             onSetFocusMode?.(false)
         }
 
-        // Automation: Auto-set distance based on venue size
+        // Automation: Auto-set distance and position based on venue
         let newDist = 0
-        if (val === 'concert') newDist = 7.5
-        else if (val === 'hall') newDist = 4.0
-        else if (val === 'room') newDist = 1.5
-        else newDist = 0 // none or driver (default close)
+        let newPos = { x: 0, z: 0 }
+
+        if (val === 'concert') {
+            newDist = 7.5
+            newPos = { x: 0, z: 0 } // Immerse inside center
+        } else if (val === 'hall') {
+            newDist = 4.0
+            newPos = { x: 0, z: -4 } // Stage front
+        } else if (val === 'room') {
+            newDist = 2.5
+            newPos = { x: 0, z: -2 } // Desk speakers relative to head
+        } else {
+            // none or driver
+            newDist = 0
+            newPos = { x: 0, z: 0 }
+        }
 
         setDistVal(newDist)
         onSetDistance?.(newDist)
+
+        setRadarPos(newPos)
+        onSetPosition?.(newPos.x, 0, newPos.z)
 
         // Reset Crowd if not concert
         if (val !== 'concert') {

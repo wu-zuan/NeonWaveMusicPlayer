@@ -212,14 +212,14 @@ export class AudioEngine {
                 lowPass = true
                 targetCutoff = 16000
                 break;
-            case 'room':
-                wetAmount = 0.55  // Stronger presence (Studio feel)
-                duration = 1.6    // Richer body
-                decay = 4.0       // Natural room decay
-                preDelay = 0.01   // Slight depth
+            case 'room': // Real Bedroom (Tight & Damp)
+                wetAmount = 0.45
+                duration = 0.7    // Very short tail
+                decay = 10.0      // Fast decay
+                preDelay = 0.008  // 8ms (Walls are close)
                 lowPass = true
                 targetDry = 1.0
-                targetCutoff = 15000
+                targetCutoff = 3000 // Furniture absorbs highs heavily
                 break;
             case 'driver':
                 wetAmount = 0.1
