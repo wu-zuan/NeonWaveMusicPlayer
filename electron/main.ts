@@ -151,7 +151,8 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('update:install', () => {
-    autoUpdater.quitAndInstall()
+    // Silent install, force run after
+    autoUpdater.quitAndInstall(true, true)
   })
 
   ipcMain.handle('app:version', () => {
