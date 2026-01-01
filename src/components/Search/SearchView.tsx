@@ -13,7 +13,7 @@ interface SearchResult {
 }
 
 const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) => {
-    const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v4_${name}`))
+    const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v5_${name}`))
     const [isVisible, setIsVisible] = useState(false)
     const cardRef = useRef<HTMLDivElement>(null)
 
@@ -47,14 +47,19 @@ const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) =>
                 const url = await window.ipcRenderer.getArtistImage(name)
                 if (url) {
                     setImg(url)
-                    localStorage.setItem(`artist_img_v4_${name}`, url)
+                    localStorage.setItem(`artist_img_v5_${name}`, url)
                 } else {
-                    const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`
+                    // Try Bing Images as a "Premium" fallback
+                    // Adding "歌手" to ensure we get an artist image, not a generic word result (e.g. for "同理")
+                    const fallback = `https://tse2.mm.bing.net/th?q=${encodeURIComponent(name + ' 歌手')}&w=500&h=500&c=7&rs=1&p=0`
                     setImg(fallback)
-                    localStorage.setItem(`artist_img_v4_${name}`, fallback)
+                    localStorage.setItem(`artist_img_v5_${name}`, fallback)
                 }
             } catch (e) {
                 console.error(e)
+                // If IPC fails, also try fallback
+                const fallback = `https://tse2.mm.bing.net/th?q=${encodeURIComponent(name + ' 歌手')}&w=500&h=500&c=7&rs=1&p=0`
+                setImg(fallback)
             }
         }
         fetchImage()
@@ -68,6 +73,13 @@ const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) =>
                     alt={name}
                     className={styles.artistImage}
                     loading="lazy"
+                    onError={(e) => {
+                        // If Bing image fails (404), fallback to UI Avatars
+                        e.currentTarget.onerror = null // prevent loop
+                        const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`
+                        e.currentTarget.src = avatar
+                        // Optionally update cache, but simple fallback is enough for runtime
+                    }}
                 />
             ) : (
                 <div className={styles.artistImage} style={{ background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
