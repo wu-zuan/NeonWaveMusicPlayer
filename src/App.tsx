@@ -11,7 +11,7 @@ import './index.css'
 function App() {
   const {
     playlists, favorites, allTracks,
-    addFolder, removeFolder, toggleFavorite
+    addFolder, removeFolder, renameFolder, toggleFavorite
   } = useLibrary()
 
   const [view, setView] = useState('all_songs')
