@@ -73,8 +73,11 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         } else if (val === 'room') {
             newDist = 2.5
             newPos = { x: 0, z: -2 } // Desk speakers relative to head
+        } else if (val === 'driver') {
+            newDist = 0.5               // Very close cabin
+            newPos = { x: 0, z: -0.8 }  // Dashboard speakers (close front)
         } else {
-            // none or driver
+            // none
             newDist = 0
             newPos = { x: 0, z: 0 }
         }
