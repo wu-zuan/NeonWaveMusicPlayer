@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Mic2, Loader2, Search as SearchIcon } from 'lucide-react'
+import { X, Mic2, Loader2, Search as SearchIcon, Sparkles } from 'lucide-react'
 import { parseLrc, LyricLine, getCurrentLineIndex } from '../../utils/lrcParser'
 
 interface LyricsOverlayProps {
@@ -82,6 +82,45 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         e.preventDefault()
         fetchLyrics(searchTitle, searchArtist)
         // We clear path here to force clean metadata search logic
+    }
+
+    const handleAIGenerate = async () => {
+        const key = localStorage.getItem('neonwave_openai_key')
+        if (!key) {
+            alert('請先在設定中輸入 OpenAI API Key')
+            return
+        }
+        if (!trackPath) {
+            alert('無法取得檔案路徑')
+            return
+        }
+
+        setLoading(true)
+        setError(false)
+        setLyrics([])
+
+        try {
+            const lrc = await window.ipcRenderer.generateLyrics(trackPath, key)
+            if (lrc) {
+                const parsed = parseLrc(lrc)
+                if (parsed.length > 0) {
+                    setLyrics(parsed)
+                    setShowSearch(false)
+                } else {
+                    setError(true)
+                    alert('AI 生成失敗: 無內容')
+                }
+            } else {
+                setError(true)
+                alert('AI 生成失敗')
+            }
+        } catch (e: any) {
+            console.error(e)
+            setError(true)
+            alert('AI 生成發生錯誤: ' + e.message)
+        } finally {
+            setLoading(false)
+        }
     }
 
     if (!visible) return null
@@ -175,6 +214,20 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                 >
                                     {loading ? '搜尋中...' : '搜尋'}
                                 </button>
+
+                                <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
+                                <button
+                                    type="button"
+                                    onClick={handleAIGenerate}
+                                    disabled={loading}
+                                    style={{
+                                        padding: '12px', borderRadius: '8px',
+                                        background: 'linear-gradient(45deg, #ff00cc, #3333ff)', color: '#fff', fontWeight: 'bold', border: 'none', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                    }}
+                                >
+                                    <Sparkles size={18} /> AI 自動生成 (Whisper)
+                                </button>
                             </form>
                         ) : (
                             <>
@@ -189,18 +242,30 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', color: '#fff', opacity: 0.5 }}>
                                         <Mic2 size={40} />
                                         <div style={{ fontSize: '18px' }}>找不到同步歌詞</div>
-                                        <button
-                                            onClick={() => {
-                                                setSearchTitle(trackTitle);
-                                                setShowSearch(true)
-                                            }}
-                                            style={{
-                                                padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.3)',
-                                                background: 'transparent', color: '#fff', cursor: 'pointer'
-                                            }}
-                                        >
-                                            手動搜尋
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <button
+                                                onClick={() => {
+                                                    setSearchTitle(trackTitle);
+                                                    setShowSearch(true)
+                                                }}
+                                                style={{
+                                                    padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.3)',
+                                                    background: 'transparent', color: '#fff', cursor: 'pointer'
+                                                }}
+                                            >
+                                                手動搜尋
+                                            </button>
+                                            <button
+                                                onClick={handleAIGenerate}
+                                                style={{
+                                                    padding: '8px 16px', borderRadius: '20px', border: 'none',
+                                                    background: 'linear-gradient(45deg, #ff00cc, #3333ff)', color: '#fff', cursor: 'pointer',
+                                                    display: 'flex', alignItems: 'center', gap: '6px'
+                                                }}
+                                            >
+                                                <Sparkles size={16} /> AI 生成
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 

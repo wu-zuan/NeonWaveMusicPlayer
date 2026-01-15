@@ -16,6 +16,7 @@ interface Window {
         downloadYouTube(url: string, title: string, artist?: string): Promise<string | null>
         getArtistImage(name: string): Promise<string | null>
         getLyrics(title: string, artist: string, filePath?: string): Promise<string | null>
+        generateLyrics(filePath: string, apiKey: string): Promise<string | null>
 
         on(channel: string, listener: (...args: any[]) => void): void
         off(channel: string, listener: (...args: any[]) => void): void
