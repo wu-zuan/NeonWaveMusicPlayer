@@ -130,6 +130,11 @@ autoUpdater.on('update-downloaded', (info) => {
 })
 
 app.whenReady().then(() => {
+  // Set App ID for Windows Notifications
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('NeonWave')
+  }
+
   // Register 'media' protocol to bypass some security if needed, or rely on webSecurity: false for now
   createWindow()
 
