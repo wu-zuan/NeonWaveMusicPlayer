@@ -427,27 +427,58 @@ app.whenReady().then(() => {
 
       console.log(`[Lyrics] Starting search for: ${title} / ${artist}`)
 
-      // --- Pre-processing: Clean Metadata using get-artist-title ---
+      // --- Pre-processing: Advanced Clean & Parse ---
       let cleanTitle = title
       let cleanArtist = artist
 
-      // Try parsing from filename if available (often cleaner for "Official Audio" junk)
       if (filePath) {
-        const filename = path.basename(filePath, path.extname(filePath))
-        const parsed = getArtistTitle(filename) // returns [artist, title] or null
+        let s = path.basename(filePath, path.extname(filePath))
+        console.log(`[Lyrics] Raw Filename: ${s}`)
+
+        // Rule A: Book Title Marks 《...》 (Highest Priority for Title)
+        const arrowMatch = s.match(/《(.+?)》/)
+
+        // Rule B: Bracket Content 【...】 (Secondary Priority)
+        const thickMatch = s.match(/【(.+?)】/)
+
+        // Rule C: Junk Removal (Aggressive)
+        const junkRegex = /\b(Official|Music Video|MV|Live|Cover|4K|1080p|Lyric|Video)\b/gi
+        s = s.replace(junkRegex, ' ')
+
+        // Rule D: Generic cleanup
+        s = s.replace(/_/g, ' ')
+
+        // Prioritize extracted title (forcedTitle)
+        let forcedTitle = arrowMatch ? arrowMatch[1] : (thickMatch ? thickMatch[1] : null)
+        if (forcedTitle) {
+          // Clean the forced title itself
+          forcedTitle = forcedTitle.replace(junkRegex, '').trim()
+        }
+
+        // Run get-artist-title on the cleaned string
+        // We replace brackets with space to ensure separation for the parser
+        const parserString = s.replace(/[《》【】\[\]]/g, ' ').replace(/\s+/g, ' ').trim()
+
+        const parsed = getArtistTitle(parserString, { defaultArtist: artist })
+
         if (parsed && parsed.length === 2 && parsed[1]) {
           cleanArtist = parsed[0] || artist
           cleanTitle = parsed[1]
-          console.log(`[Lyrics] Parsed from filename: ${cleanArtist} - ${cleanTitle}`)
         }
-      } else {
-        // Try parsing from title if it looks messy
-        const parsed = getArtistTitle(title)
-        if (parsed && parsed.length === 2 && parsed[1]) {
-          cleanArtist = parsed[0] || artist
-          cleanTitle = parsed[1]
-          console.log(`[Lyrics] Parsed from dirty title: ${cleanArtist} - ${cleanTitle}`)
+
+        // OVERRIDE: If we found a strong title indicator, leverage it.
+        if (forcedTitle) {
+          cleanTitle = forcedTitle
+          // Try to deduce artist by removing title from the full string
+          if (!cleanArtist || cleanArtist === artist) {
+            const potentialArtist = s.replace(arrowMatch ? arrowMatch[0] : thickMatch![0], '').replace(junkRegex, '').trim()
+            if (potentialArtist.length > 1) {
+              cleanArtist = potentialArtist
+            }
+          }
         }
+
+        console.log(`[Lyrics] Advanced Clean Result: ${cleanArtist} - ${cleanTitle}`)
       }
 
       // --- Stage 1: LRCLib Fast Check (Raw Metadata) ---
@@ -473,8 +504,17 @@ app.whenReady().then(() => {
       // We use Genius to find the "Official" song details, then ask LRCLib again.
       let geniusSong = null
       try {
-        const query = `${cleanTitle} ${cleanArtist || ''}`.trim()
-        const searches = await geniusClient.songs.search(query)
+        // A. Search using Cleaned Data
+        let query = `${cleanTitle} ${cleanArtist || ''}`.trim()
+        let searches = await geniusClient.songs.search(query)
+
+        // B. Desperate Search: Use Original Filename (if A failed)
+        // Genius search is often smarter than our regex or parsed info
+        if (searches.length === 0 && filePath) {
+          const rawBase = path.basename(filePath, path.extname(filePath)).replace(/_/g, ' ')
+          console.log(`[Lyrics] Stage 3 Retry: Searching Genius with raw filename: ${rawBase}`)
+          searches = await geniusClient.songs.search(rawBase)
+        }
 
         if (searches.length > 0) {
           geniusSong = searches[0]
@@ -484,7 +524,6 @@ app.whenReady().then(() => {
           console.log(`[Lyrics] Genius identified: ${correctArtist} - ${correctTitle}`)
 
           // SEARCH LRCLIB AGAIN with CORRECT info
-          // Often LRCLib has the song, but under the exact official name
           const res = await searchLrc(`${correctTitle} ${correctArtist}`, correctArtist)
           if (res) {
             console.log("[Lyrics] Stage 3 success (Genius Correction)")
@@ -496,13 +535,11 @@ app.whenReady().then(() => {
       }
 
       // --- Stage 4: Final Fallback (Genius Plain Text) ---
-      // If we are here, LRCLib failed 3 times. We use the Genius text we (potentially) found in Stage 3.
       if (geniusSong) {
         try {
           console.log("[Lyrics] Stage 4: Fetching text from Genius")
           const lyrics = await geniusSong.lyrics()
           if (lyrics) {
-            // Convert to pseudo-LRC for frontend compatibility
             return lyrics.split('\n')
               .filter((l: string) => l.trim())
               .map((l: string) => `[00:00.00]${l}`)
