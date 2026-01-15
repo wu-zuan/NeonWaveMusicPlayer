@@ -396,9 +396,10 @@ app.whenReady().then(() => {
       // Imports
       const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
       const Genius = createRequire(import.meta.url)('genius-lyrics')
-      const geniusClient = new Genius.Client() // No token needed for basic scraping usually, or uses public token
+      const geniusClient = new Genius.Client()
 
-      // Helper: Search LRCLib
+      // --- Helper: Search LRCLib ---
+      // Returns the string of synced lyrics if found, null otherwise.
       const searchLrc = async (q: string, artistName: string = '') => {
         try {
           const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
@@ -407,10 +408,15 @@ app.whenReady().then(() => {
             const list: any[] = await res.json()
             if (Array.isArray(list) && list.length > 0) {
               const safeArtist = (artistName || '').split(' ')[0].toLowerCase()
-              const match = list.find(t => t.syncedLyrics && (!safeArtist || t.artistName.toLowerCase().includes(safeArtist)))
-                || list.find(t => t.syncedLyrics)
-                || list[0]
-              return match.syncedLyrics || match.plainLyrics
+
+              // 1. Try to find Synced + Matching Artist
+              let match = list.find(t => t.syncedLyrics && (!safeArtist || t.artistName.toLowerCase().includes(safeArtist)))
+
+              // 2. Try to find any Synced
+              if (!match) match = list.find(t => t.syncedLyrics)
+
+              // 3. Return result
+              if (match && match.syncedLyrics) return match.syncedLyrics
             }
           }
         } catch (e) {
@@ -419,57 +425,96 @@ app.whenReady().then(() => {
         return null
       }
 
-      // Step 0: Try exact search if artist provided
-      if (title && artist) {
-        const res = await searchLrc(`${title} ${artist}`, artist)
-        if (res) return res
-      }
+      console.log(`[Lyrics] Starting search for: ${title} / ${artist}`)
 
-      // Step 1: Smart Parse using get-artist-title
-      // Try to parse from filePath (filename often has Artist - Title) or unclean title
-      let parsed: any = null
+      // --- Pre-processing: Clean Metadata using get-artist-title ---
+      let cleanTitle = title
+      let cleanArtist = artist
+
+      // Try parsing from filename if available (often cleaner for "Official Audio" junk)
       if (filePath) {
         const filename = path.basename(filePath, path.extname(filePath))
-        parsed = getArtistTitle(filename, {
-          defaultArtist: artist // Fallback
-        })
-      } else if (title) {
-        parsed = getArtistTitle(title)
-      }
-
-      // Step 2: Search LRCLib with parsed info
-      if (parsed) {
-        // Assume get-artist-title returns [artist, title] array
-
-        if (Array.isArray(parsed) && parsed.length === 2 && parsed[1]) {
-          // It returns [artist, title] sometimes? No, let's verify usage. 
-          // "Get Artist Title" usually returns [Artist, Title] string array.
-          const [pArtist, pTitle] = parsed
-          if (pTitle) {
-            const res = await searchLrc(`${pTitle} ${pArtist || ''}`, pArtist)
-            if (res) return res
-          }
+        const parsed = getArtistTitle(filename) // returns [artist, title] or null
+        if (parsed && parsed.length === 2 && parsed[1]) {
+          cleanArtist = parsed[0] || artist
+          cleanTitle = parsed[1]
+          console.log(`[Lyrics] Parsed from filename: ${cleanArtist} - ${cleanTitle}`)
+        }
+      } else {
+        // Try parsing from title if it looks messy
+        const parsed = getArtistTitle(title)
+        if (parsed && parsed.length === 2 && parsed[1]) {
+          cleanArtist = parsed[0] || artist
+          cleanTitle = parsed[1]
+          console.log(`[Lyrics] Parsed from dirty title: ${cleanArtist} - ${cleanTitle}`)
         }
       }
 
-      // Step 3: Fallback to Genius (Text Only) using library
+      // --- Stage 1: LRCLib Fast Check (Raw Metadata) ---
+      if (title && artist) {
+        const res = await searchLrc(`${title} ${artist}`, artist)
+        if (res) {
+          console.log("[Lyrics] Stage 1 success (Raw)")
+          return res
+        }
+      }
+
+      // --- Stage 2: LRCLib Cleaned Check (Parsed Metadata) ---
+      if (cleanTitle) {
+        const query = `${cleanTitle} ${cleanArtist || ''}`.trim()
+        const res = await searchLrc(query, cleanArtist)
+        if (res) {
+          console.log("[Lyrics] Stage 2 success (Cleaned)")
+          return res
+        }
+      }
+
+      // --- Stage 3: Genius Correction & Smart Retry ---
+      // We use Genius to find the "Official" song details, then ask LRCLib again.
+      let geniusSong = null
       try {
-        const query = parsed ? `${parsed[1]} ${parsed[0] || ''}` : `${title} ${artist || ''}`
+        const query = `${cleanTitle} ${cleanArtist || ''}`.trim()
         const searches = await geniusClient.songs.search(query)
+
         if (searches.length > 0) {
-          const song = searches[0]
-          const lyrics = await song.lyrics()
-          if (lyrics) {
-            // Convert plain text to pseudo-LRC (just lines)
-            // This allows LyricsOverlay to display it (as unsynced)
-            return lyrics.split('\n').filter((l: string) => l.trim()).map((l: string) => `[00:00.00]${l}`).join('\n')
+          geniusSong = searches[0]
+          const correctTitle = geniusSong.title
+          const correctArtist = geniusSong.artist.name
+
+          console.log(`[Lyrics] Genius identified: ${correctArtist} - ${correctTitle}`)
+
+          // SEARCH LRCLIB AGAIN with CORRECT info
+          // Often LRCLib has the song, but under the exact official name
+          const res = await searchLrc(`${correctTitle} ${correctArtist}`, correctArtist)
+          if (res) {
+            console.log("[Lyrics] Stage 3 success (Genius Correction)")
+            return res
           }
         }
       } catch (e) {
-        console.error("Genius Search Error:", e)
+        console.warn("[Lyrics] Genius search failed", e)
       }
 
-      return null // Give up
+      // --- Stage 4: Final Fallback (Genius Plain Text) ---
+      // If we are here, LRCLib failed 3 times. We use the Genius text we (potentially) found in Stage 3.
+      if (geniusSong) {
+        try {
+          console.log("[Lyrics] Stage 4: Fetching text from Genius")
+          const lyrics = await geniusSong.lyrics()
+          if (lyrics) {
+            // Convert to pseudo-LRC for frontend compatibility
+            return lyrics.split('\n')
+              .filter((l: string) => l.trim())
+              .map((l: string) => `[00:00.00]${l}`)
+              .join('\n')
+          }
+        } catch (e) {
+          console.error("[Lyrics] Failed to fetch lyrics from Genius object", e)
+        }
+      }
+
+      console.log("[Lyrics] All stages failed.")
+      return null
     } catch (e) {
       console.error('Error fetching lyrics:', e)
       return null
