@@ -24,15 +24,29 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     const scrollRef = useRef<HTMLDivElement>(null)
     const [activeIndex, setActiveIndex] = useState(-1)
 
+    const [statusMsg, setStatusMsg] = useState<string | null>(null)
+
+    // Status Toast Helper
+    const showStatus = (msg: string) => {
+        setStatusMsg(msg)
+        setTimeout(() => setStatusMsg(null), 3000)
+    }
+
+    // "Lyrics: ON" indicator when toggled visible
+    useEffect(() => {
+        if (visible) {
+            showStatus("Lyrics Mode: ON")
+        }
+    }, [visible])
+
     // Check if we have valid synced timestamps (at least some lines > 0s)
     // If all are 0, it's likely plain text passed with dummy timestamps
     const isSynced = React.useMemo(() => lyrics.some(l => l.time > 0), [lyrics])
 
 
-
     // Auto-scroll effect
     useEffect(() => {
-        if (showSearch || !isSynced) return // Don't scroll when searching or unsynced
+        if (!isSynced) return // Don't scroll when unsynced
 
         const idx = getCurrentLineIndex(lyrics, currentTime)
         if (idx !== activeIndex) {
@@ -44,7 +58,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 }
             }
         }
-    }, [currentTime, lyrics, showSearch, isSynced])
+    }, [currentTime, lyrics, isSynced])
 
     // Reset scroll when lyrics load
     useEffect(() => {
@@ -60,6 +74,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         setLoading(true)
         setError(false)
         setLyrics([])
+        showStatus(`Searching: ${title}...`)
         try {
             const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path, duration)
             if (rawLrc) {
@@ -67,15 +82,19 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 if (parsed.length > 0) {
                     setLyrics(parsed)
                     setShowSearch(false)
+                    showStatus("Synced Lyrics Loaded")
                 } else {
                     setError(true)
+                    showStatus("No Synced Lyrics Found")
                 }
             } else {
                 setError(true)
+                showStatus("No Synced Lyrics Found")
             }
         } catch (e) {
             console.error(e)
             setError(true)
+            showStatus("Error Loading Lyrics")
         } finally {
             setLoading(false)
         }
@@ -126,18 +145,29 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     overflow: 'hidden'
                 }}
             >
-                {/* Visual Feedback for Loading (Subtle) */}
-                {loading && (
-                    <div style={{
-                        position: 'absolute', top: '20%',
-                        color: 'rgba(255,255,255,0.4)',
-                        background: 'rgba(0,0,0,0.3)',
-                        padding: '4px 8px', borderRadius: '4px',
-                        fontSize: '12px'
-                    }}>
-                        Searching Lyrics...
-                    </div>
-                )}
+                {/* Status / Feedback Toast (Top Center) */}
+                <AnimatePresence>
+                    {(statusMsg || loading) && (
+                        <motion.div
+                            initial={{ y: -50, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: -50, opacity: 0 }}
+                            style={{
+                                position: 'absolute', top: '10%',
+                                color: '#fff',
+                                background: 'rgba(0,0,0,0.6)',
+                                padding: '8px 16px', borderRadius: '20px',
+                                fontSize: '14px', fontWeight: 600,
+                                backdropFilter: 'blur(4px)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                display: 'flex', alignItems: 'center', gap: '8px'
+                            }}
+                        >
+                            {loading && <div className="animate-spin" style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} />}
+                            {loading ? 'Searching...' : statusMsg}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* The "Danmaku" / Subtitle Line */}
                 {!loading && !error && activeLine && (
