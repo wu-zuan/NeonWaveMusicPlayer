@@ -57,6 +57,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    icon: path.join(process.env.VITE_PUBLIC!, 'logo.png'),
     titleBarStyle: 'hidden', // Custom title bar for premium look
     titleBarOverlay: {
       color: '#00000000',
