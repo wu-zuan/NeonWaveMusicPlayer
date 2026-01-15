@@ -10,11 +10,12 @@ interface LyricsOverlayProps {
     trackArtist: string
     trackPath?: string
     trackArtwork?: string
+    trackDuration?: number
     currentTime: number
 }
 
 export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
-    visible, onClose, trackTitle, trackArtist, trackPath, trackArtwork, currentTime
+    visible, onClose, trackTitle, trackArtist, trackPath, trackArtwork, trackDuration, currentTime
 }) => {
     const [lyrics, setLyrics] = useState<LyricLine[]>([])
     const [loading, setLoading] = useState(false)
@@ -63,12 +64,12 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         }
     }, [lyrics, isSynced])
 
-    const fetchLyrics = async (title: string, artist: string, path: string = '') => {
+    const fetchLyrics = async (title: string, artist: string, path: string = '', duration: number = 0) => {
         setLoading(true)
         setError(false)
         setLyrics([])
         try {
-            const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path)
+            const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path, duration)
             if (rawLrc) {
                 const parsed = parseLrc(rawLrc)
                 if (parsed.length > 0) {
@@ -91,12 +92,12 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     // Initial Fetch
     useEffect(() => {
         if (!visible || !trackTitle) return
-        fetchLyrics(trackTitle, trackArtist, trackPath)
-    }, [trackTitle, trackArtist, trackPath, visible])
+        fetchLyrics(trackTitle, trackArtist, trackPath, trackDuration)
+    }, [trackTitle, trackArtist, trackPath, visible, trackDuration])
 
     const handleManualSearch = (e: React.FormEvent) => {
         e.preventDefault()
-        fetchLyrics(searchTitle, searchArtist)
+        fetchLyrics(searchTitle, searchArtist, '', trackDuration)
         // We clear path here to force clean metadata search logic
     }
 

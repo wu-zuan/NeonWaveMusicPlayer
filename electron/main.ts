@@ -391,214 +391,160 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('search:lyrics', async (_, title, artist, filePath) => {
+  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, duration) => {
     try {
       // Imports
       const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
       const Genius = createRequire(import.meta.url)('genius-lyrics')
       const geniusClient = new Genius.Client()
 
-      // --- Helper: Search LRCLib ---
-      // Returns the string of synced lyrics if found, null otherwise.
-      const searchLrc = async (q: string, artistName: string = '') => {
+      console.log(`[Lyrics] Search: ${title} / ${artist} (Duration: ${duration}s)`)
+
+      // --- Helper: Search LRCLib (Raw Results) ---
+      const searchLrcRaw = async (q: string) => {
         try {
           const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
           const res = await fetch(url)
           if (res.ok) {
             const list: any[] = await res.json()
-            if (Array.isArray(list) && list.length > 0) {
-              const safeArtist = (artistName || '').split(' ')[0].toLowerCase()
-
-              // 1. Try to find Synced + Matching Artist
-              let match = list.find(t => t.syncedLyrics && (!safeArtist || t.artistName.toLowerCase().includes(safeArtist)))
-
-              // 2. Try to find any Synced
-              if (!match) match = list.find(t => t.syncedLyrics)
-
-              // 3. Return result
-              if (match && match.syncedLyrics) return match.syncedLyrics
-            }
+            if (Array.isArray(list)) return list
           }
         } catch (e) {
           console.error("LRC Search Error", q, e)
         }
-        return null
+        return []
       }
 
-      console.log(`[Lyrics] Starting search for: ${title} / ${artist}`)
+      // --- Helper: Convert Plain Text to "Unsynced" Format ---
+      const toTextLyrics = (text: string) => {
+        if (!text) return null
+        return text.split('\n')
+          .filter((l: string) => l.trim())
+          .map((l: string) => `[00:00.00]${l}`) // Dummy timestamps signals "Unsynced"
+          .join('\n')
+      }
 
-      // --- Pre-processing: Universal Logic for Asian/Complex Filenames ---
-      let cleanTitle = title
-      let cleanArtist = artist
+      // ---------------------------------------------------------
+      // Step 1: iTunes Normalization (The Translator)
+      // ---------------------------------------------------------
+      let normalizedTitle = title
+      let normalizedArtist = artist
+      let refDuration = (typeof duration === 'number') ? duration : 0
 
+      // Clean filename for iTunes query
+      let iTunesQuery = ''
       if (filePath) {
-        let s = path.basename(filePath, path.extname(filePath))
-        console.log(`[Lyrics] Raw Filename: ${s}`)
-
-        // 1. Remove standard junk keywords first to clear noise
-        // Note: We don't remove bracket content yet, as it might contain the title
-        let junkRegex = /\b(Official|Music Video|MV|Live|Cover|4K|1080p|Lyric|Video)\b/gi
-
-        // 2. Anchor Priority 0: Book Title Marks 《...》
-        // This is absolute truth for C-Pop
-        const bookMatch = s.match(/《(.+?)》/)
-
-        // 3. Anchor Priority 1: Brackets 【...】 or [...]
-        // We look for thick brackets mostly as they are common in Asian filenames for "Official Title"
-        const thickMatch = s.match(/【(.+?)】/)
-
-        let forcedTitle = null
-        if (bookMatch) {
-          forcedTitle = bookMatch[1]
-        } else if (thickMatch) {
-          // Logic: If bracket content is mixed (e.g. "擱淺 Step Aside"), prefer CJK
-          const content = thickMatch[1]
-          const hasCJK = /[\u4e00-\u9fa5]/.test(content)
-          const hasEnglish = /[a-zA-Z]/.test(content)
-
-          if (hasCJK && hasEnglish) {
-            // Split by space, find the part with CJK
-            // Example: "擱淺 Step Aside" -> ["擱淺", "Step", "Aside"]
-            // We assume the non-English part is the native title
-            const cjkPart = content.match(/[\u4e00-\u9fa5]+/)
-            if (cjkPart) forcedTitle = cjkPart[0]
-            else forcedTitle = content
-          } else {
-            forcedTitle = content
-          }
-        }
-
-        // 4. Extract Artist (Handle _ and & separators)
-        // If we found a title anchor, the artist is likely everything BEFORE it.
-        // If not, we fall back to get-artist-title (but cleaned).
-
-        let potentialArtistStr = s
-        if (forcedTitle) {
-          // Remove the title part from the string to isolate artist
-          // We use the full match (e.g. 《Title》) to split
-          const splitAnchor = bookMatch ? bookMatch[0] : (thickMatch ? thickMatch[0] : null)
-          if (splitAnchor) {
-            const parts = s.split(splitAnchor)
-            if (parts[0] && parts[0].trim().length > 1) {
-              potentialArtistStr = parts[0]
-            } else if (parts[1] && parts[1].trim().length > 1) {
-              potentialArtistStr = parts[1] // Post-fix artist? Rare but possible
-            }
-          }
-        }
-
-        // Clean Artist String
-        potentialArtistStr = potentialArtistStr.replace(junkRegex, ' ').replace(/[\[\]【】《》]/g, ' ')
-
-        // Split complex artists "Artist A _ Artist B" or "A & B"
-        // Take the first one as primary
-        const artistSeparators = /[\s_&,]+|(?:\s+feat\.?\s+)/i
-        const artistParts = potentialArtistStr.split(artistSeparators).filter(p => p.trim())
-
-        if (artistParts.length > 0) {
-          // Find the longest segment that isn't a junk word? 
-          // Or just the first substantial one.
-          const candidate = artistParts[0]
-          if (candidate.length > 1) {
-            cleanArtist = candidate
-          }
-        }
-
-        if (forcedTitle) {
-          cleanTitle = forcedTitle.replace(junkRegex, '').trim()
-        } else {
-          // No anchor? Fallback to get-artist-title with pre-cleaned string
-          // Replace _ with - to help the parser
-          let parserStr = s.replace(/_/g, ' - ').replace(junkRegex, '')
-          const parsed = getArtistTitle(parserStr)
-          if (parsed && parsed.length === 2 && parsed[1]) {
-            // Only overwrite if we found nothing better
-            if (!cleanArtist || cleanArtist === artist) cleanArtist = parsed[0]
-            cleanTitle = parsed[1]
-          }
-        }
-
-        console.log(`[Lyrics] Advanced Clean Result: ${cleanArtist} - ${cleanTitle}`)
+        const rawBase = path.basename(filePath, path.extname(filePath))
+        // Basic cleaning
+        iTunesQuery = rawBase.replace(/_/g, ' ').replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').trim()
+      } else {
+        iTunesQuery = `${title} ${artist}`
       }
 
-      // --- Stage 1: LRCLib Fast Check (Raw) ---
-      if (title && artist) {
-        const res = await searchLrc(`${title} ${artist}`, artist)
-        if (res) { console.log("[Lyrics] S1 Success"); return res }
-      }
+      console.log(`[Lyrics] Step 1: iTunes Normalization Query: ${iTunesQuery}`)
 
-      // --- Stage 2: LRCLib Cleaned Check ---
-      if (cleanTitle) {
-        const query = `${cleanTitle} ${cleanArtist || ''}`.trim()
-        const res = await searchLrc(query, cleanArtist)
-        if (res) { console.log("[Lyrics] S2 Success"); return res }
-      }
-
-      // --- Stage 3: Genius Correction & Hybrid Retry ---
-      let geniusSong = null
       try {
-        // A. Search Genius
-        let query = `${cleanTitle} ${cleanArtist || ''}`.trim()
-        let searches = await geniusClient.songs.search(query)
+        const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(iTunesQuery)}&media=music&entity=song&limit=3`)
+        if (itunesRes.ok) {
+          const itunesData: any = await itunesRes.json()
+          if (itunesData.resultCount > 0) {
+            const info = itunesData.results[0] // Best match
+            console.log(`[Lyrics] iTunes Match: ${info.artistName} - ${info.trackName} (${info.trackTimeMillis / 1000}s)`)
 
-        // B. Desperate Search (Raw Filename)
+            // Use standardized info
+            normalizedTitle = info.trackName
+            normalizedArtist = info.artistName
+          }
+        }
+      } catch (e) {
+        console.warn("[Lyrics] iTunes search failed/skipped", e)
+      }
+
+      // ---------------------------------------------------------
+      // Step 2: LRCLib Search with Duration Filtering
+      // ---------------------------------------------------------
+      const query = `${normalizedTitle} ${normalizedArtist}`
+      console.log(`[Lyrics] Step 2: Searching LRCLib for: ${query}`)
+
+      const lrcResults = await searchLrcRaw(query)
+
+      // Strict Filter: Match duration within 4 seconds
+      if (lrcResults.length > 0 && refDuration > 0) {
+        const validSync = lrcResults.find((t: any) => {
+          if (!t.syncedLyrics) return false
+          // LRCLib duration is in seconds
+          return Math.abs(t.duration - refDuration) <= 4
+        })
+
+        if (validSync) {
+          console.log(`[Lyrics] SUCCESS: Duration Match Found (${validSync.duration}s vs ${refDuration}s)`)
+          return validSync.syncedLyrics
+        } else {
+          console.warn(`[Lyrics] Warning: ${lrcResults.length} results found, but NONE match duration ${refDuration}s`)
+          // Return Plain Text from best match if sync is wrong
+          const bestMatch = lrcResults[0]
+          if (bestMatch.plainLyrics) {
+            console.log("[Lyrics] Falling back to Plain Text due to duration mismatch.")
+            return toTextLyrics(bestMatch.plainLyrics)
+          }
+        }
+      } else if (lrcResults.length > 0 && refDuration === 0) {
+        // No duration known (rare), just take best synced
+        const match = lrcResults.find((t: any) => t.syncedLyrics) || lrcResults[0]
+        return match.syncedLyrics || toTextLyrics(match.plainLyrics)
+      }
+
+      // ---------------------------------------------------------
+      // Step 3: Fuzzy Fallback (Regex + Genius)
+      // ---------------------------------------------------------
+      console.log("[Lyrics] Step 3: Fuzzy Fallback (Genius)")
+
+      try {
+        let geniusSong = null
+        let gQuery = `${normalizedTitle} ${normalizedArtist}`
+        let searches = await geniusClient.songs.search(gQuery)
+
         if (searches.length === 0 && filePath) {
           const rawBase = path.basename(filePath, path.extname(filePath)).replace(/_/g, ' ')
-          console.log(`[Lyrics] Genius fallback search: ${rawBase}`)
           searches = await geniusClient.songs.search(rawBase)
         }
 
         if (searches.length > 0) {
           geniusSong = searches[0]
-          const geniusTitle = geniusSong.title
-          const geniusArtist = geniusSong.artist.name
+          console.log(`[Lyrics] Genius identified: ${geniusSong.artist.name} - ${geniusSong.title}`)
 
-          console.log(`[Lyrics] Genius ID: ${geniusArtist} - ${geniusTitle}`)
+          // Try LRCLib one last time with Genius info
+          const retryResults = await searchLrcRaw(`${geniusSong.title} ${geniusSong.artist.name}`)
+          const validSync = retryResults.find((t: any) => {
+            if (!t.syncedLyrics) return false
+            // Looser tolerance (10s) for fallback
+            if (refDuration > 0) return Math.abs(t.duration - refDuration) <= 10
+            return true
+          })
 
-          // Retry 1: Strict Genius Result
-          const res1 = await searchLrc(`${geniusTitle} ${geniusArtist}`, geniusArtist)
-          if (res1) { console.log("[Lyrics] S3-1 Success (Genius)"); return res1 }
+          if (validSync) {
+            console.log("[Lyrics] Fallback Sync Found via Genius")
+            return validSync.syncedLyrics
+          }
 
-          // Retry 2: Hybrid Strategy (CRITICAL FIX)
-          // Scenario: Genius gave English title ("Step Aside"), but LRCLib has Native ("擱淺").
-          // We trust Genius for the *Artist* (standardized), but we trust our Pre-processing for the *Title* (native).
-          if (cleanTitle && cleanTitle.toLowerCase() !== geniusTitle.toLowerCase()) {
-            console.log(`[Lyrics] Hybrid Retry: ${cleanTitle} (Native) + ${geniusArtist} (Genius)`)
-            const res2 = await searchLrc(`${cleanTitle} ${geniusArtist}`, geniusArtist)
-            if (res2) { console.log("[Lyrics] S3-2 Success (Hybrid)"); return res2 }
+          // If still no sync, return Genius text
+          const lyrics = await geniusSong.lyrics()
+          if (lyrics) {
+            console.log("[Lyrics] Fallback to Genius Plain Text")
+            return toTextLyrics(lyrics)
           }
         }
       } catch (e) {
-        console.warn("[Lyrics] Genius search failed", e)
+        console.error("[Lyrics] Fallback failed", e)
       }
 
-      // --- Stage 4: Final Fallback (Genius Plain Text) ---
-      if (geniusSong) {
-        try {
-          console.log("[Lyrics] Stage 4: Fetching text from Genius")
-          const lyrics = await geniusSong.lyrics()
-          if (lyrics) {
-            return lyrics.split('\n')
-              .filter((l: string) => l.trim())
-              .map((l: string) => `[00:00.00]${l}`)
-              .join('\n')
-          }
-        } catch (e) {
-          console.error("[Lyrics] Failed to fetch lyrics from Genius object", e)
-        }
-      }
-
-      console.log("[Lyrics] All stages failed.")
+      console.log("[Lyrics] All attempts failed.")
       return null
     } catch (e) {
       console.error('Error fetching lyrics:', e)
       return null
     }
   })
-
-
-
-
 
   // Update IPC
   ipcMain.handle('update:check', () => {

@@ -118,6 +118,7 @@ function App() {
           trackArtist={currentTrack?.artist || ''}
           trackPath={currentTrack?.path}
           trackArtwork={currentTrack?.artwork || undefined}
+          trackDuration={duration}
           currentTime={currentTime}
         />
 
