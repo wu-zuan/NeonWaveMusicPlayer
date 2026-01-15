@@ -266,12 +266,12 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                 </div>
 
                                 {/* Virtual Crowd Toggle (Concert Only) */}
-                                {spaceMode === 'concert' && (
+                                {/* {spaceMode === 'concert' && (
                                     <div style={{ marginTop: '4px', padding: '8px', background: 'rgba(0,255,255,0.05)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid rgba(0,255,255,0.1)' }}>
-                                        {/* <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <span style={{ fontSize: '14px' }}>👥</span>
                                             <span style={{ color: 'var(--text-main)', fontSize: '12px' }}>虛擬觀眾</span>
-                                        </div> */}
+                                        </div>
                                         <button
                                             onClick={() => {
                                                 const newVal = !isCrowd
@@ -291,7 +291,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                             }} />
                                         </button>
                                     </div>
-                                )}
+                                )} */}
                             </div>
                         </div>
                     )}
