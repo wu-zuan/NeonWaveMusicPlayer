@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
-import { exec, execFile } from 'node:child_process'
+import { exec } from 'node:child_process'
 import { parseFile } from 'music-metadata'
 
 const require = createRequire(import.meta.url)
@@ -393,19 +393,20 @@ app.whenReady().then(() => {
 
   ipcMain.handle('search:lyrics', async (_, title, artist, filePath) => {
     try {
+      // Imports
+      const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
+      const Genius = createRequire(import.meta.url)('genius-lyrics')
+      const geniusClient = new Genius.Client() // No token needed for basic scraping usually, or uses public token
+
       // Helper: Search LRCLib
-      const searchLrc = async (q: string) => {
+      const searchLrc = async (q: string, artistName: string = '') => {
         try {
-          // Add random delay to avoid rate limiting if hammering
           const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
           const res = await fetch(url)
           if (res.ok) {
             const list: any[] = await res.json()
             if (Array.isArray(list) && list.length > 0) {
-              // Prefer synced lyrics with matching artist if possible
-              // We split artist by space to try partial match (e.g. "Jay" from "Jay Chou")
-              const safeArtist = (artist || '').split(' ')[0].toLowerCase()
-
+              const safeArtist = (artistName || '').split(' ')[0].toLowerCase()
               const match = list.find(t => t.syncedLyrics && (!safeArtist || t.artistName.toLowerCase().includes(safeArtist)))
                 || list.find(t => t.syncedLyrics)
                 || list[0]
@@ -418,51 +419,54 @@ app.whenReady().then(() => {
         return null
       }
 
-      // 1. Try Bracket Content first (Common in Chinese/Japanese MV titles: "Artist 【Title】")
-      const bracketMatch = title.match(/【(.*?)】/)
-      if (bracketMatch) {
-        const extracted = bracketMatch[1].trim()
-        if (extracted) {
-          const res = await searchLrc(`${extracted} ${artist}`)
-          if (res) return res
-          // Try extracted title alone
-          const res2 = await searchLrc(extracted)
-          if (res2) return res2
+      // Step 0: Try exact search if artist provided
+      if (title && artist) {
+        const res = await searchLrc(`${title} ${artist}`, artist)
+        if (res) return res
+      }
+
+      // Step 1: Smart Parse using get-artist-title
+      // Try to parse from filePath (filename often has Artist - Title) or unclean title
+      let parsed: any = null
+      if (filePath) {
+        const filename = path.basename(filePath, path.extname(filePath))
+        parsed = getArtistTitle(filename, {
+          defaultArtist: artist // Fallback
+        })
+      } else if (title) {
+        parsed = getArtistTitle(title)
+      }
+
+      // Step 2: Search LRCLib with parsed info
+      if (parsed) {
+        // Assume get-artist-title returns [artist, title] array
+
+        if (Array.isArray(parsed) && parsed.length === 2 && parsed[1]) {
+          // It returns [artist, title] sometimes? No, let's verify usage. 
+          // "Get Artist Title" usually returns [Artist, Title] string array.
+          const [pArtist, pTitle] = parsed
+          if (pTitle) {
+            const res = await searchLrc(`${pTitle} ${pArtist || ''}`, pArtist)
+            if (res) return res
+          }
         }
       }
 
-      // 2. Clean Junk (Official Video, etc)
-      let cleanTitle = title
-        .replace(/【.*?】/g, ' ')
-        .replace(/\[.*?\]/g, ' ')
-        .replace(/\(.*?\)/g, ' ')
-        .replace(/-?\s*official\s*music\s*video/gi, '')
-        .replace(/-?\s*official\s*video/gi, '')
-        .replace(/-?\s*mv/gi, '')
-        .replace(/[^a-zA-Z0-9\u4e00-\u9fa5 ]/g, ' ') // Keep only Alphanum & CJK
-        .replace(/\s+/g, ' ')
-        .trim()
-
-      // Remove artist name from title if present (e.g. "Jay Chou - Song")
-      // Simple check: if title starts with artist
-      const firstArtistParams = (artist || '').split(' ')[0]
-      if (firstArtistParams && cleanTitle.toLowerCase().includes(firstArtistParams.toLowerCase())) {
-        cleanTitle = cleanTitle.replace(new RegExp(firstArtistParams, 'gi'), '').trim()
-      }
-
-      // 3. Search with Cleaned Title + Artist
-      if (cleanTitle) {
-        const res = await searchLrc(`${cleanTitle} ${artist}`)
-        if (res) return res
-      }
-
-      // 4. Fallback: Filename Search
-      if (filePath) {
-        const filename = path.basename(filePath, path.extname(filePath))
-          .replace(/-?\s*official\s*video/gi, '')
-          .replace(/\(.*\)/g, '')
-        const res = await searchLrc(filename)
-        if (res) return res
+      // Step 3: Fallback to Genius (Text Only) using library
+      try {
+        const query = parsed ? `${parsed[1]} ${parsed[0] || ''}` : `${title} ${artist || ''}`
+        const searches = await geniusClient.songs.search(query)
+        if (searches.length > 0) {
+          const song = searches[0]
+          const lyrics = await song.lyrics()
+          if (lyrics) {
+            // Convert plain text to pseudo-LRC (just lines)
+            // This allows LyricsOverlay to display it (as unsynced)
+            return lyrics.split('\n').filter((l: string) => l.trim()).map((l: string) => `[00:00.00]${l}`).join('\n')
+          }
+        }
+      } catch (e) {
+        console.error("Genius Search Error:", e)
       }
 
       return null // Give up
@@ -472,51 +476,7 @@ app.whenReady().then(() => {
     }
   })
 
-  // Shazam Identification
-  const Shazam = require('node-shazam')
-  ipcMain.handle('music:identify', async (_, filePath) => {
-    const tempFile = path.join(app.getPath('temp'), `shazam_${Date.now()}.raw`)
 
-    try {
-      // 1. Convert to Raw PCM (16000Hz, 1ch, s16le) - max 10s
-      await new Promise((resolve, reject) => {
-        execFile(ffmpegPath, [
-          '-i', filePath,
-          '-f', 's16le',
-          '-ac', '1',
-          '-ar', '16000',
-          '-t', '10',
-          '-y',
-          tempFile
-        ], (err) => {
-          if (err) reject(err)
-          else resolve(true)
-        })
-      })
-
-      // 2. Recognize
-      const buffer = await fs.readFile(tempFile)
-      const shazam = new Shazam()
-      const res = await shazam.recognise(buffer)
-
-      // Cleanup
-      try { await fs.unlink(tempFile) } catch { }
-
-      if (res && res.track) {
-        return {
-          title: res.track.title,
-          artist: res.track.subtitle // Shazam uses subtitle for artist
-        }
-      }
-      return null
-
-    } catch (e: any) {
-      console.error("Shazam Error:", e)
-      // Cleanup on error
-      try { await fs.unlink(tempFile) } catch { }
-      return null
-    }
-  })
 
 
 
