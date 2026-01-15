@@ -26,7 +26,7 @@ function App() {
     isShuffle, repeatMode,
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
-    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization, setCrowd
+    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization
   } = useAudioPlayer()
 
   // Auto-Detect Context
@@ -144,7 +144,6 @@ function App() {
           onSetPosition={setPosition}
           onSetFocusMode={setFocusMode}
           onSetNormalization={setNormalization}
-          onSetCrowd={setCrowd}
           onToggleLyrics={() => setShowLyrics(!showLyrics)}
         />
       </main>

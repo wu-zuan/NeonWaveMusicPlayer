@@ -167,49 +167,61 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     )}
                 </AnimatePresence>
 
-                {/* The "Danmaku" / Subtitle Line */}
-                {!loading && !error && activeLine && (
+                {/* The "Subtitle Block" Style */}
+                {/* Shows Active Line + Next Line Preview used in many modern players/Karoke */}
+                {!loading && !error && (
                     <div style={{
                         width: '100%',
                         textAlign: 'center',
-                        position: 'relative',
                         display: 'flex',
                         flexDirection: 'column',
-                        alignItems: 'center'
+                        alignItems: 'center',
+                        gap: '8px' // Gap between current and next
                     }}>
+                        {/* Current Line */}
                         <motion.div
-                            key={activeLine.time}
-                            initial={{ y: 20, opacity: 0, scale: 0.9 }}
-                            animate={{ y: 0, opacity: 1, scale: 1 }}
-                            exit={{ y: -20, opacity: 0, scale: 1.1 }}
-                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                            key={activeLine ? activeLine.time : 'empty'}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
                             style={{
-                                fontSize: 'min(64px, 8vw)', // Responsive giant text
+                                fontSize: 'min(56px, 7vw)',
                                 fontWeight: 900,
                                 color: '#fff',
-                                // "Danmaku" needs HEAVY stroke to be readable on white/black/gameplay
                                 textShadow: `
-                                 3px 3px 0 #000,
-                                -3px -3px 0 #000,  
-                                 3px -3px 0 #000,
-                                -3px 3px 0 #000,
-                                 3px 0px 0 #000,
-                                 0px 3px 0 #000,
-                                -3px 0px 0 #000,
-                                 0px -3px 0 #000
+                                 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000,
+                                 2px 0px 0 #000, 0px 2px 0 #000, -2px 0px 0 #000, 0px -2px 0 #000,
+                                 0 4px 10px rgba(0,0,0,0.5)
                                `,
-                                WebkitTextStroke: '2px black',
+                                WebkitTextStroke: '1.5px black',
                                 lineHeight: 1.1,
-                                padding: '0 20px'
+                                padding: '0 20px',
+                                maxWidth: '90%'
                             }}
                         >
-                            {activeLine.text}
+                            {activeLine ? activeLine.text : (
+                                <span style={{ opacity: 0.5, fontSize: '32px' }}>...</span>
+                            )}
                         </motion.div>
 
-                        {/* Optional: Translation line if we had it, or next line small? 
-                           User asked for "Danmaku", usually just one scrolling line or flowing text. 
-                           Subtitle style is safest for "Lyrics".
-                       */}
+                        {/* Next Line Preview (Context) */}
+                        {activeIndex !== -1 && activeIndex + 1 < lyrics.length && (
+                            <motion.div
+                                key={lyrics[activeIndex + 1].time}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.6 }}
+                                style={{
+                                    fontSize: 'min(32px, 4vw)',
+                                    fontWeight: 700,
+                                    color: 'rgba(255,255,255,0.8)',
+                                    textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 0 2px 4px rgba(0,0,0,0.5)',
+                                    WebkitTextStroke: '1px black',
+                                    marginTop: '4px'
+                                }}
+                            >
+                                {lyrics[activeIndex + 1].text}
+                            </motion.div>
+                        )}
                     </div>
                 )}
             </motion.div>
