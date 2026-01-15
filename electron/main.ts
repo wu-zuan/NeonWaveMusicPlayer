@@ -388,31 +388,48 @@ app.whenReady().then(() => {
   ipcMain.handle('search:lyrics', async (_, title, artist, filePath) => {
     try {
       const isGeneric = !title || !artist || title.includes('Unknown') || artist.includes('Unknown')
+      const cleanTitle = (t: string) => t.replace(/\(.*\)|\[.*\]/g, '').trim()
 
-      // 1. Precise Match (if we have metadata)
+      const fetchJson = async (url: string) => {
+        try {
+          const res = await fetch(url)
+          if (res.ok) return await res.json()
+        } catch { }
+        return null
+      }
+
+      // 1. Precise Match
       if (!isGeneric) {
-        const url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`
-        const res = await fetch(url)
-        if (res.ok) {
-          const data: any = await res.json()
-          return data.syncedLyrics || data.plainLyrics || null
+        const data = await fetchJson(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`)
+        if (data && (data.syncedLyrics || data.plainLyrics)) return data.syncedLyrics || data.plainLyrics
+      }
+
+      // 2. Cleaned Title Match
+      if (!isGeneric) {
+        const cTitle = cleanTitle(title)
+        if (cTitle !== title) {
+          const data = await fetchJson(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(cTitle)}`)
+          if (data && (data.syncedLyrics || data.plainLyrics)) return data.syncedLyrics || data.plainLyrics
         }
       }
 
-      // 2. Fuzzy / Filename Match (Fallback)
+      // 3. Search API (Title + Artist)
+      if (!isGeneric) {
+        const q = `${cleanTitle(title)} ${artist}`
+        const list = await fetchJson(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`)
+        if (Array.isArray(list) && list.length > 0) {
+          const match = list.find((t: any) => t.syncedLyrics) || list[0]
+          return match.syncedLyrics || match.plainLyrics
+        }
+      }
+
+      // 4. Filename Fallback
       if (filePath) {
-        // Extract filename "Artist - Title.mp3" -> "Artist - Title"
         const filename = path.basename(filePath, path.extname(filePath))
-        // Use Lrclib Search with 'q'
-        const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(filename)}`
-        const res = await fetch(searchUrl)
-        if (res.ok) {
-          const data: any[] = await res.json()
-          if (data && data.length > 0) {
-            // Simply pick the first one that has lyrics
-            const bestMatch = data.find((t: any) => t.syncedLyrics) || data[0]
-            return bestMatch.syncedLyrics || bestMatch.plainLyrics || null
-          }
+        const list = await fetchJson(`https://lrclib.net/api/search?q=${encodeURIComponent(filename)}`)
+        if (Array.isArray(list) && list.length > 0) {
+          const match = list.find((t: any) => t.syncedLyrics) || list[0]
+          return match.syncedLyrics || match.plainLyrics
         }
       }
 
