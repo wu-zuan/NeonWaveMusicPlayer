@@ -161,22 +161,25 @@
 
 .artistGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 20px;
     padding-bottom: 32px;
 }
 
 .artistCard {
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: 20px;
+    padding: 24px 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 16px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid rgba(255, 255, 255, 0.05);
+    aspect-ratio: 3/4;
+    /* Ensure consistent card shape */
 }
 
 .artistCard:hover {
@@ -187,20 +190,24 @@
 }
 
 .artistImage {
-    width: 100px;
-    height: 100px;
+    width: 80%;
+    /* Responsive width relative to card */
+    aspect-ratio: 1/1;
+    /* Force square/circle aspect ratio */
+    height: auto;
+    /* Let aspect-ratio handle height */
     border-radius: 50%;
     object-fit: cover;
     background: #000;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     border: 2px solid rgba(255, 255, 255, 0.1);
     transition: all 0.3s;
 }
 
 .artistCard:hover .artistImage {
-    transform: scale(1.05);
+    transform: scale(1.08);
     border-color: var(--accent-primary);
-    box-shadow: 0 0 20px rgba(0, 255, 242, 0.4);
+    box-shadow: 0 0 25px rgba(0, 255, 242, 0.5);
 }
 
 .artistName {

@@ -146,9 +146,22 @@ export const SearchView = () => {
         }
     }
 
-    // Pagination Logic
-    const totalPages = Math.ceil(results.length / PAGE_SIZE)
-    const currentResults = results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    // Filter Logic
+    const [filterDuration, setFilterDuration] = useState<'all' | 'short' | 'medium' | 'long'>('all')
+    const [showFilterMenu, setShowFilterMenu] = useState(false)
+
+    // Apply filters
+    const filteredResults = results.filter(item => {
+        if (filterDuration === 'all') return true
+        if (filterDuration === 'short') return item.duration < 180 // < 3m
+        if (filterDuration === 'medium') return item.duration >= 180 && item.duration <= 360 // 3-6m
+        if (filterDuration === 'long') return item.duration > 360 // > 6m
+        return true
+    })
+
+    // Pagination Logic (use filtered results)
+    const totalPages = Math.ceil(filteredResults.length / PAGE_SIZE)
+    const currentResults = filteredResults.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
     return (
         <div className={styles.container}>
@@ -167,6 +180,52 @@ export const SearchView = () => {
                     }}
                     onKeyDown={handleKeyDown}
                 />
+
+                {/* Filter Dropdown */}
+                <div style={{ position: 'relative' }}>
+                    <button
+                        className={styles.searchBtn}
+                        onClick={() => setShowFilterMenu(!showFilterMenu)}
+                        style={{ background: filterDuration !== 'all' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)', color: filterDuration !== 'all' ? '#000' : '#fff' }}
+                        title="篩選器"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                    </button>
+
+                    {showFilterMenu && (
+                        <div style={{
+                            position: 'absolute', top: '110%', right: 0,
+                            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '12px', padding: '8px', zIndex: 200,
+                            boxShadow: '0 10px 30px rgba(0,0,0,0.5)', minWidth: '150px'
+                        }}>
+                            <div style={{ padding: '8px 12px', color: '#888', fontSize: '12px' }}>時長篩選</div>
+                            {[
+                                { id: 'all', label: '全部' },
+                                { id: 'short', label: '短 (< 3分)' },
+                                { id: 'medium', label: '中 (3-6分)' },
+                                { id: 'long', label: '長 (> 6分)' }
+                            ].map(opt => (
+                                <div
+                                    key={opt.id}
+                                    onClick={() => { setFilterDuration(opt.id as any); setShowFilterMenu(false); setPage(1); }}
+                                    style={{
+                                        padding: '8px 12px',
+                                        cursor: 'pointer',
+                                        borderRadius: '8px',
+                                        background: filterDuration === opt.id ? 'var(--accent-primary)' : 'transparent',
+                                        color: filterDuration === opt.id ? '#000' : '#fff',
+                                        fontSize: '14px',
+                                        marginBottom: '4px'
+                                    }}
+                                >
+                                    {opt.label}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
                 <button
                     className={styles.searchBtn}
                     onClick={() => handleSearch()}
@@ -216,14 +275,14 @@ export const SearchView = () => {
                     </div>
                 ))}
 
-                {!isLoading && hasSearched && results.length === 0 && (
+                {!isLoading && hasSearched && filteredResults.length === 0 && (
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '40px' }}>
-                        找不到相關歌曲
+                        {results.length > 0 ? '沒有符合篩選條件的歌曲' : '找不到相關歌曲'}
                     </div>
                 )}
 
                 {/* Pagination Controls */}
-                {hasSearched && results.length > 0 && (
+                {hasSearched && filteredResults.length > 0 && (
                     <div className={styles.pagination}>
                         <button
                             className={styles.pageBtn}
