@@ -117,6 +117,7 @@ function App() {
           trackTitle={currentTrack?.title || ''}
           trackArtist={currentTrack?.artist || ''}
           trackPath={currentTrack?.path}
+          trackArtwork={currentTrack?.artwork || undefined}
           currentTime={currentTime}
         />
 
