@@ -5,13 +5,14 @@
     flex-direction: column;
     max-width: 1200px;
     width: 100%;
-    margin: 0 auto;
 }
 
 .searchBar {
     display: flex;
     gap: 12px;
     margin-bottom: 24px;
+    position: relative;
+    z-index: 100;
 }
 
 .input {

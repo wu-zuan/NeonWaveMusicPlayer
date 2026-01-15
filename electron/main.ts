@@ -387,53 +387,79 @@ app.whenReady().then(() => {
 
   ipcMain.handle('search:lyrics', async (_, title, artist, filePath) => {
     try {
-      const isGeneric = !title || !artist || title.includes('Unknown') || artist.includes('Unknown')
-      const cleanTitle = (t: string) => t.replace(/\(.*\)|\[.*\]/g, '').trim()
-
-      const fetchJson = async (url: string) => {
+      // Helper: Search LRCLib
+      const searchLrc = async (q: string) => {
         try {
+          // Add random delay to avoid rate limiting if hammering
+          const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
           const res = await fetch(url)
-          if (res.ok) return await res.json()
-        } catch { }
+          if (res.ok) {
+            const list: any[] = await res.json()
+            if (Array.isArray(list) && list.length > 0) {
+              // Prefer synced lyrics with matching artist if possible
+              // We split artist by space to try partial match (e.g. "Jay" from "Jay Chou")
+              const safeArtist = (artist || '').split(' ')[0].toLowerCase()
+
+              const match = list.find(t => t.syncedLyrics && (!safeArtist || t.artistName.toLowerCase().includes(safeArtist)))
+                || list.find(t => t.syncedLyrics)
+                || list[0]
+              return match.syncedLyrics || match.plainLyrics
+            }
+          }
+        } catch (e) {
+          console.error("LRC Search Error", q, e)
+        }
         return null
       }
 
-      // 1. Precise Match
-      if (!isGeneric) {
-        const data = await fetchJson(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`)
-        if (data && (data.syncedLyrics || data.plainLyrics)) return data.syncedLyrics || data.plainLyrics
-      }
-
-      // 2. Cleaned Title Match
-      if (!isGeneric) {
-        const cTitle = cleanTitle(title)
-        if (cTitle !== title) {
-          const data = await fetchJson(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(cTitle)}`)
-          if (data && (data.syncedLyrics || data.plainLyrics)) return data.syncedLyrics || data.plainLyrics
+      // 1. Try Bracket Content first (Common in Chinese/Japanese MV titles: "Artist 【Title】")
+      const bracketMatch = title.match(/【(.*?)】/)
+      if (bracketMatch) {
+        const extracted = bracketMatch[1].trim()
+        if (extracted) {
+          const res = await searchLrc(`${extracted} ${artist}`)
+          if (res) return res
+          // Try extracted title alone
+          const res2 = await searchLrc(extracted)
+          if (res2) return res2
         }
       }
 
-      // 3. Search API (Title + Artist)
-      if (!isGeneric) {
-        const q = `${cleanTitle(title)} ${artist}`
-        const list = await fetchJson(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`)
-        if (Array.isArray(list) && list.length > 0) {
-          const match = list.find((t: any) => t.syncedLyrics) || list[0]
-          return match.syncedLyrics || match.plainLyrics
-        }
+      // 2. Clean Junk (Official Video, etc)
+      let cleanTitle = title
+        .replace(/【.*?】/g, ' ')
+        .replace(/\[.*?\]/g, ' ')
+        .replace(/\(.*?\)/g, ' ')
+        .replace(/-?\s*official\s*music\s*video/gi, '')
+        .replace(/-?\s*official\s*video/gi, '')
+        .replace(/-?\s*mv/gi, '')
+        .replace(/[^a-zA-Z0-9\u4e00-\u9fa5 ]/g, ' ') // Keep only Alphanum & CJK
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      // Remove artist name from title if present (e.g. "Jay Chou - Song")
+      // Simple check: if title starts with artist
+      const firstArtistParams = (artist || '').split(' ')[0]
+      if (firstArtistParams && cleanTitle.toLowerCase().includes(firstArtistParams.toLowerCase())) {
+        cleanTitle = cleanTitle.replace(new RegExp(firstArtistParams, 'gi'), '').trim()
       }
 
-      // 4. Filename Fallback
+      // 3. Search with Cleaned Title + Artist
+      if (cleanTitle) {
+        const res = await searchLrc(`${cleanTitle} ${artist}`)
+        if (res) return res
+      }
+
+      // 4. Fallback: Filename Search
       if (filePath) {
         const filename = path.basename(filePath, path.extname(filePath))
-        const list = await fetchJson(`https://lrclib.net/api/search?q=${encodeURIComponent(filename)}`)
-        if (Array.isArray(list) && list.length > 0) {
-          const match = list.find((t: any) => t.syncedLyrics) || list[0]
-          return match.syncedLyrics || match.plainLyrics
-        }
+          .replace(/-?\s*official\s*video/gi, '')
+          .replace(/\(.*\)/g, '')
+        const res = await searchLrc(filename)
+        if (res) return res
       }
 
-      return null
+      return null // Give up
     } catch (e) {
       console.error('Error fetching lyrics:', e)
       return null
