@@ -186,73 +186,103 @@ app.whenReady().then(() => {
     return await runPowerShell(scriptPath)
   })
 
+  // yt-dlp-wrap integration
+  const YtDlpWrap = createRequire(import.meta.url)('yt-dlp-wrap').default
+
+  // Ensure we have a binary (lazy load helper)
+  const getYtDlp = async () => {
+    const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
+    const binaryPath = path.join(app.getPath('userData'), binaryName)
+
+    // Check existence
+    try {
+      await fs.access(binaryPath)
+    } catch {
+      // Download if missing
+      console.log('Downloading yt-dlp binary...')
+      await YtDlpWrap.downloadFromGithub(binaryPath)
+      console.log('Downloaded yt-dlp to', binaryPath)
+    }
+
+    const wrapper = new YtDlpWrap(binaryPath)
+    return wrapper
+  }
+
   ipcMain.handle('search:youtube', async (_, query) => {
     try {
-      const require = createRequire(import.meta.url)
-      const yts = require('yt-search')
-      const r = await yts(query)
-      return r.videos.slice(0, 20).map((v: any) => ({
-        id: v.videoId,
-        title: v.title,
-        artist: v.author.name,
-        duration: v.seconds,
-        thumbnail: v.thumbnail,
-        url: v.url
-      }))
+      const yt = await getYtDlp()
+      // ytsearch20:query triggers yt-dlp to search and return first 20 results
+      // --dump-json outputs JSON for each result
+      // --flat-playlist ensures we get fast results without full extraction
+      // --default-search ytsearch20
+      const stdout = await yt.execPromise([
+        `ytsearch20:${query}`,
+        '--dump-json',
+        '--flat-playlist'
+      ])
+
+      const results = stdout
+        .trim()
+        .split('\n')
+        .map((line: string) => {
+          try { return JSON.parse(line) } catch { return null }
+        })
+        .filter((v: any) => v && v.id)
+        .map((v: any) => ({
+          id: v.id,
+          title: v.title,
+          artist: v.channel || v.uploader || 'Unknown',
+          duration: v.duration,
+          thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`, // yt-dlp flat-playlist sometimes misses thumbs
+          url: v.url || `https://www.youtube.com/watch?v=${v.id}`
+        }))
+
+      return results
     } catch (e) {
-      console.error(e)
+      console.error("Yt-dlp search error:", e)
       return []
     }
   })
 
   ipcMain.handle('download:youtube', async (_, url, inputTitle) => {
     try {
-      const require = createRequire(import.meta.url)
-      const fs = require('fs') // Standard require
-      const ytdl = require('@distube/ytdl-core')
+      const yt = await getYtDlp()
 
-      if (!ytdl.validateURL(url)) throw new Error('無效的 YouTube 網址')
-
-      // 1. Get Info
-      let info
-      try {
-        info = await ytdl.getInfo(url)
-      } catch (err) {
-        console.error('Info Fetch Error:', err)
-        throw new Error('無法取得影片資訊 (可能受限或連結無效)')
-      }
-
-      const safeTitle = (info.videoDetails.title || inputTitle).replace(/[\\/:*?"<>|]/g, '_').trim()
+      // 1. Get Info to sanitize title properly (optional, but good)
+      // Actually yt-dlp will handle most, but we need a save path.
+      let safeTitle = inputTitle.replace(/[\\/:*?"<>|]/g, '_').trim()
 
       // 2. Pick path
       const { filePath } = await dialog.showSaveDialog(win!, {
         title: '下載歌曲',
-        defaultPath: `${safeTitle}.mp3`,
-        filters: [{ name: 'Audio', extensions: ['mp3'] }]
+        defaultPath: `${safeTitle}.m4a`, // Force m4a for best playback without ffmpeg
+        filters: [{ name: 'Audio (m4a)', extensions: ['m4a'] }]
       })
 
       if (!filePath) return null
 
+      // 3. Download
       return new Promise((resolve, reject) => {
-        // 3. Download
-        // Using 'highestaudio' to get best quality opus/aac
-        const stream = ytdl.downloadFromInfo(info, {
-          quality: 'highestaudio',
+        // -f bestaudio[ext=m4a] ensures we get a container the OS can likely play natively
+        // and doesn't require ffmpeg merging
+        const eventEmitter = yt.exec([
+          url,
+          '-f', 'bestaudio[ext=m4a]',
+          '-o', filePath
+        ])
+
+        eventEmitter.on('progress', (progress: any) => {
+          // Could send progress to renderer if we wanted
+          // win?.webContents.send('download-progress', progress)
         })
 
-        const writer = fs.createWriteStream(filePath)
-
-        stream.pipe(writer)
-
-        stream.on('error', (err: any) => {
-          console.error('Download Stream Error:', err)
-          reject(new Error(`串流錯誤: ${err.message}`))
+        eventEmitter.on('error', (err: any) => {
+          console.error("yt-dlp error:", err)
+          reject(new Error(`下載錯誤: ${err.message}`))
         })
 
-        writer.on('finish', () => resolve(filePath))
-        writer.on('error', (err: any) => {
-          console.error('File Write Error:', err)
-          reject(new Error(`寫入錯誤: ${err.message}`))
+        eventEmitter.on('close', () => {
+          resolve(filePath)
         })
       })
 
