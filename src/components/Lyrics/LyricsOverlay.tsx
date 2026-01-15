@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Mic2, Loader2, Search as SearchIcon } from 'lucide-react'
 import { parseLrc, LyricLine, getCurrentLineIndex } from '../../utils/lrcParser'
 
 interface LyricsOverlayProps {
@@ -15,7 +14,7 @@ interface LyricsOverlayProps {
 }
 
 export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
-    visible, onClose, trackTitle, trackArtist, trackPath, trackArtwork, trackDuration, currentTime
+    visible, onClose, trackTitle, trackArtist, trackPath, trackDuration, currentTime
 }) => {
     const [lyrics, setLyrics] = useState<LyricLine[]>([])
     const [loading, setLoading] = useState(false)

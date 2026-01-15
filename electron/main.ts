@@ -391,7 +391,7 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, duration) => {
+  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, _duration) => {
     try {
       const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
 
