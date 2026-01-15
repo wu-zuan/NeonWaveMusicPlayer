@@ -427,7 +427,7 @@ app.whenReady().then(() => {
 
       console.log(`[Lyrics] Starting search for: ${title} / ${artist}`)
 
-      // --- Pre-processing: Advanced Clean & Parse ---
+      // --- Pre-processing: Universal Logic for Asian/Complex Filenames ---
       let cleanTitle = title
       let cleanArtist = artist
 
@@ -435,99 +435,137 @@ app.whenReady().then(() => {
         let s = path.basename(filePath, path.extname(filePath))
         console.log(`[Lyrics] Raw Filename: ${s}`)
 
-        // Rule A: Book Title Marks 《...》 (Highest Priority for Title)
-        const arrowMatch = s.match(/《(.+?)》/)
+        // 1. Remove standard junk keywords first to clear noise
+        // Note: We don't remove bracket content yet, as it might contain the title
+        let junkRegex = /\b(Official|Music Video|MV|Live|Cover|4K|1080p|Lyric|Video)\b/gi
 
-        // Rule B: Bracket Content 【...】 (Secondary Priority)
+        // 2. Anchor Priority 0: Book Title Marks 《...》
+        // This is absolute truth for C-Pop
+        const bookMatch = s.match(/《(.+?)》/)
+
+        // 3. Anchor Priority 1: Brackets 【...】 or [...]
+        // We look for thick brackets mostly as they are common in Asian filenames for "Official Title"
         const thickMatch = s.match(/【(.+?)】/)
 
-        // Rule C: Junk Removal (Aggressive)
-        const junkRegex = /\b(Official|Music Video|MV|Live|Cover|4K|1080p|Lyric|Video)\b/gi
-        s = s.replace(junkRegex, ' ')
+        let forcedTitle = null
+        if (bookMatch) {
+          forcedTitle = bookMatch[1]
+        } else if (thickMatch) {
+          // Logic: If bracket content is mixed (e.g. "擱淺 Step Aside"), prefer CJK
+          const content = thickMatch[1]
+          const hasCJK = /[\u4e00-\u9fa5]/.test(content)
+          const hasEnglish = /[a-zA-Z]/.test(content)
 
-        // Rule D: Generic cleanup
-        s = s.replace(/_/g, ' ')
-
-        // Prioritize extracted title (forcedTitle)
-        let forcedTitle = arrowMatch ? arrowMatch[1] : (thickMatch ? thickMatch[1] : null)
-        if (forcedTitle) {
-          // Clean the forced title itself
-          forcedTitle = forcedTitle.replace(junkRegex, '').trim()
+          if (hasCJK && hasEnglish) {
+            // Split by space, find the part with CJK
+            // Example: "擱淺 Step Aside" -> ["擱淺", "Step", "Aside"]
+            // We assume the non-English part is the native title
+            const cjkPart = content.match(/[\u4e00-\u9fa5]+/)
+            if (cjkPart) forcedTitle = cjkPart[0]
+            else forcedTitle = content
+          } else {
+            forcedTitle = content
+          }
         }
 
-        // Run get-artist-title on the cleaned string
-        // We replace brackets with space to ensure separation for the parser
-        const parserString = s.replace(/[《》【】\[\]]/g, ' ').replace(/\s+/g, ' ').trim()
+        // 4. Extract Artist (Handle _ and & separators)
+        // If we found a title anchor, the artist is likely everything BEFORE it.
+        // If not, we fall back to get-artist-title (but cleaned).
 
-        const parsed = getArtistTitle(parserString, { defaultArtist: artist })
-
-        if (parsed && parsed.length === 2 && parsed[1]) {
-          cleanArtist = parsed[0] || artist
-          cleanTitle = parsed[1]
-        }
-
-        // OVERRIDE: If we found a strong title indicator, leverage it.
+        let potentialArtistStr = s
         if (forcedTitle) {
-          cleanTitle = forcedTitle
-          // Try to deduce artist by removing title from the full string
-          if (!cleanArtist || cleanArtist === artist) {
-            const potentialArtist = s.replace(arrowMatch ? arrowMatch[0] : thickMatch![0], '').replace(junkRegex, '').trim()
-            if (potentialArtist.length > 1) {
-              cleanArtist = potentialArtist
+          // Remove the title part from the string to isolate artist
+          // We use the full match (e.g. 《Title》) to split
+          const splitAnchor = bookMatch ? bookMatch[0] : (thickMatch ? thickMatch[0] : null)
+          if (splitAnchor) {
+            const parts = s.split(splitAnchor)
+            if (parts[0] && parts[0].trim().length > 1) {
+              potentialArtistStr = parts[0]
+            } else if (parts[1] && parts[1].trim().length > 1) {
+              potentialArtistStr = parts[1] // Post-fix artist? Rare but possible
             }
+          }
+        }
+
+        // Clean Artist String
+        potentialArtistStr = potentialArtistStr.replace(junkRegex, ' ').replace(/[\[\]【】《》]/g, ' ')
+
+        // Split complex artists "Artist A _ Artist B" or "A & B"
+        // Take the first one as primary
+        const artistSeparators = /[\s_&,]+|(?:\s+feat\.?\s+)/i
+        const artistParts = potentialArtistStr.split(artistSeparators).filter(p => p.trim())
+
+        if (artistParts.length > 0) {
+          // Find the longest segment that isn't a junk word? 
+          // Or just the first substantial one.
+          const candidate = artistParts[0]
+          if (candidate.length > 1) {
+            cleanArtist = candidate
+          }
+        }
+
+        if (forcedTitle) {
+          cleanTitle = forcedTitle.replace(junkRegex, '').trim()
+        } else {
+          // No anchor? Fallback to get-artist-title with pre-cleaned string
+          // Replace _ with - to help the parser
+          let parserStr = s.replace(/_/g, ' - ').replace(junkRegex, '')
+          const parsed = getArtistTitle(parserStr)
+          if (parsed && parsed.length === 2 && parsed[1]) {
+            // Only overwrite if we found nothing better
+            if (!cleanArtist || cleanArtist === artist) cleanArtist = parsed[0]
+            cleanTitle = parsed[1]
           }
         }
 
         console.log(`[Lyrics] Advanced Clean Result: ${cleanArtist} - ${cleanTitle}`)
       }
 
-      // --- Stage 1: LRCLib Fast Check (Raw Metadata) ---
+      // --- Stage 1: LRCLib Fast Check (Raw) ---
       if (title && artist) {
         const res = await searchLrc(`${title} ${artist}`, artist)
-        if (res) {
-          console.log("[Lyrics] Stage 1 success (Raw)")
-          return res
-        }
+        if (res) { console.log("[Lyrics] S1 Success"); return res }
       }
 
-      // --- Stage 2: LRCLib Cleaned Check (Parsed Metadata) ---
+      // --- Stage 2: LRCLib Cleaned Check ---
       if (cleanTitle) {
         const query = `${cleanTitle} ${cleanArtist || ''}`.trim()
         const res = await searchLrc(query, cleanArtist)
-        if (res) {
-          console.log("[Lyrics] Stage 2 success (Cleaned)")
-          return res
-        }
+        if (res) { console.log("[Lyrics] S2 Success"); return res }
       }
 
-      // --- Stage 3: Genius Correction & Smart Retry ---
-      // We use Genius to find the "Official" song details, then ask LRCLib again.
+      // --- Stage 3: Genius Correction & Hybrid Retry ---
       let geniusSong = null
       try {
-        // A. Search using Cleaned Data
+        // A. Search Genius
         let query = `${cleanTitle} ${cleanArtist || ''}`.trim()
         let searches = await geniusClient.songs.search(query)
 
-        // B. Desperate Search: Use Original Filename (if A failed)
-        // Genius search is often smarter than our regex or parsed info
+        // B. Desperate Search (Raw Filename)
         if (searches.length === 0 && filePath) {
           const rawBase = path.basename(filePath, path.extname(filePath)).replace(/_/g, ' ')
-          console.log(`[Lyrics] Stage 3 Retry: Searching Genius with raw filename: ${rawBase}`)
+          console.log(`[Lyrics] Genius fallback search: ${rawBase}`)
           searches = await geniusClient.songs.search(rawBase)
         }
 
         if (searches.length > 0) {
           geniusSong = searches[0]
-          const correctTitle = geniusSong.title
-          const correctArtist = geniusSong.artist.name
+          const geniusTitle = geniusSong.title
+          const geniusArtist = geniusSong.artist.name
 
-          console.log(`[Lyrics] Genius identified: ${correctArtist} - ${correctTitle}`)
+          console.log(`[Lyrics] Genius ID: ${geniusArtist} - ${geniusTitle}`)
 
-          // SEARCH LRCLIB AGAIN with CORRECT info
-          const res = await searchLrc(`${correctTitle} ${correctArtist}`, correctArtist)
-          if (res) {
-            console.log("[Lyrics] Stage 3 success (Genius Correction)")
-            return res
+          // Retry 1: Strict Genius Result
+          const res1 = await searchLrc(`${geniusTitle} ${geniusArtist}`, geniusArtist)
+          if (res1) { console.log("[Lyrics] S3-1 Success (Genius)"); return res1 }
+
+          // Retry 2: Hybrid Strategy (CRITICAL FIX)
+          // Scenario: Genius gave English title ("Step Aside"), but LRCLib has Native ("擱淺").
+          // We trust Genius for the *Artist* (standardized), but we trust our Pre-processing for the *Title* (native).
+          if (cleanTitle && cleanTitle.toLowerCase() !== geniusTitle.toLowerCase()) {
+            console.log(`[Lyrics] Hybrid Retry: ${cleanTitle} (Native) + ${geniusArtist} (Genius)`)
+            const res2 = await searchLrc(`${cleanTitle} ${geniusArtist}`, geniusArtist)
+            if (res2) { console.log("[Lyrics] S3-2 Success (Hybrid)"); return res2 }
           }
         }
       } catch (e) {
