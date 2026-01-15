@@ -23,6 +23,7 @@ export function useAudioPlayer() {
     const [duration, setDuration] = useState(0)
     const [volume, setVolume] = useState(1)
     const [is8D, setIs8D] = useState(false)
+    const [defaultArtwork, setDefaultArtwork] = useState('')
 
     // Playlist & Ordering
     const [playlist, setPlaylist] = useState<Track[]>([])
@@ -36,6 +37,18 @@ export function useAudioPlayer() {
 
     // Helper to get random index
     const getRandomIndex = (max: number) => Math.floor(Math.random() * max)
+
+    // Load Default Logo as Data URI (Workaround for ASAR/Windows SMTC)
+    useEffect(() => {
+        fetch('logo.png')
+            .then(res => res.blob())
+            .then(blob => {
+                const reader = new FileReader()
+                reader.onloadend = () => setDefaultArtwork(reader.result as string)
+                reader.readAsDataURL(blob)
+            })
+            .catch(err => console.error("Failed to load logo", err))
+    }, [])
 
 
     // Effects for Audio Engine
@@ -190,7 +203,7 @@ export function useAudioPlayer() {
                 album: currentTrack.album || 'NeonWave Music',
                 artwork: [
                     // Use embedded artwork if available, otherwise placeholder
-                    { src: currentTrack.artwork || new URL('logo.png', window.location.href).href, sizes: '512x512', type: 'image/png' }
+                    { src: currentTrack.artwork || defaultArtwork, sizes: '512x512', type: 'image/png' }
                 ]
             })
         }
@@ -215,7 +228,7 @@ export function useAudioPlayer() {
             }
         })
 
-    }, [currentTrack, handlePrev, handleNext, duration]) // dependencies ensure handlers use latest state wrappers
+    }, [currentTrack, handlePrev, handleNext, duration, defaultArtwork]) // dependencies ensure handlers use latest state wrappers
 
 
     const togglePlay = () => isPlaying ? audioRef.current.pause() : audioRef.current.play()
