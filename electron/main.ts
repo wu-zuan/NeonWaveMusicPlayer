@@ -419,9 +419,45 @@ app.whenReady().then(() => {
         return null
       }
 
-      // Step 0: Try exact search if artist provided
+      // Helper: Search Netease (163)
+      const searchNetease = async (q: string) => {
+        try {
+          // 1. Search for ID
+          const searchUrl = `http://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s=${encodeURIComponent(q)}&type=1&offset=0&total=true&limit=1`
+          const resSearch = await fetch(searchUrl)
+          if (resSearch.ok) {
+            const data: any = await resSearch.json()
+            if (data?.result?.songs?.length > 0) {
+              const songId = data.result.songs[0].id
+              // 2. Get Lyric
+              const lrcUrl = `http://music.163.com/api/song/lyric?id=${songId}&lv=1&kv=-1&tv=-1`
+              const resLrc = await fetch(lrcUrl)
+              if (resLrc.ok) {
+                const lrcData: any = await resLrc.json()
+                if (lrcData?.lrc?.lyric) {
+                  return lrcData.lrc.lyric
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Netease Search Error", q, e)
+        }
+        return null
+      }
+
+      // Step 0: Try exact search if artist provided (LRCLib)
       if (title && artist) {
-        const res = await searchLrc(`${title} ${artist}`, artist)
+        // Try LRCLib first
+        let res = await searchLrc(`${title} ${artist}`, artist)
+        if (res) return res
+
+        // Parsing for subsequent attempts
+        let searchQ = `${title} ${artist}`
+
+        // Step 0.5: Try Netease (High probability for Asian/Popular music synced)
+        // Netease search works best with specific queries
+        res = await searchNetease(searchQ)
         if (res) return res
       }
 
@@ -437,16 +473,20 @@ app.whenReady().then(() => {
         parsed = getArtistTitle(title)
       }
 
-      // Step 2: Search LRCLib with parsed info
+      // Step 2: Search with parsed info
       if (parsed) {
         // Assume get-artist-title returns [artist, title] array
-
         if (Array.isArray(parsed) && parsed.length === 2 && parsed[1]) {
-          // It returns [artist, title] sometimes? No, let's verify usage. 
-          // "Get Artist Title" usually returns [Artist, Title] string array.
           const [pArtist, pTitle] = parsed
           if (pTitle) {
-            const res = await searchLrc(`${pTitle} ${pArtist || ''}`, pArtist)
+            const query = `${pTitle} ${pArtist || ''}`
+
+            // LRCLib
+            let res = await searchLrc(query, pArtist)
+            if (res) return res
+
+            // Netease
+            res = await searchNetease(query)
             if (res) return res
           }
         }
