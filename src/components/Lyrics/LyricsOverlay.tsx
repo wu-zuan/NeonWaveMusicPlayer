@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Mic2, Loader2, Search as SearchIcon, Sparkles } from 'lucide-react'
+import { X, Mic2, Loader2, Search as SearchIcon } from 'lucide-react'
 import { parseLrc, LyricLine, getCurrentLineIndex } from '../../utils/lrcParser'
 
 interface LyricsOverlayProps {
@@ -82,37 +82,6 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         e.preventDefault()
         fetchLyrics(searchTitle, searchArtist)
         // We clear path here to force clean metadata search logic
-    }
-
-    const handleShazamIdentify = async () => {
-        if (!trackPath) {
-            alert('無法取得檔案路徑')
-            return
-        }
-
-        setLoading(true)
-        setError(false)
-        setLyrics([])
-
-        try {
-            // 1. Identify Music
-            const meta = await window.ipcRenderer.identifyMusic(trackPath)
-            if (meta && meta.title) {
-                // 2. Fetch lyrics with identified metadata
-                setSearchTitle(meta.title)
-                setSearchArtist(meta.artist || '')
-                fetchLyrics(meta.title, meta.artist || '')
-            } else {
-                setError(true)
-                alert('Shazam 辨識失敗: 找不到相符歌曲')
-            }
-        } catch (e: any) {
-            console.error(e)
-            setError(true)
-            alert('Shazam 辨識發生錯誤: ' + e.message)
-        } finally {
-            setLoading(false)
-        }
     }
 
     if (!visible) return null
@@ -206,27 +175,13 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                 >
                                     {loading ? '搜尋中...' : '搜尋'}
                                 </button>
-
-                                <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
-                                <button
-                                    type="button"
-                                    onClick={handleShazamIdentify}
-                                    disabled={loading}
-                                    style={{
-                                        padding: '12px', borderRadius: '8px',
-                                        background: 'linear-gradient(45deg, #0088cc, #3333ff)', color: '#fff', fontWeight: 'bold', border: 'none', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                                    }}
-                                >
-                                    <Sparkles size={18} /> 聽歌辨識 (Shazam)
-                                </button>
                             </form>
                         ) : (
                             <>
                                 {loading && (
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#fff', opacity: 0.7 }}>
                                         <Loader2 size={40} className="animate-spin" />
-                                        正在辨識/搜尋...
+                                        正在搜尋歌詞...
                                     </div>
                                 )}
 
@@ -246,16 +201,6 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                                 }}
                                             >
                                                 手動搜尋
-                                            </button>
-                                            <button
-                                                onClick={handleShazamIdentify}
-                                                style={{
-                                                    padding: '8px 16px', borderRadius: '20px', border: 'none',
-                                                    background: 'linear-gradient(45deg, #0088cc, #3333ff)', color: '#fff', cursor: 'pointer',
-                                                    display: 'flex', alignItems: 'center', gap: '6px'
-                                                }}
-                                            >
-                                                <Sparkles size={16} /> 聽歌辨識
                                             </button>
                                         </div>
                                     </div>
