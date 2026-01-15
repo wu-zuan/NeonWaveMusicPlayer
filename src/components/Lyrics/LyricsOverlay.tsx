@@ -26,6 +26,10 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     const scrollRef = useRef<HTMLDivElement>(null)
     const [activeIndex, setActiveIndex] = useState(-1)
 
+    // Check if we have valid synced timestamps (at least some lines > 0s)
+    // If all are 0, it's likely plain text passed with dummy timestamps
+    const isSynced = React.useMemo(() => lyrics.some(l => l.time > 0), [lyrics])
+
     // Init search fields when track changes
     useEffect(() => {
         setSearchTitle(trackTitle)
@@ -35,7 +39,8 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
 
     // Auto-scroll effect
     useEffect(() => {
-        if (showSearch) return // Don't scroll when searching
+        if (showSearch || !isSynced) return // Don't scroll when searching or unsynced
+
         const idx = getCurrentLineIndex(lyrics, currentTime)
         if (idx !== activeIndex) {
             setActiveIndex(idx)
@@ -46,7 +51,17 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 }
             }
         }
-    }, [currentTime, lyrics, showSearch])
+    }, [currentTime, lyrics, showSearch, isSynced])
+
+    // Reset scroll when lyrics load
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = 0
+        }
+        if (!isSynced) {
+            setActiveIndex(-1)
+        }
+    }, [lyrics, isSynced])
 
     const fetchLyrics = async (title: string, artist: string, path: string = '') => {
         setLoading(true)
@@ -154,8 +169,13 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                             <h2 style={{ fontSize: '28px', fontWeight: 800, margin: 0, color: '#fff', letterSpacing: '-0.5px' }}>
                                 {showSearch ? '搜尋歌詞' : trackTitle}
                             </h2>
-                            <div style={{ fontSize: '18px', color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+                            <div style={{ fontSize: '18px', color: 'rgba(255,255,255,0.7)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 {showSearch ? '手動輸入歌名與演出者' : trackArtist}
+                                {!isSynced && lyrics.length > 0 && !showSearch && (
+                                    <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.2)', color: '#eee', backdropFilter: 'blur(4px)' }}>
+                                        純文本
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: '16px', WebkitAppRegion: 'no-drag' } as any}>
@@ -270,22 +290,30 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                 )}
 
                                 {!loading && !error && lyrics.map((line, i) => {
-                                    const isActive = i === activeIndex
-                                    const isPast = i < activeIndex
+                                    // Logic: If synced, use activeIndex. If not, show all as active (but maybe neutral).
+                                    const isActive = isSynced ? (i === activeIndex) : true
+                                    const isPast = isSynced ? (i < activeIndex) : false
+
+                                    // Visuals for unsynced
+                                    const scale = isSynced ? (isActive ? 1.05 : 1) : 1
+                                    const opacity = isSynced ? (isActive ? 1 : isPast ? 0.3 : 0.4) : 0.9
+                                    const blur = isSynced ? (isActive ? '0px' : '1px') : '0px'
+                                    const textColor = isSynced ? (isActive ? '#fff' : '#ccc') : '#eee'
+
                                     return (
                                         <motion.div
                                             key={i}
                                             initial={false}
                                             animate={{
-                                                scale: isActive ? 1.05 : 1,
-                                                opacity: isActive ? 1 : isPast ? 0.3 : 0.4,
-                                                filter: isActive ? 'blur(0px)' : 'blur(1px)',
-                                                y: isActive ? 0 : 0,
-                                                color: isActive ? '#fff' : '#ccc'
+                                                scale: scale,
+                                                opacity: opacity,
+                                                filter: `blur(${blur})`,
+                                                y: 0,
+                                                color: textColor
                                             }}
                                             transition={{ duration: 0.4, ease: "easeOut" }}
                                             style={{
-                                                margin: '20px 0',
+                                                margin: isSynced ? '20px 0' : '16px 0',
                                                 textAlign: 'center',
                                                 maxWidth: '90%',
                                                 padding: '4px 30px',
@@ -298,12 +326,12 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                             }}
                                         >
                                             <span style={{
-                                                fontSize: isActive ? '42px' : '28px',
-                                                fontWeight: isActive ? 800 : 600,
-                                                lineHeight: 1.3,
+                                                fontSize: (isActive && isSynced) ? '42px' : '26px',
+                                                fontWeight: (isActive && isSynced) ? 800 : 500,
+                                                lineHeight: 1.4,
                                                 letterSpacing: '-0.02em',
                                                 display: 'inline-block',
-                                                textShadow: isActive ? '0 4px 24px rgba(0,0,0,0.5)' : 'none',
+                                                textShadow: (isActive && isSynced) ? '0 4px 24px rgba(0,0,0,0.5)' : 'none',
                                                 transformOrigin: 'center center'
                                             }}>
                                                 {line.text}
