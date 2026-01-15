@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -119,6 +119,14 @@ autoUpdater.on('download-progress', (progressObj) => {
 })
 autoUpdater.on('update-downloaded', (info) => {
   win?.webContents.send('update-status', { status: 'downloaded', info })
+
+  // Custom Notification with App Icon and Simple Chinese
+  const notification = new Notification({
+    title: 'NeonWave 更新',
+    body: '新版本已下載完成，將於重啟後自動安裝。',
+    icon: path.join(process.env.VITE_PUBLIC!, 'logo.png')
+  })
+  notification.show()
 })
 
 app.whenReady().then(() => {
@@ -411,7 +419,7 @@ app.whenReady().then(() => {
 
   // Update IPC
   ipcMain.handle('update:check', () => {
-    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.checkForUpdates()
   })
 
   ipcMain.handle('update:install', () => {

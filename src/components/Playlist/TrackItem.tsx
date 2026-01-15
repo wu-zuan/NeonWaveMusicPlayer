@@ -15,7 +15,11 @@ export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, isFavorit
     return (
         <div className={`${styles.trackItem} ${isActive ? styles.active : ''}`} onClick={onClick}>
             <div className={styles.icon}>
-                {isActive ? <AudioWaveform size={20} /> : <Music size={20} />}
+                {track.artwork ? (
+                    <img src={track.artwork} alt="" style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }} />
+                ) : (
+                    isActive ? <AudioWaveform size={20} /> : <Music size={20} />
+                )}
             </div>
             <div className={styles.info}>
                 <div className={styles.title}>{track.title}</div>

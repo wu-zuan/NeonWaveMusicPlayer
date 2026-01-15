@@ -58,7 +58,18 @@ REM Export to environment for electron-builder
 set GH_TOKEN=%GH_TOKEN%
 
 
+REM --- AUTO INCREMENT VERSION ---
+echo [Setup] Incrementing version...
+for /f "delims=" %%v in ('node scripts/increment_version.cjs') do set VERSION=%%v
+
+if "%VERSION%"=="" (
+   echo [Error] Failed to update version number.
+   pause
+   exit /b
+)
+
 REM --- GET VERSION ---
+REM (Double check from file)
 for /f "delims=" %%v in ('node -p "require('./package.json').version"') do set VERSION=%%v
 
 echo.

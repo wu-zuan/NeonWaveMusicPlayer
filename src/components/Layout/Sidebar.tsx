@@ -1,5 +1,5 @@
 import React from 'react'
-import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2 } from 'lucide-react'
+import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2, RefreshCw } from 'lucide-react'
 import styles from './Sidebar.module.css'
 import { Playlist } from '../../hooks/useLibrary'
 
@@ -10,10 +10,11 @@ interface SidebarProps {
     onOpenFolder: () => void
     onRemoveFolder: (path: string) => void
     onRenameFolder: (path: string, newName: string) => void
+    onRefreshLibrary: () => void
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-    playlists, currentView, onChangeView, onOpenFolder, onRemoveFolder, onRenameFolder
+    playlists, currentView, onChangeView, onOpenFolder, onRemoveFolder, onRenameFolder, onRefreshLibrary
 }) => {
     return (
         <aside className={styles.sidebar}>
@@ -44,9 +45,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {/* Local Folders */}
                 <div className={styles.sectionTitle} style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     本機資料夾
-                    <button className={styles.miniAddBtn} onClick={onOpenFolder} title="加入資料夾">
-                        <FolderOpen size={14} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className={styles.miniAddBtn} onClick={onRefreshLibrary} title="重新整理">
+                            <RefreshCw size={14} />
+                        </button>
+                        <button className={styles.miniAddBtn} onClick={onOpenFolder} title="加入資料夾">
+                            <FolderOpen size={14} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className={styles.scrollableNav}>

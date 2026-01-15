@@ -350,7 +350,11 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             {/* Track Info */}
             <div className={styles.nowPlaying}>
                 <div className={styles.art}>
-                    <Music size={24} className="text-gray-400" />
+                    {currentTrack?.artwork ? (
+                        <img src={currentTrack.artwork} alt="Album Art" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} />
+                    ) : (
+                        <Music size={24} className="text-gray-400" />
+                    )}
                 </div>
                 <div className={styles.trackInfo}>
                     <div className={styles.trackTitle}>{currentTrack?.title || 'NeonWave'}</div>

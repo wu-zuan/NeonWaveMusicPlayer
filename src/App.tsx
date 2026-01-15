@@ -15,7 +15,7 @@ import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
 function App() {
   const {
     playlists, favorites, allTracks,
-    addFolder, removeFolder, renameFolder, toggleFavorite
+    addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary
   } = useLibrary()
 
   const [view, setView] = useState('all_songs')
@@ -67,6 +67,7 @@ function App() {
         onOpenFolder={addFolder}
         onRemoveFolder={removeFolder}
         onRenameFolder={renameFolder}
+        onRefreshLibrary={refreshLibrary}
         currentView={view}
         onChangeView={setView}
       />
