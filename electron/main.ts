@@ -8,7 +8,10 @@ import { exec, execFile } from 'node:child_process'
 import { parseFile } from 'music-metadata'
 
 const require = createRequire(import.meta.url)
-const ffmpegPath = require('ffmpeg-static')
+let ffmpegPath = require('ffmpeg-static')
+if (app.isPackaged) {
+  ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
+}
 
 function runPowerShell(scriptPath: string): Promise<string> {
   return new Promise((resolve) => {
