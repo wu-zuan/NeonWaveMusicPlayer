@@ -354,7 +354,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 </div>
                 <div className={styles.trackInfo}>
                     <div className={styles.trackTitle}>{currentTrack?.title || 'NeonWave'}</div>
-                    <div className={styles.trackArtist}>{currentTrack?.artist || 'Ready to Play'}</div>
+                    <div className={styles.trackArtist}>{currentTrack?.artist || '準備播放'}</div>
 
                     {/* Audio Format Badges */}
                     {currentTrack && (

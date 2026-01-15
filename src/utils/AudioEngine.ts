@@ -195,41 +195,41 @@ export class AudioEngine {
         let targetCutoff = 20000
 
         switch (type) {
-            case 'concert': // Stadium / Live
-                wetAmount = 0.5   // Balanced Ambience
-                duration = 3.0    // Standard Tail
-                decay = 3.0       // Natural Decay
-                preDelay = 0      // No pre-delay to prevent vocal phasing/doubling
-                lowPass = true    // Warm air absorption
-                targetDry = 1.0   // Full Dry Signal (Fixes "weird" vocals)
-                targetCutoff = 16000 // High Fidelity
+            case 'concert': // 演唱會
+                wetAmount = 0.5   // 平衡的環境音 (Balanced Ambience)
+                duration = 3.0    // 標準殘響尾韻 (Standard Tail)
+                decay = 3.0       // 自然衰減 (Natural Decay)
+                preDelay = 0      // 無預延遲 (防止人聲相位抵銷/重影)
+                lowPass = true    // 溫暖的空氣吸音 (Warm air absorption)
+                targetDry = 1.0   // 完整保留乾訊號 (Fixes "weird" vocals)
+                targetCutoff = 16000 // 高保真 (High Fidelity)
                 break;
-            case 'hall': // Hotel Lobby (Balanced Airy)
-                wetAmount = 0.4   // Just right ambience (was 0.65)
-                duration = 3.0    // Still spacious but controlled
-                decay = 3.0       // Natural fade
-                preDelay = 0.06   // Keep the large space Slapback
+            case 'hall': // 酒店大廳
+                wetAmount = 0.4   // 适量的環境音 (was 0.65)
+                duration = 3.0    // 仍然 spacious but controlled
+                decay = 3.0       // 自然衰減 (Natural fade)
+                preDelay = 0.06   // 保持大空間 slapback
                 lowPass = true
-                targetDry = 1.0   // Clear source (was 0.85)
-                targetCutoff = 19000 // Still very bright
+                targetDry = 1.0   // 清晰的源 (was 0.85)
+                targetCutoff = 19000 // 仍然非常明亮
                 break;
-            case 'room': // Real Bedroom (Tight & Damp)
+            case 'room': // 家庭臥室
                 wetAmount = 0.45
-                duration = 0.7    // Very short tail
-                decay = 10.0      // Fast decay
+                duration = 0.7    // 非常短的尾韻
+                decay = 10.0      // 快速衰減
                 preDelay = 0.008  // 8ms (Walls are close)
                 lowPass = true
                 targetDry = 1.0
-                targetCutoff = 3000 // Furniture absorbs highs heavily
+                targetCutoff = 3000 // 家具吸收高頻
                 break;
-            case 'driver': // Immersive Car Cabin
-                wetAmount = 0.35  // Significant "Cabin Pressure" feel
-                duration = 0.3    // Tight box
-                decay = 12.0      // Fast absorption
-                preDelay = 0.001  // Immediate (In-ear feel)
+            case 'driver': // 沉浸式車廂
+                wetAmount = 0.35  // 明顯的「車廂壓迫感」
+                duration = 0.3    // 緊密的空間
+                decay = 12.0      // 快速吸音
+                preDelay = 0.001  // 即時（入耳感）
                 lowPass = true
-                targetDry = 1.0   // Direct focus
-                targetCutoff = 8000 // Focus on Mids/Lows, standard Car EQ curve
+                targetDry = 1.0   // 直接聚焦
+                targetCutoff = 8000 // 專注於中低頻，標準車用 EQ 曲線
                 break;
             case 'none':
             default:

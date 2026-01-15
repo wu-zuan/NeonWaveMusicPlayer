@@ -52,7 +52,10 @@ export function useAudioPlayer() {
             setPlaylist(newPlaylist)
         }
 
-        const fileUrl = `file://${track.path}`
+        // Handle special characters in file path (e.g. #, ?, %) which break file:// URLs
+        // We split by / or \ to encode each segment individually
+        const encodedPath = track.path.split(/[\\/]/).map(encodeURIComponent).join('/')
+        const fileUrl = `file:///${encodedPath}`
 
         if (currentTrack?.path !== track.path) {
             // Add to history if it's different

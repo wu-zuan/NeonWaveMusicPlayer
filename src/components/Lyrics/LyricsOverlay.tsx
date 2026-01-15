@@ -144,14 +144,14 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                         {loading && (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#fff', opacity: 0.7 }}>
                                 <Loader2 size={40} className="animate-spin" />
-                                Searching Lyrics...
+                                正在搜尋歌詞...
                             </div>
                         )}
 
                         {!loading && error && (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#fff', opacity: 0.5 }}>
                                 <Mic2 size={40} />
-                                <div style={{ fontSize: '18px' }}>No synchronized lyrics found</div>
+                                <div style={{ fontSize: '18px' }}>找不到同步歌詞</div>
                             </div>
                         )}
 
