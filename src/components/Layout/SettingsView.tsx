@@ -44,11 +44,11 @@ export function SettingsView() {
                 <h3 style={{ fontSize: '20px', marginBottom: '24px' }}>關於 NeonWave</h3>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-                    <div style={{
+                    <img src="logo.png" alt="NeonWave Logo" style={{
                         width: '64px', height: '64px', borderRadius: '16px',
-                        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                        objectFit: 'cover',
                         boxShadow: '0 0 20px var(--accent-glow)'
-                    }}></div>
+                    }} />
                     <div>
                         <div style={{ fontSize: '24px', fontWeight: 700 }}>NeonWave</div>
                         <div style={{ color: 'var(--text-muted)' }}>v{version}</div>
