@@ -177,6 +177,46 @@ export function useAudioPlayer() {
         }
     }, [handleNext])
 
+    // Media Session API Integration (System Media Controls)
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return
+
+        // 1. Update Metadata
+        if (currentTrack) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: currentTrack.title,
+                artist: currentTrack.artist,
+                album: currentTrack.album || 'NeonWave Music',
+                artwork: [
+                    // Use a high-res placeholder or app icon if no album art available
+                    // ideally we'd pass artwork path if we had it
+                    { src: 'https://cdn-icons-png.flaticon.com/512/3755/3755355.png', sizes: '512x512', type: 'image/png' }
+                ]
+            })
+        }
+
+        // 2. Action Handlers
+        navigator.mediaSession.setActionHandler('play', () => {
+            audioRef.current.play()
+        })
+        navigator.mediaSession.setActionHandler('pause', () => {
+            audioRef.current.pause()
+        })
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+            handlePrev() // This needs to be stable or ref-based to avoid stale closures if effect re-runs rarely
+        })
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+            handleNext()
+        })
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (details.seekTime && duration) {
+                audioRef.current.currentTime = details.seekTime
+                setCurrentTime(details.seekTime)
+            }
+        })
+
+    }, [currentTrack, handlePrev, handleNext, duration]) // dependencies ensure handlers use latest state wrappers
+
 
     const togglePlay = () => isPlaying ? audioRef.current.pause() : audioRef.current.play()
     const seek = (time: number) => { audioRef.current.currentTime = time; setCurrentTime(time) }
