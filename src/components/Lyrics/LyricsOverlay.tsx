@@ -18,7 +18,6 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
 }) => {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(false)
-    const [showSearch, setShowSearch] = useState(false)
     const [lyrics, setLyrics] = useState<LyricLine[]>([])
 
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -81,7 +80,6 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 const parsed = parseLrc(rawLrc)
                 if (parsed.length > 0) {
                     setLyrics(parsed)
-                    setShowSearch(false)
                     showStatus("Synced Lyrics Loaded")
                 } else {
                     setError(true)
