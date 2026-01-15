@@ -79,6 +79,17 @@ function App() {
         height: '100%',
         position: 'relative'
       }}>
+        {/* Draggable Title Bar Area */}
+        <div style={{
+          height: '32px',
+          width: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          zIndex: 90,
+          WebkitAppRegion: 'drag'
+        } as any} />
+
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '100px' }}>
           {(view === 'all_songs' || view === 'favorites' || playlists.some(p => p.id === view)) && (
             <TrackList
