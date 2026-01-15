@@ -146,17 +146,34 @@ export const SearchView = () => {
         }
     }
 
-    // Filter Logic
-    const [filterDuration, setFilterDuration] = useState<'all' | 'short' | 'medium' | 'long'>('all')
+    // Filter Logic: "Official / Lyrics Ready"
+    const [filterMode, setFilterMode] = useState<'all' | 'official'>('all')
     const [showFilterMenu, setShowFilterMenu] = useState(false)
 
     // Apply filters
     const filteredResults = results.filter(item => {
-        if (filterDuration === 'all') return true
-        if (filterDuration === 'short') return item.duration < 180 // < 3m
-        if (filterDuration === 'medium') return item.duration >= 180 && item.duration <= 360 // 3-6m
-        if (filterDuration === 'long') return item.duration > 360 // > 6m
-        return true
+        if (filterMode === 'all') return true
+
+        const t = item.title.toLowerCase()
+        const a = item.artist.toLowerCase()
+
+        // 1. Reject obvious user-content / noise
+        const badKeywords = ['cover', '翻唱', 'remix', 'live', '現場', 'concert', 'karaoke', 'instrumental', '伴奏', 'nightcore', 'hour loop', '1 hour', 'reaction']
+        if (badKeywords.some(w => t.includes(w))) return false
+
+        // 2. Must correspond to "Official" indicators
+        // - Keyword "Official" or "MV" in title
+        // - "Topic" or "VEVO" in artist/channel
+        // - Specific formatting like "Artist - Title" is harder to guarantee, so we rely on positive/negative signals.
+
+        const goodKeywords = ['official', 'mv', 'music video', 'lyric', 'audio']
+        if (goodKeywords.some(w => t.includes(w))) return true
+        if (a.includes('topic') || a.includes('vevo')) return true
+
+        // If it passed bad keywords but has no good keywords, it might be ambiguous.
+        // For "Strict Official", we might reject it. But "Plainly Official" often just means "Not a cover".
+        // Let's fitler out *only* if we are sure it's good, to be safe for "Has Lyrics".
+        return false
     })
 
     // Pagination Logic (use filtered results)
@@ -186,7 +203,7 @@ export const SearchView = () => {
                     <button
                         className={styles.searchBtn}
                         onClick={() => setShowFilterMenu(!showFilterMenu)}
-                        style={{ background: filterDuration !== 'all' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)', color: filterDuration !== 'all' ? '#000' : '#fff' }}
+                        style={{ background: filterMode !== 'all' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)', color: filterMode !== 'all' ? '#000' : '#fff' }}
                         title="篩選器"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
@@ -197,24 +214,22 @@ export const SearchView = () => {
                             position: 'absolute', top: '110%', right: 0,
                             background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)',
                             borderRadius: '12px', padding: '8px', zIndex: 200,
-                            boxShadow: '0 10px 30px rgba(0,0,0,0.5)', minWidth: '150px'
+                            boxShadow: '0 10px 30px rgba(0,0,0,0.5)', minWidth: '180px'
                         }}>
-                            <div style={{ padding: '8px 12px', color: '#888', fontSize: '12px' }}>時長篩選</div>
+                            <div style={{ padding: '8px 12px', color: '#888', fontSize: '12px' }}>音樂類型</div>
                             {[
-                                { id: 'all', label: '全部' },
-                                { id: 'short', label: '短 (< 3分)' },
-                                { id: 'medium', label: '中 (3-6分)' },
-                                { id: 'long', label: '長 (> 6分)' }
+                                { id: 'all', label: '全部結果 (All)' },
+                                { id: 'official', label: '官方/有歌詞 (Official)' }
                             ].map(opt => (
                                 <div
                                     key={opt.id}
-                                    onClick={() => { setFilterDuration(opt.id as any); setShowFilterMenu(false); setPage(1); }}
+                                    onClick={() => { setFilterMode(opt.id as any); setShowFilterMenu(false); setPage(1); }}
                                     style={{
                                         padding: '8px 12px',
                                         cursor: 'pointer',
                                         borderRadius: '8px',
-                                        background: filterDuration === opt.id ? 'var(--accent-primary)' : 'transparent',
-                                        color: filterDuration === opt.id ? '#000' : '#fff',
+                                        background: filterMode === opt.id ? 'var(--accent-primary)' : 'transparent',
+                                        color: filterMode === opt.id ? '#000' : '#fff',
                                         fontSize: '14px',
                                         marginBottom: '4px'
                                     }}

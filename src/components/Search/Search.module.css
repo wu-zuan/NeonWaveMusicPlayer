@@ -17,10 +17,11 @@
 
 .input {
     flex: 1;
+    height: 48px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--glass-border);
     border-radius: 12px;
-    padding: 12px 16px;
+    padding: 0 16px;
     color: var(--text-main);
     font-size: 16px;
     outline: none;
@@ -36,6 +37,7 @@
 }
 
 .searchBtn {
+    height: 48px;
     background: var(--accent-primary);
     color: #000;
     border: none;
@@ -46,7 +48,11 @@
     transition: all 0.2s;
     display: flex;
     align-items: center;
+    justify-content: center;
+    /* Center content */
     gap: 8px;
+    min-width: 48px;
+    /* Ensure icon-only buttons aren't too thin */
 }
 
 .searchBtn:hover {
