@@ -188,4 +188,3 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         </AnimatePresence>
     )
 }
-```
