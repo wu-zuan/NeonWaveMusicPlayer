@@ -27,7 +27,6 @@ interface PlayerBarProps {
     onSetPosition?: (x: number, y: number, z: number) => void
     onSetFocusMode?: (enable: boolean) => void
     onSetNormalization?: (enable: boolean) => void
-    onSetCrowd?: (enable: boolean) => void
     onToggleLyrics?: () => void
 }
 
@@ -36,7 +35,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     isShuffle, repeatMode,
     onTogglePlay, onSeek, onVolumeChange, onToggle8D,
     onToggleShuffle, onToggleRepeat, onNext, onPrev,
-    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode, onSetNormalization, onSetCrowd,
+    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode, onSetNormalization,
     onToggleLyrics
 }) => {
     const [showSpatial, setShowSpatial] = useState(false)
@@ -44,7 +43,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     const [spaceMode, setSpaceMode] = useState('none')
     const [isFocus, setIsFocus] = useState(false)
     const [isNorm, setIsNorm] = useState(false)
-    const [isCrowd, setIsCrowd] = useState(false)
     const [radarPos, setRadarPos] = useState({ x: 0, z: 0 })
     const [activeTab, setActiveTab] = useState<'effects' | 'spatial'>('effects')
 
@@ -89,12 +87,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
 
         setRadarPos(newPos)
         onSetPosition?.(newPos.x, 0, newPos.z)
-
-        // Reset Crowd if not concert
-        if (val !== 'concert') {
-            setIsCrowd(false)
-            onSetCrowd?.(false)
-        }
     }
 
     const handleFocus = () => {
@@ -105,9 +97,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             setDistVal(0.5)
             setSpaceMode('none')
             setRadarPos({ x: 0, z: 0 })
-            // Ensure crowd is off
-            setIsCrowd(false)
-            onSetCrowd?.(false)
         }
     }
 
@@ -265,33 +254,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                     ))}
                                 </div>
 
-                                {/* Virtual Crowd Toggle (Concert Only) */}
-                                {/* {spaceMode === 'concert' && (
-                                    <div style={{ marginTop: '4px', padding: '8px', background: 'rgba(0,255,255,0.05)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid rgba(0,255,255,0.1)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ fontSize: '14px' }}>👥</span>
-                                            <span style={{ color: 'var(--text-main)', fontSize: '12px' }}>虛擬觀眾</span>
-                                        </div>
-                                        <button
-                                            onClick={() => {
-                                                const newVal = !isCrowd
-                                                setIsCrowd(newVal)
-                                                onSetCrowd?.(newVal)
-                                            }}
-                                            style={{
-                                                width: '36px', height: '20px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                                                background: isCrowd ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
-                                                position: 'relative', transition: 'all 0.3s'
-                                            }}
-                                        >
-                                            <div style={{
-                                                position: 'absolute', top: '2px', left: isCrowd ? '18px' : '2px',
-                                                width: '16px', height: '16px', borderRadius: '50%', background: '#fff',
-                                                transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                            }} />
-                                        </button>
-                                    </div>
-                                )} */}
                             </div>
                         </div>
                     )}
