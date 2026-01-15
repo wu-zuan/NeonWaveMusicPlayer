@@ -190,7 +190,7 @@ export function useAudioPlayer() {
                 album: currentTrack.album || 'NeonWave Music',
                 artwork: [
                     // Use embedded artwork if available, otherwise placeholder
-                    { src: currentTrack.artwork || 'logo.png', sizes: '512x512', type: 'image/png' }
+                    { src: currentTrack.artwork || new URL('logo.png', window.location.href).href, sizes: '512x512', type: 'image/png' }
                 ]
             })
         }
