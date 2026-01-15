@@ -5,6 +5,8 @@
     flex-direction: column;
     max-width: 1200px;
     width: 100%;
+    box-sizing: border-box;
+    /* Fix width overflow */
 }
 
 .searchBar {
@@ -53,6 +55,13 @@
     gap: 8px;
     min-width: 48px;
     /* Ensure icon-only buttons aren't too thin */
+    white-space: nowrap;
+    /* Prevent text wrapping */
+}
+
+.iconBtn {
+    padding: 0;
+    width: 48px;
 }
 
 .searchBtn:hover {

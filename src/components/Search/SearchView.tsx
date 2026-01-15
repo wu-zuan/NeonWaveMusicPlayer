@@ -201,7 +201,7 @@ export const SearchView = () => {
                 {/* Filter Dropdown */}
                 <div style={{ position: 'relative' }}>
                     <button
-                        className={styles.searchBtn}
+                        className={`${styles.searchBtn} ${styles.iconBtn}`}
                         onClick={() => setShowFilterMenu(!showFilterMenu)}
                         style={{ background: filterMode !== 'all' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)', color: filterMode !== 'all' ? '#000' : '#fff' }}
                         title="篩選器"
