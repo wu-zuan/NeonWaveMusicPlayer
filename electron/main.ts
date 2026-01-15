@@ -244,9 +244,13 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('download:youtube', async (_, url, inputTitle) => {
+  ipcMain.handle('download:youtube', async (_, url, inputTitle, inputArtist) => {
     try {
       const yt = await getYtDlp()
+
+      // Get ffmpeg path
+      const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
+        .replace('app.asar', 'app.asar.unpacked') // Fix for production builds
 
       // 1. Get Info to sanitize title properly (optional, but good)
       // Actually yt-dlp will handle most, but we need a save path.
@@ -255,7 +259,7 @@ app.whenReady().then(() => {
       // 2. Pick path
       const { filePath } = await dialog.showSaveDialog(win!, {
         title: '下載歌曲',
-        defaultPath: `${safeTitle}.m4a`, // Force m4a for best playback without ffmpeg
+        defaultPath: `${safeTitle}.m4a`, // Force m4a for best playback
         filters: [{ name: 'Audio (m4a)', extensions: ['m4a'] }]
       })
 
@@ -263,13 +267,27 @@ app.whenReady().then(() => {
 
       // 3. Download
       return new Promise((resolve, reject) => {
-        // -f bestaudio[ext=m4a] ensures we get a container the OS can likely play natively
-        // and doesn't require ffmpeg merging
-        const eventEmitter = yt.exec([
+        // Prepare args
+        const args = [
           url,
           '-f', 'bestaudio[ext=m4a]',
+          '--ffmpeg-location', ffmpegPath,
+          '--add-metadata',
+          '--embed-thumbnail',
           '-o', filePath
-        ])
+        ]
+
+        // If we have explicit artist/title, force them into metadata
+        // Note: yt-dlp parse-metadata syntax: "STRING:%(field)s"
+        if (inputArtist) {
+          args.push('--parse-metadata', `${inputArtist}:%(artist)s`)
+          args.push('--parse-metadata', `${inputArtist}:%(album_artist)s`)
+        }
+        if (inputTitle) {
+          args.push('--parse-metadata', `${inputTitle}:%(title)s`)
+        }
+
+        const eventEmitter = yt.exec(args)
 
         eventEmitter.on('progress', (progress: any) => {
           // Could send progress to renderer if we wanted
