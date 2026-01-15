@@ -472,21 +472,20 @@ app.whenReady().then(() => {
     }
   })
 
-  // AI Lyrics Generation
-  ipcMain.handle('lyrics:generate', async (_, filePath, apiKey) => {
-    if (!apiKey) throw new Error('API Key Missing')
-
-    // 1. Convert/Compress to MP3 (low bitrate for speed/size)
-    const tempFile = path.join(app.getPath('temp'), `whisper_${Date.now()}.mp3`)
+  // Shazam Identification
+  const Shazam = require('node-shazam')
+  ipcMain.handle('music:identify', async (_, filePath) => {
+    const tempFile = path.join(app.getPath('temp'), `shazam_${Date.now()}.raw`)
 
     try {
+      // 1. Convert to Raw PCM (16000Hz, 1ch, s16le) - max 10s
       await new Promise((resolve, reject) => {
         execFile(ffmpegPath, [
           '-i', filePath,
-          '-vn',
-          '-ar', '16000',
+          '-f', 's16le',
           '-ac', '1',
-          '-b:a', '32k',
+          '-ar', '16000',
+          '-t', '10',
           '-y',
           tempFile
         ], (err) => {
@@ -495,50 +494,31 @@ app.whenReady().then(() => {
         })
       })
 
-      // 2. Upload to OpenAI
+      // 2. Recognize
       const buffer = await fs.readFile(tempFile)
-      const blob = new Blob([buffer], { type: 'audio/mp3' })
+      const shazam = new Shazam()
+      const res = await shazam.recognise(buffer)
 
-      const formData = new FormData()
-      formData.append('file', blob, 'audio.mp3')
-      formData.append('model', 'whisper-1')
-      formData.append('response_format', 'verbose_json')
-      formData.append('timestamp_granularities[]', 'segment')
+      // Cleanup
+      try { await fs.unlink(tempFile) } catch { }
 
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: formData
-      })
-
-      if (!response.ok) {
-        const err = await response.text()
-        throw new Error(`OpenAI Error: ${err}`)
-      }
-
-      const data: any = await response.json()
-
-      // 3. Parse to LRC
-      if (data.segments) {
-        return data.segments.map((s: any) => {
-          const start = s.start
-          const mm = Math.floor(start / 60).toString().padStart(2, '0')
-          const ss = Math.floor(start % 60).toString().padStart(2, '0')
-          const xx = Math.floor((start % 1) * 100).toString().padStart(2, '0')
-          return `[${mm}:${ss}.${xx}]${s.text.trim()}`
-        }).join('\n')
+      if (res && res.track) {
+        return {
+          title: res.track.title,
+          artist: res.track.subtitle // Shazam uses subtitle for artist
+        }
       }
       return null
 
     } catch (e: any) {
-      console.error("Whisper Error:", e)
-      throw e
-    } finally {
+      console.error("Shazam Error:", e)
+      // Cleanup on error
       try { await fs.unlink(tempFile) } catch { }
+      return null
     }
   })
+
+
 
   // Update IPC
   ipcMain.handle('update:check', () => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { RefreshCw, Download, CheckCircle, AlertCircle, Key, Eye, EyeOff } from 'lucide-react'
+import { RefreshCw, Download, CheckCircle, AlertCircle } from 'lucide-react'
 
 export function useUpdater() {
     const [status, setStatus] = useState<string>('idle') // idle, checking, available, not-available, downloading, downloaded, error
@@ -35,65 +35,12 @@ export function useUpdater() {
 
 export function SettingsView() {
     const { status, progress, version, error, checkForUpdates, installUpdate } = useUpdater()
-    const [apiKey, setApiKey] = useState(() => localStorage.getItem('neonwave_openai_key') || '')
-    const [showKey, setShowKey] = useState(false)
-
-    const handleSaveKey = () => {
-        localStorage.setItem('neonwave_openai_key', apiKey.trim())
-        alert('API Key 已儲存！')
-    }
 
     return (
         <div style={{ padding: '40px', maxWidth: '800px' }}>
             <h2 style={{ fontSize: '28px', marginBottom: '32px', fontWeight: 700 }}>設定</h2>
 
-            {/* AI Settings */}
-            <div className="glass" style={{ padding: '32px', borderRadius: '24px', marginBottom: '24px' }}>
-                <h3 style={{ fontSize: '20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Key size={20} color="var(--accent-primary)" />
-                    AI 歌詞生成設定 (Whisper)
-                </h3>
-                <div style={{ marginBottom: '16px', color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6' }}>
-                    啟用此功能可自動為沒有歌詞的歌曲生成字幕。
-                    <br />
-                    需要 OpenAI API Key (產生使用費用)。
-                </div>
 
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                        <input
-                            type={showKey ? "text" : "password"}
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            placeholder="sk-..."
-                            style={{
-                                width: '100%', padding: '12px', paddingRight: '40px',
-                                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)',
-                                borderRadius: '12px', color: '#fff', outline: 'none'
-                            }}
-                        />
-                        <button
-                            onClick={() => setShowKey(!showKey)}
-                            style={{
-                                position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                                background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer'
-                            }}
-                        >
-                            {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                    </div>
-                    <button
-                        onClick={handleSaveKey}
-                        style={{
-                            padding: '0 24px', borderRadius: '12px',
-                            background: 'var(--accent-primary)', color: '#000', fontWeight: 'bold',
-                            border: 'none', cursor: 'pointer'
-                        }}
-                    >
-                        儲存
-                    </button>
-                </div>
-            </div>
 
             <div className="glass" style={{ padding: '32px', borderRadius: '24px' }}>
                 <h3 style={{ fontSize: '20px', marginBottom: '24px' }}>關於 NeonWave</h3>

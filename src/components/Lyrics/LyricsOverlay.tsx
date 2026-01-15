@@ -84,12 +84,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         // We clear path here to force clean metadata search logic
     }
 
-    const handleAIGenerate = async () => {
-        const key = localStorage.getItem('neonwave_openai_key')
-        if (!key) {
-            alert('請先在設定中輸入 OpenAI API Key')
-            return
-        }
+    const handleShazamIdentify = async () => {
         if (!trackPath) {
             alert('無法取得檔案路徑')
             return
@@ -100,24 +95,21 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         setLyrics([])
 
         try {
-            const lrc = await window.ipcRenderer.generateLyrics(trackPath, key)
-            if (lrc) {
-                const parsed = parseLrc(lrc)
-                if (parsed.length > 0) {
-                    setLyrics(parsed)
-                    setShowSearch(false)
-                } else {
-                    setError(true)
-                    alert('AI 生成失敗: 無內容')
-                }
+            // 1. Identify Music
+            const meta = await window.ipcRenderer.identifyMusic(trackPath)
+            if (meta && meta.title) {
+                // 2. Fetch lyrics with identified metadata
+                setSearchTitle(meta.title)
+                setSearchArtist(meta.artist || '')
+                fetchLyrics(meta.title, meta.artist || '')
             } else {
                 setError(true)
-                alert('AI 生成失敗')
+                alert('Shazam 辨識失敗: 找不到相符歌曲')
             }
         } catch (e: any) {
             console.error(e)
             setError(true)
-            alert('AI 生成發生錯誤: ' + e.message)
+            alert('Shazam 辨識發生錯誤: ' + e.message)
         } finally {
             setLoading(false)
         }
@@ -218,15 +210,15 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                 <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
                                 <button
                                     type="button"
-                                    onClick={handleAIGenerate}
+                                    onClick={handleShazamIdentify}
                                     disabled={loading}
                                     style={{
                                         padding: '12px', borderRadius: '8px',
-                                        background: 'linear-gradient(45deg, #ff00cc, #3333ff)', color: '#fff', fontWeight: 'bold', border: 'none', cursor: 'pointer',
+                                        background: 'linear-gradient(45deg, #0088cc, #3333ff)', color: '#fff', fontWeight: 'bold', border: 'none', cursor: 'pointer',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                                     }}
                                 >
-                                    <Sparkles size={18} /> AI 自動生成 (Whisper)
+                                    <Sparkles size={18} /> 聽歌辨識 (Shazam)
                                 </button>
                             </form>
                         ) : (
@@ -234,7 +226,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                 {loading && (
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#fff', opacity: 0.7 }}>
                                         <Loader2 size={40} className="animate-spin" />
-                                        正在搜尋歌詞...
+                                        正在辨識/搜尋...
                                     </div>
                                 )}
 
@@ -256,14 +248,14 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                                 手動搜尋
                                             </button>
                                             <button
-                                                onClick={handleAIGenerate}
+                                                onClick={handleShazamIdentify}
                                                 style={{
                                                     padding: '8px 16px', borderRadius: '20px', border: 'none',
-                                                    background: 'linear-gradient(45deg, #ff00cc, #3333ff)', color: '#fff', cursor: 'pointer',
+                                                    background: 'linear-gradient(45deg, #0088cc, #3333ff)', color: '#fff', cursor: 'pointer',
                                                     display: 'flex', alignItems: 'center', gap: '6px'
                                                 }}
                                             >
-                                                <Sparkles size={16} /> AI 生成
+                                                <Sparkles size={16} /> 聽歌辨識
                                             </button>
                                         </div>
                                     </div>
