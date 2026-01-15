@@ -112,240 +112,221 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [visible, onClose])
 
+    // --- Rendering ---
+    const activeLine = activeIndex !== -1 ? lyrics[activeIndex] : null
+    const nextLine = (activeIndex !== -1 && activeIndex + 1 < lyrics.length) ? lyrics[activeIndex + 1] : null
+
     if (!visible) return null
 
     return (
         <AnimatePresence>
-            {visible && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.05 }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                    style={{
-                        position: 'fixed', inset: 0, zIndex: 1000,
-                        backgroundColor: '#000',
-                        overflow: 'hidden',
-                        display: 'flex', flexDirection: 'column'
-                    }}
-                >
-                    {/* Background Artwork Blur */}
-                    {trackArtwork ? (
-                        <div style={{
-                            position: 'absolute', inset: 0,
-                            backgroundImage: `url(${trackArtwork})`,
-                            backgroundSize: 'cover', backgroundPosition: 'center',
-                            filter: 'blur(60px) brightness(0.4)',
-                            transform: 'scale(1.2)', // Scale up to hide blur edges
-                            zIndex: 0
-                        }} />
-                    ) : (
-                        <div style={{
-                            position: 'absolute', inset: 0,
-                            background: 'radial-gradient(circle at 50% 30%, #2a2a2a, #000)',
-                            zIndex: 0
-                        }}>
-                            <div style={{
-                                position: 'absolute', bottom: '-10%', left: '-10%', width: '50vw', height: '50vw',
-                                background: 'radial-gradient(circle, rgba(0,255,255,0.1), transparent 70%)',
-                                filter: 'blur(80px)', pointerEvents: 'none'
-                            }} />
-                            <div style={{
-                                position: 'absolute', top: '-10%', right: '-10%', width: '50vw', height: '50vw',
-                                background: 'radial-gradient(circle, rgba(255,0,255,0.1), transparent 70%)',
-                                filter: 'blur(80px)', pointerEvents: 'none'
-                            }} />
-                        </div>
-                    )}
-
-                    {/* Header */}
-                    <div style={{
-                        position: 'relative', // Ensure zIndex works
-                        padding: '40px',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        zIndex: 20, // Higher than before
-                        background: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)'
-                    }}>
-                        <div style={{ opacity: 0.9, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <h2 style={{ fontSize: '28px', fontWeight: 800, margin: 0, color: '#fff', letterSpacing: '-0.5px' }}>
-                                {showSearch ? '搜尋歌詞' : trackTitle}
-                            </h2>
-                            <div style={{ fontSize: '18px', color: 'rgba(255,255,255,0.7)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                {showSearch ? '手動輸入歌名與演出者' : trackArtist}
-                                {!isSynced && lyrics.length > 0 && !showSearch && (
-                                    <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.2)', color: '#eee', backdropFilter: 'blur(4px)' }}>
-                                        純文本
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '16px', WebkitAppRegion: 'no-drag' } as any}>
-                            <button
-                                onClick={() => setShowSearch(!showSearch)}
-                                style={{
-                                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: '50%',
-                                    width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer', color: '#fff', transition: 'all 0.2s',
-                                    zIndex: 30
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                                title="修正歌詞"
-                            >
-                                <SearchIcon size={22} />
-                            </button>
-                            <button
-                                onClick={onClose}
-                                style={{
-                                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: '50%',
-                                    width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer', color: '#fff', transition: 'all 0.2s',
-                                    zIndex: 30
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                            >
-                                <X size={26} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <div
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 9999, // Very high z-index to sit on top of everything
+                    background: 'transparent', // Transparent background
+                    pointerEvents: 'none', // Allow clicking through to app
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-end', // Subtitle positioning
+                    alignItems: 'center',
+                    paddingBottom: '10vh', // Bottom 10-15%
+                    fontFamily: '"Outfit", sans-serif',
+                }}
+            >
+                {/* Controls (Clickable) */}
+                <div style={{
+                    position: 'absolute',
+                    top: 20,
+                    right: 20,
+                    pointerEvents: 'auto', // Enable clicking buttons
+                    display: 'flex',
+                    gap: 10,
+                    zIndex: 10000
+                }}>
+                    <button
+                        onClick={() => setShowSearch(!showSearch)}
                         style={{
-                            position: 'relative', // Ensure zIndex works
-                            flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column',
-                            alignItems: 'center', scrollbarWidth: 'none',
-                            padding: showSearch ? '100px 0' : '45vh 0', // Start padding to center first line
-                            zIndex: 10,
-                            maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)'
+                            background: 'rgba(0,0,0,0.6)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            color: '#fff',
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            backdropFilter: 'blur(4px)',
+                            transition: 'all 0.2s'
                         }}
-                        className="lyrics-container"
-                        ref={scrollRef}
                     >
-                        {showSearch ? (
-                            <form onSubmit={handleManualSearch} style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '360px', zIndex: 20 }}>
-                                <input
-                                    value={searchTitle}
-                                    onChange={e => setSearchTitle(e.target.value)}
-                                    placeholder="歌名"
-                                    style={{
-                                        padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)',
-                                        background: 'rgba(0,0,0,0.6)', color: '#fff', outline: 'none', fontSize: '16px',
-                                        backdropFilter: 'blur(10px)'
-                                    }}
-                                />
-                                <input
-                                    value={searchArtist}
-                                    onChange={e => setSearchArtist(e.target.value)}
-                                    placeholder="演出者"
-                                    style={{
-                                        padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)',
-                                        background: 'rgba(0,0,0,0.6)', color: '#fff', outline: 'none', fontSize: '16px',
-                                        backdropFilter: 'blur(10px)'
-                                    }}
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    style={{
-                                        padding: '16px', borderRadius: '12px',
-                                        background: 'var(--accent-primary)', color: '#000', fontWeight: 800, border: 'none', cursor: 'pointer',
-                                        fontSize: '16px', letterSpacing: '0.5px'
-                                    }}
-                                >
-                                    {loading ? '搜尋中...' : '搜尋'}
-                                </button>
-                            </form>
-                        ) : (
-                            <>
-                                {loading && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', color: '#fff', opacity: 0.8 }}>
-                                        <Loader2 size={48} className="animate-spin" />
-                                        <span style={{ fontSize: '18px', fontWeight: 500 }}>正在搜尋歌詞...</span>
-                                    </div>
-                                )}
+                        {showSearch ? 'Close Search' : 'Search'}
+                    </button>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            background: 'rgba(0,0,0,0.6)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            color: '#fff',
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            cursor: 'pointer',
+                            fontSize: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backdropFilter: 'blur(4px)',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        ×
+                    </button>
+                </div>
 
-                                {!loading && error && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', color: '#fff', opacity: 0.6 }}>
-                                        <Mic2 size={64} style={{ opacity: 0.5 }} />
-                                        <div style={{ fontSize: '22px', fontWeight: 600 }}>找不到同步歌詞</div>
-                                        <div style={{ display: 'flex', gap: '16px' }}>
-                                            <button
-                                                onClick={() => {
-                                                    setSearchTitle(trackTitle);
-                                                    setShowSearch(true)
-                                                }}
-                                                style={{
-                                                    padding: '10px 24px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.3)',
-                                                    background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer',
-                                                    fontSize: '16px', fontWeight: 500
-                                                }}
-                                            >
-                                                手動搜尋
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
+                {/* Search Panel (Clickable) */}
+                {showSearch && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '20%',
+                        background: 'rgba(0,0,0,0.85)',
+                        padding: '30px',
+                        borderRadius: '20px',
+                        backdropFilter: 'blur(20px)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        width: '400px',
+                        pointerEvents: 'auto',
+                        zIndex: 10001
+                    }}>
+                        <h3 style={{ color: '#fff', margin: '0 0 20px 0' }}>Manual Search</h3>
+                        <form onSubmit={handleManualSearch} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <input
+                                value={searchTitle}
+                                onChange={e => setSearchTitle(e.target.value)}
+                                placeholder="Track Title"
+                                style={{
+                                    background: 'rgba(255,255,255,0.1)',
+                                    border: 'none',
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    color: '#fff',
+                                    fontSize: '16px'
+                                }}
+                            />
+                            <input
+                                value={searchArtist}
+                                onChange={e => setSearchArtist(e.target.value)}
+                                placeholder="Artist"
+                                style={{
+                                    background: 'rgba(255,255,255,0.1)',
+                                    border: 'none',
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    color: '#fff',
+                                    fontSize: '16px'
+                                }}
+                            />
+                            <button
+                                type="submit"
+                                style={{
+                                    background: '#fff',
+                                    color: '#000',
+                                    border: 'none',
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    marginTop: '10px'
+                                }}
+                            >
+                                Search Lyrics
+                            </button>
+                        </form>
+                    </div>
+                )}
 
-                                {!loading && !error && lyrics.map((line, i) => {
-                                    // Logic: If synced, use activeIndex. If not, show all as active (but maybe neutral).
-                                    const isActive = isSynced ? (i === activeIndex) : true
-                                    const isPast = isSynced ? (i < activeIndex) : false
+                {/* Loading State */}
+                {loading && (
+                    <div style={{ color: '#fff', textShadow: '2px 2px 4px #000' }}>
+                        Searching Lyrics...
+                    </div>
+                )}
 
-                                    // Visuals for unsynced
-                                    const scale = isSynced ? (isActive ? 1.05 : 1) : 1
-                                    const opacity = isSynced ? (isActive ? 1 : isPast ? 0.3 : 0.4) : 0.9
-                                    const blur = isSynced ? (isActive ? '0px' : '1px') : '0px'
-                                    const textColor = isSynced ? (isActive ? '#fff' : '#ccc') : '#eee'
+                {/* Lyrics Display - Subtitle Style */}
+                {!loading && !error && activeLine && (
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        textAlign: 'center',
+                        width: '90%',
+                        maxWidth: '1200px'
+                    }}>
+                        {/* Active Line (Big & Punchy) */}
+                        <motion.div
+                            key={activeLine.time} // Key change triggers animation
+                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            style={{
+                                fontSize: '48px', // Large
+                                fontWeight: 900,  // Bold
+                                color: '#ffffff',
+                                marginBottom: '16px',
+                                // Heavy Stroke / Shadow for readability on ANY background
+                                textShadow: `
+                                 3px 3px 0 #000,
+                                -1px -1px 0 #000,  
+                                 1px -1px 0 #000,
+                                -1px 1px 0 #000,
+                                 1px 1px 0 #000
+                               `,
+                                WebkitTextStroke: '2px black', // Chrome/Safari stroke
+                                lineHeight: 1.2
+                            }}
+                        >
+                            {activeLine.text}
+                        </motion.div>
 
-                                    return (
-                                        <motion.div
-                                            key={i}
-                                            initial={false}
-                                            animate={{
-                                                scale: scale,
-                                                opacity: opacity,
-                                                filter: `blur(${blur})`,
-                                                y: 0,
-                                                color: textColor
-                                            }}
-                                            transition={{ duration: 0.4, ease: "easeOut" }}
-                                            style={{
-                                                margin: isSynced ? '20px 0' : '16px 0',
-                                                textAlign: 'center',
-                                                maxWidth: '90%',
-                                                padding: '4px 30px',
-                                                cursor: 'pointer',
-                                                position: 'relative',
-                                                zIndex: 1
-                                            }}
-                                            onClick={() => {
-                                                // Optional: seek to this line
-                                            }}
-                                        >
-                                            <span style={{
-                                                fontSize: (isActive && isSynced) ? '42px' : '26px',
-                                                fontWeight: (isActive && isSynced) ? 800 : 500,
-                                                lineHeight: 1.4,
-                                                letterSpacing: '-0.02em',
-                                                display: 'inline-block',
-                                                textShadow: (isActive && isSynced) ? '0 4px 24px rgba(0,0,0,0.5)' : 'none',
-                                                transformOrigin: 'center center'
-                                            }}>
-                                                {line.text}
-                                            </span>
-                                        </motion.div>
-                                    )
-                                })}
-                            </>
+                        {/* Next Line (Subtle Preview) */}
+                        {nextLine && (
+                            <motion.div
+                                key={nextLine.time + 'next'}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.6 }}
+                                transition={{ duration: 0.5 }}
+                                style={{
+                                    fontSize: '24px',
+                                    fontWeight: 700,
+                                    color: '#e0e0e0',
+                                    textShadow: '2px 2px 0 #000',
+                                    WebkitTextStroke: '1px black',
+                                }}
+                            >
+                                {nextLine.text}
+                            </motion.div>
                         )}
                     </div>
+                )}
 
-                </motion.div>
-            )}
+                {/* No Sync / Error State */}
+                {(error || (!loading && lyrics.length === 0)) && (
+                    <div style={{
+                        color: 'rgba(255,255,255,0.5)',
+                        textShadow: '1px 1px 2px #000',
+                        fontSize: '18px'
+                    }}>
+                        {/* Empty state - keeps UI clean */}
+                    </div>
+                )}
+
+            </motion.div>
         </AnimatePresence>
     )
 }

@@ -395,156 +395,57 @@ app.whenReady().then(() => {
     try {
       const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
 
-      console.log(`[Lyrics] Search: ${title} / ${artist}`)
+      console.log(`[Lyrics] Strict Search: ${title} / ${artist}`)
 
       // --- Helper: Search LRCLib ---
-      // Supports specific fields or general query
-      const searchLrc = async (params: { track_name?: string, artist_name?: string, q?: string }) => {
+      const searchLrc = async (q: string) => {
         try {
-          let url = 'https://lrclib.net/api/search?'
-          if (params.q) {
-            url += `q=${encodeURIComponent(params.q)}`
-          } else {
-            if (params.track_name) url += `track_name=${encodeURIComponent(params.track_name)}&`
-            if (params.artist_name) url += `artist_name=${encodeURIComponent(params.artist_name)}`
-          }
-
+          const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
           const res = await fetch(url)
           if (res.ok) {
             const list: any[] = await res.json()
             if (Array.isArray(list) && list.length > 0) {
-              // Find first synced lyrics
-              const synced = list.find(t => t.syncedLyrics)
-              if (synced) return { type: 'synced', text: synced.syncedLyrics }
-
-              // Fallback: first plain lyrics
-              const plain = list.find(t => t.plainLyrics)
-              if (plain) return { type: 'text', text: plain.plainLyrics }
+              // Strict Filter: Synced Lyrics ONLY
+              const synced = list.find(t => t.syncedLyrics && t.syncedLyrics.length > 0)
+              if (synced) {
+                console.log(`[Lyrics] Match found: ${synced.trackName} by ${synced.artistName}`)
+                return synced.syncedLyrics
+              }
             }
           }
         } catch (e) {
-          console.error("LRC Search Error", params, e)
+          console.error("LRC Search Error", q, e)
         }
         return null
       }
 
-      // --- Helper: Convert Plain Text to "Unsynced" Format ---
-      const toTextLyrics = (text: string) => {
-        if (!text) return null
-        return text.split('\n')
-          .filter((l: string) => l.trim())
-          .map((l: string) => `[00:00.00]${l}`) // Dummy timestamps
-          .join('\n')
+      // Priority 1: Search with provided Title + Artist (if available)
+      if (title && artist) {
+        const res = await searchLrc(`${title} ${artist}`)
+        if (res) return res
       }
 
-      // ---------------------------------------------------------
-      // Step 1: Advanced Clean (Regex 2.0)
-      // ---------------------------------------------------------
-      let cleanTitle = title
-      let cleanArtist = artist
-      let rawFilename = ''
-
+      // Priority 2: Parse Filename (if available)
       if (filePath) {
-        let s = path.basename(filePath, path.extname(filePath))
-        rawFilename = s
-        console.log(`[Lyrics] Raw Filename: ${s}`)
+        let filename = path.basename(filePath, path.extname(filePath))
 
-        // Rule B: Remove Slogans 『...』
-        s = s.replace(/『.+?』/g, '')
+        // Basic clean to remove obviously bad fluff before parsing
+        filename = filename.replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').replace(/_/g, ' ')
 
-        // Rule B: Conditional Remove 【...】 if junk
-        // Check for specific keywords inside bracket
-        s = s.replace(/【(.*?)】/g, (match, content) => {
-          if (/\b(Official|MV|Music Video|Lyrics|動態歌詞|Video|Live|Cover)\b/i.test(content)) return ''
-          return match // Keep if it might be part of title like 【Title】
-        })
-
-        // Rule C: Symbol Cleanup
-        s = s.replace(/[_|]/g, ' ') // Replace underscore, pipe with space
-
-        // Rule A: Definite Title Extraction 《...》
-        const bookMatch = s.match(/《(.+?)》/)
-        if (bookMatch) {
-          cleanTitle = bookMatch[1].trim()
-          // Try to deduce artist from the rest?
-          // "Artist - 《Title》"
-          const rest = s.replace(bookMatch[0], '').trim()
-          const potentialArtist = rest.split(/[-]/)[0].trim()
-          if (potentialArtist.length > 1) {
-            cleanArtist = potentialArtist
-          }
-        } else {
-          // No strict title found, regular parse
-          // Remove brackets for cleaner parse
-          const parserStr = s.replace(/[\[\]【】]/g, ' ').replace(/\s+/g, ' ').trim()
-          const parsed = getArtistTitle(parserStr)
-          if (parsed && parsed.length === 2 && parsed[1]) {
-            if (!cleanArtist || cleanArtist === artist) cleanArtist = parsed[0]
-            cleanTitle = parsed[1]
-          }
+        // Use library to parse Artist - Title
+        const parsed = getArtistTitle(filename)
+        if (parsed && parsed.length === 2) {
+          const res = await searchLrc(`${parsed[1]} ${parsed[0]}`) // Title Artist
+          if (res) return res
         }
 
-        // Final cleanup of title/artist
-        const junkRegex = /\b(Official|Music Video|MV|Live|Cover|4K|1080p|Lyric|Video|動態歌詞)\b/gi
-        if (cleanTitle) cleanTitle = cleanTitle.replace(junkRegex, '').trim()
-        if (cleanArtist) cleanArtist = cleanArtist.replace(junkRegex, '').trim()
-
-        console.log(`[Lyrics] Cleaned Metadata: Title="${cleanTitle}", Artist="${cleanArtist}"`)
+        // Fallback: Raw filename search
+        const resRaw = await searchLrc(filename)
+        if (resRaw) return resRaw
       }
 
-      // ---------------------------------------------------------
-      // Step 2: Permutation Search Strategy
-      // ---------------------------------------------------------
-      // We prioritize finding SYNCED lyrics. 
-      // If an attempt returns SYNCED, we stop.
-      // If an attempt returns TEXT, we keep it as candidate and try next attempt for SYNCED.
-
-      let bestResult = null
-
-      const loops = [
-        // Attempt 1: Title Only (Crucial for Covers/Live where Artist differs)
-        // "如果可以" -> search ignores "JJ Lin", finds "WeiBird" version
-        { track_name: cleanTitle, artist_name: '' },
-
-        // Attempt 2: Standard (Title + Artist)
-        { track_name: cleanTitle, artist_name: cleanArtist },
-
-        // Attempt 3: Fuzzy Query (Title + Artist string)
-        { q: `${cleanTitle} ${cleanArtist}` },
-
-        // Attempt 4: Raw Filename (Last Resort)
-        { q: rawFilename.replace(/_/g, ' ') }
-      ]
-
-      for (const params of loops) {
-        // Skip if missing required data
-        if (params.track_name === undefined && params.q === undefined) continue
-        if (params.track_name === '') continue
-
-        console.log(`[Lyrics] Attempt: ${JSON.stringify(params)}`)
-        const result = await searchLrc(params)
-
-        if (result) {
-          if (result.type === 'synced') {
-            console.log("[Lyrics] SYNCED Lyrics found! Returning immediately.")
-            return result.text
-          }
-          // Keep text result if we don't have one yet
-          if (!bestResult) bestResult = result
-        }
-      }
-
-      // ---------------------------------------------------------
-      // Final Decision
-      // ---------------------------------------------------------
-      if (bestResult) {
-        console.log("[Lyrics] Returning Plain Text fallback.")
-        return toTextLyrics(bestResult.text)
-      }
-
-      console.log("[Lyrics] No lyrics found after all attempts.")
+      console.log("[Lyrics] No synced lyrics found.")
       return null
-
     } catch (e) {
       console.error('Error fetching lyrics:', e)
       return null
