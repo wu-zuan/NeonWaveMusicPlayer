@@ -175,7 +175,7 @@ app.whenReady().then(() => {
       let artwork = null
       if (metadata.common.picture && metadata.common.picture.length > 0) {
         const pic = metadata.common.picture[0]
-        artwork = `data:${pic.format};base64,${pic.data.toString('base64')}`
+        artwork = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
       }
 
       return {
@@ -304,7 +304,7 @@ app.whenReady().then(() => {
 
         const eventEmitter = yt.exec(args)
 
-        eventEmitter.on('progress', (progress: any) => {
+        eventEmitter.on('progress', () => {
           // Could send progress to renderer if we wanted
           // win?.webContents.send('download-progress', progress)
         })
