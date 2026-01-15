@@ -91,6 +91,7 @@ export function useLibrary() {
                         title: meta?.title || filename,
                         artist: meta?.artist || '未知演出者',
                         album: meta?.album || '未知專輯',
+                        artwork: meta?.artwork,
                         duration: meta?.duration || 0,
                         codec: meta?.codec,
                         bitrate: meta?.bitrate,

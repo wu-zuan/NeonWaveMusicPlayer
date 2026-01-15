@@ -7,6 +7,7 @@ export interface Track {
     artist: string
     album?: string
     duration?: number
+    artwork?: string
     codec?: string
     bitrate?: number
     sampleRate?: number
@@ -188,9 +189,8 @@ export function useAudioPlayer() {
                 artist: currentTrack.artist,
                 album: currentTrack.album || 'NeonWave Music',
                 artwork: [
-                    // Use a high-res placeholder or app icon if no album art available
-                    // ideally we'd pass artwork path if we had it
-                    { src: 'https://cdn-icons-png.flaticon.com/512/3755/3755355.png', sizes: '512x512', type: 'image/png' }
+                    // Use embedded artwork if available, otherwise placeholder
+                    { src: currentTrack.artwork || 'https://cdn-icons-png.flaticon.com/512/3755/3755355.png', sizes: '512x512', type: 'image/png' }
                 ]
             })
         }

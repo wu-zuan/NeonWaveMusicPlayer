@@ -164,10 +164,17 @@ app.whenReady().then(() => {
   ipcMain.handle('files:getMetadata', async (_, filePath) => {
     try {
       const metadata = await parseFile(filePath)
+      let artwork = null
+      if (metadata.common.picture && metadata.common.picture.length > 0) {
+        const pic = metadata.common.picture[0]
+        artwork = `data:${pic.format};base64,${pic.data.toString('base64')}`
+      }
+
       return {
         title: metadata.common.title,
         artist: metadata.common.artist,
         album: metadata.common.album,
+        artwork: artwork,
         duration: metadata.format.duration,
         codec: metadata.format.codec,
         bitrate: metadata.format.bitrate,
