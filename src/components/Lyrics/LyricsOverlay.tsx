@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { parseLrc, LyricLine, getCurrentLineIndex } from '../../utils/lrcParser'
 
@@ -20,9 +20,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     const [error, setError] = useState(false)
     const [lyrics, setLyrics] = useState<LyricLine[]>([])
 
-    const scrollRef = useRef<HTMLDivElement>(null)
     const [activeIndex, setActiveIndex] = useState(-1)
-
     const [statusMsg, setStatusMsg] = useState<string | null>(null)
 
     // Status Toast Helper
@@ -39,31 +37,20 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     }, [visible])
 
     // Check if we have valid synced timestamps (at least some lines > 0s)
-    // If all are 0, it's likely plain text passed with dummy timestamps
     const isSynced = React.useMemo(() => lyrics.some(l => l.time > 0), [lyrics])
 
-
-    // Auto-scroll effect
+    // Sync Active Line
     useEffect(() => {
-        if (!isSynced) return // Don't scroll when unsynced
+        if (!isSynced) return
 
         const idx = getCurrentLineIndex(lyrics, currentTime)
         if (idx !== activeIndex) {
             setActiveIndex(idx)
-            if (scrollRef.current && idx !== -1) {
-                const activeEl = scrollRef.current.children[idx] as HTMLElement
-                if (activeEl) {
-                    activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                }
-            }
         }
     }, [currentTime, lyrics, isSynced])
 
-    // Reset scroll when lyrics load
+    // Reset active index when lyrics change
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = 0
-        }
         if (!isSynced) {
             setActiveIndex(-1)
         }
@@ -116,10 +103,54 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     }, [visible, onClose])
 
     // --- Rendering ---
-    const activeLine = activeIndex !== -1 ? lyrics[activeIndex] : null
+    // --- Danmaku Logic ---
+    interface DanmakuItem {
+        id: string
+        text: string
+        top: number // percentage 0-100
+        duration: number
+        color: string
+        size: number
+    }
 
-    // Danmaku Style: We only show the active line, very casually floating
-    // "Switch" concept means the user toggles it from the main bar, so no UI here.
+    const [danmakuItems, setDanmakuItems] = useState<DanmakuItem[]>([])
+
+    // Clear danmaku when track changes or visibility toggles
+    useEffect(() => {
+        setDanmakuItems([])
+    }, [trackTitle, visible, isSynced])
+
+    // Add new danmaku when active line changes
+    useEffect(() => {
+        if (!visible || activeIndex === -1 || !lyrics[activeIndex]) return
+
+        const currentLine = lyrics[activeIndex]
+
+        // Prevent duplicate items if the logic runs multiple times for same index
+        // But activeIndex change is stable enough.
+
+        const colors = ['#ffffff', '#00fff2', '#ff00ff', '#f8fafc']
+        const randomColor = colors[Math.floor(Math.random() * colors.length)]
+        const randomTop = Math.floor(Math.random() * 80) + 10 // 10% to 90%
+        const randomDuration = Math.random() * 5 + 8 // 8s to 13s
+        const randomSize = Math.random() * 1.5 + 2 // 2rem to 3.5rem
+
+        const newItem: DanmakuItem = {
+            id: `${currentLine.time}-${Date.now()}`,
+            text: currentLine.text,
+            top: randomTop,
+            duration: randomDuration,
+            color: randomColor,
+            size: randomSize
+        }
+
+        setDanmakuItems(prev => [...prev, newItem])
+
+    }, [activeIndex, lyrics, visible])
+
+    const handleAnimationComplete = (id: string) => {
+        setDanmakuItems(prev => prev.filter(item => item.id !== id))
+    }
 
     if (!visible) return null
 
@@ -132,15 +163,12 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 style={{
                     position: 'fixed',
                     inset: 0,
-                    zIndex: 9999, // Top layer
-                    pointerEvents: 'none', // CLICK THROUGH
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'flex-end', // Bottom aligned
-                    alignItems: 'center',
-                    paddingBottom: '8vh',
+                    zIndex: 9999,
+                    pointerEvents: 'none',
+                    overflow: 'hidden',
+                    background: 'rgba(0,0,0,0.2)', // Slight dim
+                    backdropFilter: 'blur(2px)', // Subtle focus
                     fontFamily: '"Outfit", sans-serif',
-                    overflow: 'hidden'
                 }}
             >
                 {/* Status / Feedback Toast (Top Center) */}
@@ -151,14 +179,15 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: -50, opacity: 0 }}
                             style={{
-                                position: 'absolute', top: '10%',
+                                position: 'absolute', top: '5%', left: '50%', transform: 'translateX(-50%)',
                                 color: '#fff',
                                 background: 'rgba(0,0,0,0.6)',
                                 padding: '8px 16px', borderRadius: '20px',
                                 fontSize: '14px', fontWeight: 600,
                                 backdropFilter: 'blur(4px)',
                                 border: '1px solid rgba(255,255,255,0.1)',
-                                display: 'flex', alignItems: 'center', gap: '8px'
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                zIndex: 100
                             }}
                         >
                             {loading && <div className="animate-spin" style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} />}
@@ -167,61 +196,41 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     )}
                 </AnimatePresence>
 
-                {/* The "Subtitle Block" Style */}
-                {/* Shows Active Line + Next Line Preview used in many modern players/Karoke */}
-                {!loading && !error && (
-                    <div style={{
-                        width: '100%',
-                        textAlign: 'center',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '8px' // Gap between current and next
-                    }}>
-                        {/* Current Line */}
-                        <motion.div
-                            key={activeLine ? activeLine.time : 'empty'}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                            style={{
-                                fontSize: 'min(56px, 7vw)',
-                                fontWeight: 900,
-                                color: '#fff',
-                                textShadow: `
-                                 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000,
-                                 2px 0px 0 #000, 0px 2px 0 #000, -2px 0px 0 #000, 0px -2px 0 #000,
-                                 0 4px 10px rgba(0,0,0,0.5)
-                               `,
-                                WebkitTextStroke: '1.5px black',
-                                lineHeight: 1.1,
-                                padding: '0 20px',
-                                maxWidth: '90%'
-                            }}
-                        >
-                            {activeLine ? activeLine.text : (
-                                <span style={{ opacity: 0.5, fontSize: '32px' }}>...</span>
-                            )}
-                        </motion.div>
+                {/* Danmaku Items */}
+                {danmakuItems.map(item => (
+                    <motion.div
+                        key={item.id}
+                        initial={{ x: '100vw' }}
+                        animate={{ x: '-100vw' }}
+                        transition={{
+                            duration: item.duration,
+                            ease: "linear"
+                        }}
+                        onAnimationComplete={() => handleAnimationComplete(item.id)}
+                        style={{
+                            position: 'absolute',
+                            top: `${item.top}%`,
+                            whiteSpace: 'nowrap',
+                            fontSize: `${item.size}rem`,
+                            fontWeight: 900,
+                            color: item.color,
+                            textShadow: `
+                                2px 2px 0 #000, -1px -1px 0 #000, 
+                                0 0 10px ${item.color}
+                            `,
+                            WebkitTextStroke: '1px rgba(0,0,0,0.5)',
+                            willChange: 'transform'
+                        }}
+                    >
+                        {item.text}
+                    </motion.div>
+                ))}
 
-                        {/* Next Line Preview (Context) */}
-                        {activeIndex !== -1 && activeIndex + 1 < lyrics.length && (
-                            <motion.div
-                                key={lyrics[activeIndex + 1].time}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 0.6 }}
-                                style={{
-                                    fontSize: 'min(32px, 4vw)',
-                                    fontWeight: 700,
-                                    color: 'rgba(255,255,255,0.8)',
-                                    textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 0 2px 4px rgba(0,0,0,0.5)',
-                                    WebkitTextStroke: '1px black',
-                                    marginTop: '4px'
-                                }}
-                            >
-                                {lyrics[activeIndex + 1].text}
-                            </motion.div>
-                        )}
+                {/* Empty State / Error visual hint if desired, 
+                    but Danmaku usually just stays quiet if no lyrics */}
+                {error && danmakuItems.length === 0 && (
+                    <div style={{ position: 'absolute', bottom: '10%', width: '100%', textAlign: 'center', opacity: 0.5 }}>
+                        No Lyrics Found
                     </div>
                 )}
             </motion.div>
