@@ -395,56 +395,161 @@ app.whenReady().then(() => {
     try {
       const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
 
-      console.log(`[Lyrics] Strict Search: ${title} / ${artist}`)
+      console.log(`[Lyrics] Search Request: Title="${title}", Artist="${artist}"`)
 
-      // --- Helper: Search LRCLib ---
-      const searchLrc = async (q: string) => {
+      // Helper: Clean junk from strings
+      const cleanString = (str: string) => {
+        if (!str) return ''
+        return str
+          .replace(/\([^\)]*\)/g, '') // Remove items in ()
+          .replace(/\[[^\]]*\]/g, '') // Remove items in []
+          .replace(/\{[^\}]*\}/g, '') // Remove items in {}
+          .replace(/\s*ft\..*$/i, '')
+          .replace(/\s*feat\..*$/i, '')
+          .replace(/official video/gi, '')
+          .replace(/official audio/gi, '')
+          .replace(/lyrics/gi, '')
+          .replace(/mv/gi, '')
+          .trim()
+      }
+
+      // Helper: Search LRCLib
+      const searchLrcLib = async (q: string, targetArtist?: string) => {
         try {
           const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
           const res = await fetch(url)
-          if (res.ok) {
-            const list: any[] = await res.json()
-            if (Array.isArray(list) && list.length > 0) {
-              // Strict Filter: Synced Lyrics ONLY
-              const synced = list.find(t => t.syncedLyrics && t.syncedLyrics.length > 0)
-              if (synced) {
-                console.log(`[Lyrics] Match found: ${synced.trackName} by ${synced.artistName}`)
-                return synced.syncedLyrics
+          if (!res.ok) return null
+          const list: any[] = await res.json()
+
+          if (Array.isArray(list) && list.length > 0) {
+            // Find synced lyrics
+            let matches = list.filter(t => t.syncedLyrics && t.syncedLyrics.length > 0)
+
+            if (matches.length > 0) {
+              // 1. Precise Artist Match
+              if (targetArtist) {
+                const precise = matches.find(t => t.artistName.toLowerCase().includes(targetArtist.toLowerCase()))
+                if (precise) {
+                  console.log(`[Lyrics] LRCLib Strict Match: ${precise.trackName}`)
+                  return precise.syncedLyrics
+                }
               }
+              // 2. Return first synced found
+              return matches[0].syncedLyrics
             }
           }
         } catch (e) {
-          console.error("LRC Search Error", q, e)
+          console.error("LRCLib Error:", e)
         }
         return null
       }
 
-      // Priority 1: Search with provided Title + Artist (if available)
-      if (title && artist) {
-        const res = await searchLrc(`${title} ${artist}`)
-        if (res) return res
+      // Helper: Search Netease (Fallback)
+      const searchNetease = async (q: string) => {
+        try {
+          // Netease Web API
+          const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(q)}&type=1&offset=0&total=true&limit=5`
+          const res = await fetch(searchUrl, {
+            headers: {
+              'Referer': 'https://music.163.com/',
+              'Cookie': 'appver=2.0.2'
+            }
+          })
+          if (!res.ok) return null
+          const data: any = await res.json()
+
+          if (data.result && data.result.songs && data.result.songs.length > 0) {
+            const song = data.result.songs[0]
+            const songId = song.id
+
+            // Get Lyrics
+            const lyricUrl = `https://music.163.com/api/song/lyric?id=${songId}&lv=1&kv=1&tv=-1`
+            const lrcRes = await fetch(lyricUrl, {
+              headers: { 'Referer': 'https://music.163.com/', 'Cookie': 'appver=2.0.2' }
+            })
+            if (!lrcRes.ok) return null
+            const lrcData: any = await lrcRes.json()
+
+            if (lrcData.lrc && lrcData.lrc.lyric) {
+              console.log(`[Lyrics] Netease Match: ${song.name}`)
+              return lrcData.lrc.lyric
+            }
+          }
+        } catch (e) {
+          console.error("Netease Error:", e)
+        }
+        return null
       }
 
-      // Priority 2: Parse Filename (if available)
+      // --- Final Result Handling (Converter) ---
+      const convertToTraditional = (text: string | null) => {
+        if (!text) return null
+        try {
+          // Lazy load OpenCC only when needed
+          const OpenCC = require('opencc-js')
+          const converter = OpenCC.Converter({ from: 'cn', to: 'tw' })
+          return converter(text)
+        } catch (e) {
+          console.error("OpenCC conversion failed:", e)
+          return text // Return original if conversion fails
+        }
+      }
+
+      // --- Execution Flow ---
+
+      // 1. Try Strict Metadata (LRCLib)
+      if (title && artist) {
+        const query = `${title} ${artist}`
+        const res = await searchLrcLib(query, artist)
+        if (res) return convertToTraditional(res)
+      }
+
+      // 2. Try Cleaned Metadata (LRCLib)
+      const cTitle = cleanString(title)
+      const cArtist = cleanString(artist)
+      if (cTitle && (cTitle !== title || cArtist !== artist)) {
+        console.log(`[Lyrics] Retry with cleaned metadata: ${cTitle} ${cArtist}`)
+        const query = `${cTitle} ${cArtist}`
+        const res = await searchLrcLib(query, cArtist)
+        if (res) return convertToTraditional(res)
+      }
+
+      // 3. Try Netease (Title + Artist)
+      if (title && artist) {
+        console.log(`[Lyrics] Fallback to Netease: ${title} ${artist}`)
+        const res = await searchNetease(`${title} ${artist}`)
+        if (res) return convertToTraditional(res)
+      }
+
+      // 4. Try Filename Parse
       if (filePath) {
         let filename = path.basename(filePath, path.extname(filePath))
+        filename = filename.replace(/_/g, ' ')
 
-        // Basic clean to remove obviously bad fluff before parsing
-        filename = filename.replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').replace(/_/g, ' ')
-
-        // Use library to parse Artist - Title
+        // 4a. get-artist-title logic
         const parsed = getArtistTitle(filename)
         if (parsed && parsed.length === 2) {
-          const res = await searchLrc(`${parsed[1]} ${parsed[0]}`) // Title Artist
-          if (res) return res
+          const [a, t] = parsed
+          console.log(`[Lyrics] Parsed Filename: ${t} - ${a}`)
+
+          let res = await searchLrcLib(`${t} ${a}`, a)
+          if (res) return convertToTraditional(res)
+
+          res = await searchNetease(`${t} ${a}`)
+          if (res) return convertToTraditional(res)
         }
 
-        // Fallback: Raw filename search
-        const resRaw = await searchLrc(filename)
-        if (resRaw) return resRaw
+        // 4b. Raw Filename Cleaned
+        const cFilename = cleanString(filename)
+        console.log(`[Lyrics] Raw Filename: ${cFilename}`)
+        let res = await searchLrcLib(cFilename)
+        if (res) return convertToTraditional(res)
+
+        res = await searchNetease(cFilename)
+        if (res) return convertToTraditional(res)
       }
 
-      console.log("[Lyrics] No synced lyrics found.")
+      console.log("[Lyrics] Not found in any source.")
       return null
     } catch (e) {
       console.error('Error fetching lyrics:', e)

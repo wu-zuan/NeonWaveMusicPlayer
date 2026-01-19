@@ -32,7 +32,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     // "Lyrics: ON" indicator when toggled visible
     useEffect(() => {
         if (visible) {
-            showStatus("Lyrics Mode: ON")
+            showStatus("歌詞模式: 開啟")
         }
     }, [visible])
 
@@ -60,26 +60,26 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         setLoading(true)
         setError(false)
         setLyrics([])
-        showStatus(`Searching: ${title}...`)
+        showStatus(`搜尋中: ${title}...`)
         try {
             const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path, duration)
             if (rawLrc) {
                 const parsed = parseLrc(rawLrc)
                 if (parsed.length > 0) {
                     setLyrics(parsed)
-                    showStatus("Synced Lyrics Loaded")
+                    showStatus("已載入同步歌詞")
                 } else {
                     setError(true)
-                    showStatus("No Synced Lyrics Found")
+                    showStatus("未找到同步歌詞")
                 }
             } else {
                 setError(true)
-                showStatus("No Synced Lyrics Found")
+                showStatus("未找到同步歌詞")
             }
         } catch (e) {
             console.error(e)
             setError(true)
-            showStatus("Error Loading Lyrics")
+            showStatus("載入歌詞時發生錯誤")
         } finally {
             setLoading(false)
         }
@@ -191,7 +191,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                             }}
                         >
                             {loading && <div className="animate-spin" style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} />}
-                            {loading ? 'Searching...' : statusMsg}
+                            {loading ? '搜尋中...' : statusMsg}
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -230,7 +230,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     but Danmaku usually just stays quiet if no lyrics */}
                 {error && danmakuItems.length === 0 && (
                     <div style={{ position: 'absolute', bottom: '10%', width: '100%', textAlign: 'center', opacity: 0.5 }}>
-                        No Lyrics Found
+                        未找到歌詞
                     </div>
                 )}
             </motion.div>
