@@ -162,9 +162,26 @@ app.whenReady().then(() => {
       const files = await fs.readdir(folderPath)
       const supportedExtensions = ['.mp3', '.wav', '.wma', '.m4a', '.flac', '.ogg', '.mp4', '.mov', '.wmv', '.avi']
 
-      return files.filter(file => {
-        return supportedExtensions.includes(path.extname(file).toLowerCase())
-      }).map(file => path.join(folderPath, file))
+      const fileStats = await Promise.all(files.map(async file => {
+        const fullPath = path.join(folderPath, file)
+        const ext = path.extname(file).toLowerCase()
+        if (!supportedExtensions.includes(ext)) return null
+
+        try {
+          const stats = await fs.stat(fullPath)
+          return {
+            fullPath,
+            mtime: stats.mtime.getTime()
+          }
+        } catch (e) {
+          return null
+        }
+      }))
+
+      return fileStats
+        .filter((f): f is { fullPath: string, mtime: number } => f !== null)
+        .sort((a, b) => b.mtime - a.mtime)
+        .map(f => f.fullPath)
     } catch (error) {
       console.error('Error reading directory:', error)
       return []
