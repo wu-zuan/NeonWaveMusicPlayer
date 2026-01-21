@@ -408,24 +408,21 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, _duration) => {
+  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, duration) => {
     try {
       const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
 
-      console.log(`[Lyrics] Search Request: Title="${title}", Artist="${artist}"`)
+      console.log(`[Lyrics] Search Request: Title="${title}", Artist="${artist}", Duration=${duration}`)
 
-      // Helper: Clean junk from strings
+      // --- 1. Enhanced Cleaning Logic ---
       const cleanString = (str: string) => {
         if (!str) return ''
         let s = str
 
-        // 1. Unconditional removal of lyric/quote brackets (Content is usually lyrics snippets)
-        s = s.replace(/『[^』]*』/g, '')
-        s = s.replace(/「[^」]*」/g, '')
+        // Remove Japanese-style quotes
+        s = s.replace(/『[^』]*』/g, '').replace(/「[^」]*」/g, '')
 
-        // 2. Smart removal of brackets
-        // If content contains junk keywords (MV, Version, etc), remove the whole block.
-        // Otherwise, just remove the brackets and keep the content.
+        // Smart Bracket Removal
         const junkKeywords = [
           'official', 'music video', 'preview', 'trailer', 'teaser',
           'lyric', 'lyrics', 'sub', 'vietsub', 'pinyin', 'engsub',
@@ -441,16 +438,11 @@ app.whenReady().then(() => {
           '好聲音', '好声音', '歌手', '聲生不息', '声生不息', '天賜的聲音', '天赐的声音',
           '蒙面唱將', '蒙面唱将', '我們的歌', '我们的歌', '時光音樂會', '时光音乐会'
         ]
-
-        const isJunk = (text: string) => {
-          const lower = text.toLowerCase()
-          return junkKeywords.some(k => lower.includes(k))
-        }
+        const isJunk = (text: string) => junkKeywords.some(k => text.toLowerCase().includes(k))
 
         const replaceSmart = (text: string, open: string, close: string) => {
           const esc = (c: string) => '\\' + c
           const regex = new RegExp(`${esc(open)}([^${esc(close)}]*)?${esc(close)}`, 'gi')
-
           return text.replace(regex, (_, content) => {
             if (!content) return ' '
             if (isJunk(content)) return ' '
@@ -465,28 +457,23 @@ app.whenReady().then(() => {
         s = replaceSmart(s, '{', '}')
         s = replaceSmart(s, '《', '》')
 
-        // 3. Remove loose junk phrases
+        // Remove loose phrases
         const looseJunk = [
           'Official Music Video', 'Official Lyric Video', 'Official Video', 'Official Audio', 'Official MV',
-          'Music Video', 'Lyric Video',
-          'Theme Song', 'Ending Theme', 'Opening Theme',
-          'Dynamic Lyrics', 'High Quality'
+          'Music Video', 'Lyric Video', 'Theme Song', 'Ending Theme', 'Opening Theme', 'Dynamic Lyrics'
         ]
-
         looseJunk.forEach(p => {
           const regex = new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
           s = s.replace(regex, ' ')
         })
 
-        // 4. Remove loose junk words (careful with boundaries)
+        // Remove specific words
         const wordsToRemove = [
           'official', 'mv', 'lyric', 'lyrics', 'video', 'hd', 'hq', 'sq', '4k',
           'live', 'cover', 'remix', 'feat', 'ft',
           '動態歌詞', '单纯', '純享', '纯享', 'vietsub', 'pinyin'
         ]
-
         wordsToRemove.forEach(w => {
-          // Simple replace for Chinese/Mixed, Word boundary for English
           if (/^[a-z0-9]+$/i.test(w)) {
             s = s.replace(new RegExp(`\\b${w}\\b`, 'gi'), ' ')
           } else {
@@ -494,151 +481,216 @@ app.whenReady().then(() => {
           }
         })
 
-        // 5. Symbols to space (Keep characters that might be part of names, remove separators)
+        // Normalize symbols
         s = s.replace(/[:"'_\|\.,!@#$%^&*+=?\/\\♪♫~`\-]/g, ' ')
-
-        // 6. Final Trim
         return s.replace(/\s+/g, ' ').trim()
       }
 
-      // Helper: Search LRCLib
-      const searchLrcLib = async (q: string, targetArtist?: string) => {
+      // --- Helper: Duration Similarity (Score: 0 is perfect) ---
+      const getDurationDiff = (candDur: number, targetDur?: number) => {
+        if (!targetDur) return 0 // Ignore if no target
+        return Math.abs(candDur - targetDur)
+      }
+
+      // --- Helper: LRCLib Search ---
+      const searchLrcLib = async (q: string, targetDur?: number) => {
         try {
           const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
           const res = await fetch(url)
-          if (!res.ok) return null
+          if (!res.ok) return []
           const list: any[] = await res.json()
 
-          if (Array.isArray(list) && list.length > 0) {
-            // Find synced lyrics
-            let matches = list.filter(t => t.syncedLyrics && t.syncedLyrics.length > 0)
+          if (!Array.isArray(list)) return []
 
-            if (matches.length > 0) {
-              // 1. Precise Artist Match
-              if (targetArtist) {
-                const precise = matches.find(t => t.artistName.toLowerCase().includes(targetArtist.toLowerCase()))
-                if (precise) {
-                  console.log(`[Lyrics] LRCLib Strict Match: ${precise.trackName}`)
-                  return precise.syncedLyrics
-                }
-              }
-              // 2. Return first synced found
-              return matches[0].syncedLyrics
-            }
-          }
+          // Map to standard format
+          return list
+            .filter(t => t.syncedLyrics && t.syncedLyrics.length > 0)
+            .map(t => ({
+              source: 'LRCLib',
+              id: t.id,
+              track: t.trackName,
+              artist: t.artistName,
+              duration: t.duration, // in seconds
+              lyrics: t.syncedLyrics,
+              diff: targetDur ? getDurationDiff(t.duration, targetDur) : 0
+            }))
         } catch (e) {
           console.error("LRCLib Error:", e)
+          return []
         }
-        return null
       }
 
-      // Helper: Search Netease (Fallback)
-      const searchNetease = async (q: string) => {
+      // --- Helper: Netease Search & Fetch ---
+      const searchNetease = async (q: string, targetDur?: number) => {
         try {
-          // Netease Web API
+          // 1. Search
           const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(q)}&type=1&offset=0&total=true&limit=5`
           const res = await fetch(searchUrl, {
-            headers: {
-              'Referer': 'https://music.163.com/',
-              'Cookie': 'appver=2.0.2'
-            }
+            headers: { 'Referer': 'https://music.163.com/', 'Cookie': 'appver=2.0.2' }
           })
-          if (!res.ok) return null
+          if (!res.ok) return []
           const data: any = await res.json()
 
-          if (data.result && data.result.songs && data.result.songs.length > 0) {
-            const song = data.result.songs[0]
-            const songId = song.id
+          if (!data.result || !data.result.songs) return []
 
-            // Get Lyrics
-            const lyricUrl = `https://music.163.com/api/song/lyric?id=${songId}&lv=1&kv=1&tv=-1`
-            const lrcRes = await fetch(lyricUrl, {
-              headers: { 'Referer': 'https://music.163.com/', 'Cookie': 'appver=2.0.2' }
-            })
-            if (!lrcRes.ok) return null
-            const lrcData: any = await lrcRes.json()
+          // 2. Filter Candidates (Optimistic: check metadata first)
+          let candidates = data.result.songs.map((s: any) => ({
+            id: s.id,
+            track: s.name,
+            artist: s.artists?.[0]?.name || 'Unknown',
+            duration: s.duration / 1000, // ms to s
+            diff: targetDur ? getDurationDiff(s.duration / 1000, targetDur) : 0
+          }))
 
-            if (lrcData.lrc && lrcData.lrc.lyric) {
-              console.log(`[Lyrics] Netease Match: ${song.name}`)
-              return lrcData.lrc.lyric
-            }
+          // Filter by duration strictness if targetDur exists (save API calls)
+          if (targetDur) {
+            candidates = candidates.filter((c: any) => c.diff <= 5)
+            candidates.sort((a: any, b: any) => a.diff - b.diff)
+          }
+
+          if (candidates.length === 0) return []
+
+          // 3. Fetch Lyric for Top Candidate
+          const best = candidates[0]
+          const lyricUrl = `https://music.163.com/api/song/lyric?id=${best.id}&lv=1&kv=1&tv=-1`
+          const lrcRes = await fetch(lyricUrl, {
+            headers: { 'Referer': 'https://music.163.com/', 'Cookie': 'appver=2.0.2' }
+          })
+          const lrcData: any = await lrcRes.json()
+
+          if (lrcData.lrc && lrcData.lrc.lyric) {
+            return [{
+              source: 'Netease',
+              id: best.id,
+              track: best.track,
+              artist: best.artist,
+              duration: best.duration,
+              lyrics: lrcData.lrc.lyric,
+              diff: best.diff
+            }]
           }
         } catch (e) {
           console.error("Netease Error:", e)
         }
-        return null
+        return []
       }
 
-      // --- Final Result Handling (Converter) ---
+      // --- Converter ---
       const convertToTraditional = (text: string | null) => {
         if (!text) return null
         try {
-          // Lazy load OpenCC only when needed
           const OpenCC = require('opencc-js')
           const converter = OpenCC.Converter({ from: 'cn', to: 'tw' })
           return converter(text)
-        } catch (e) {
-          console.error("OpenCC conversion failed:", e)
-          return text // Return original if conversion fails
-        }
+        } catch { return text }
       }
 
-      // --- Execution Flow ---
+      // --- Main Execution Flow ---
+      // We will gather candidates from multiple strategies and pick the best one.
 
-      // 1. Try Strict Metadata (LRCLib)
+      let candidates: any[] = []
+
+      // Strategy A: Strict Metadata Search (Title + Artist)
       if (title && artist) {
         const query = `${title} ${artist}`
-        const res = await searchLrcLib(query, artist)
-        if (res) return convertToTraditional(res)
+        console.log(`[Lyrics] Strategy A: ${query}`)
+
+        // Parallel Search
+        const [lrcLibRes, neteaseRes] = await Promise.all([
+          searchLrcLib(query, duration),
+          searchNetease(query, duration)
+        ])
+        candidates.push(...lrcLibRes, ...neteaseRes)
       }
 
-      // 2. Try Cleaned Metadata (LRCLib)
+      // Strategy B: Cleaned Metadata Search
+      // Only do this if cleaning changes something
       const cTitle = cleanString(title)
       const cArtist = cleanString(artist)
       if (cTitle && (cTitle !== title || cArtist !== artist)) {
-        console.log(`[Lyrics] Retry with cleaned metadata: ${cTitle} ${cArtist}`)
         const query = `${cTitle} ${cArtist}`
-        const res = await searchLrcLib(query, cArtist)
-        if (res) return convertToTraditional(res)
+        console.log(`[Lyrics] Strategy B: ${query}`)
+        const [lrcLibRes, neteaseRes] = await Promise.all([
+          searchLrcLib(query, duration),
+          searchNetease(query, duration)
+        ])
+        candidates.push(...lrcLibRes, ...neteaseRes)
       }
 
-      // 3. Try Netease (Title + Artist)
-      if (title && artist) {
-        console.log(`[Lyrics] Fallback to Netease: ${title} ${artist}`)
-        const res = await searchNetease(`${title} ${artist}`)
-        if (res) return convertToTraditional(res)
-      }
-
-      // 4. Try Filename Parse
+      // Strategy C: Filename Based (The most robust for local files)
       if (filePath) {
         let filename = path.basename(filePath, path.extname(filePath))
-        filename = filename.replace(/_/g, ' ')
 
-        // 4a. get-artist-title logic
+        // C-1: get-artist-title parsing
         const parsed = getArtistTitle(filename)
         if (parsed && parsed.length === 2) {
           const [a, t] = parsed
-          console.log(`[Lyrics] Parsed Filename: ${t} - ${a}`)
-
-          let res = await searchLrcLib(`${t} ${a}`, a)
-          if (res) return convertToTraditional(res)
-
-          res = await searchNetease(`${t} ${a}`)
-          if (res) return convertToTraditional(res)
+          const query = `${t} ${a}`
+          console.log(`[Lyrics] Strategy C-1 (Parsed): ${query}`)
+          candidates.push(...await searchLrcLib(query, duration))
+          // Netease fallback lazy? No, do it.
+          candidates.push(...await searchNetease(query, duration))
         }
 
-        // 4b. Raw Filename Cleaned
+        // C-2: Cleaned Raw Filename
         const cFilename = cleanString(filename)
-        console.log(`[Lyrics] Raw Filename: ${cFilename}`)
-        let res = await searchLrcLib(cFilename)
-        if (res) return convertToTraditional(res)
-
-        res = await searchNetease(cFilename)
-        if (res) return convertToTraditional(res)
+        console.log(`[Lyrics] Strategy C-2 (Raw Cleaned): ${cFilename}`)
+        candidates.push(...await searchLrcLib(cFilename, duration))
+        candidates.push(...await searchNetease(cFilename, duration))
       }
 
-      console.log("[Lyrics] Not found in any source.")
-      return null
+      // --- Selection Phase ---
+      if (candidates.length === 0) {
+        console.log("[Lyrics] No candidates found.")
+        return null
+      }
+
+      // 1. Deduplication (by ID if source same, or just content?)
+      // Let's just filter by unique source+id
+      const unique = new Map()
+      candidates.forEach(c => {
+        const key = `${c.source}-${c.id}`
+        if (!unique.has(key)) unique.set(key, c)
+      })
+      let finalPool = Array.from(unique.values())
+
+      // 2. Duration Calibration
+      // If duration is provided, filter out bad matches (Diff > 4s)
+      if (duration && duration > 0) {
+        const strictMatches = finalPool.filter(c => c.diff <= 4)
+        if (strictMatches.length > 0) {
+          console.log(`[Lyrics] Calibration: Found ${strictMatches.length} strict duration matches.`)
+          finalPool = strictMatches
+        } else {
+          // If NO strict matches, we might be dealing with a completely different version.
+          // Try "Lenient" matches (Diff <= 10s)
+          const lenientMatches = finalPool.filter(c => c.diff <= 10)
+          if (lenientMatches.length > 0) {
+            console.log(`[Lyrics] Calibration: Found ${lenientMatches.length} lenient duration matches.`)
+            finalPool = lenientMatches
+          } else {
+            console.log(`[Lyrics] Calibration: No duration matches found. Closest is ${Math.min(...finalPool.map(c => c.diff))}s off.`)
+            // If diff is huge (e.g. > 30s), it's probably wrong song. 
+            // But user wants SOMETHING rather than nothing? 
+            // Or improved accuracy?
+            // Let's sort by diff anyway.
+          }
+        }
+      }
+
+      // 3. Sort by:
+      // - Diff (ASC)
+      // - Source preference? (LRCLib is usually better timed)
+      finalPool.sort((a, b) => {
+        if (Math.abs(a.diff - b.diff) > 0.5) return a.diff - b.diff // Duration is king
+        return 0
+      })
+
+      const bestMatch = finalPool[0]
+      console.log(`[Lyrics] Selected: ${bestMatch.track} (${bestMatch.artist}) [${bestMatch.source}] Diff=${bestMatch.diff.toFixed(2)}s`)
+
+      return convertToTraditional(bestMatch.lyrics)
+
     } catch (e) {
       console.error('Error fetching lyrics:', e)
       return null
