@@ -417,17 +417,88 @@ app.whenReady().then(() => {
       // Helper: Clean junk from strings
       const cleanString = (str: string) => {
         if (!str) return ''
-        return str
-          .replace(/\([^\)]*\)/g, '') // Remove items in ()
-          .replace(/\[[^\]]*\]/g, '') // Remove items in []
-          .replace(/\{[^\}]*\}/g, '') // Remove items in {}
-          .replace(/\s*ft\..*$/i, '')
-          .replace(/\s*feat\..*$/i, '')
-          .replace(/official video/gi, '')
-          .replace(/official audio/gi, '')
-          .replace(/lyrics/gi, '')
-          .replace(/mv/gi, '')
-          .trim()
+        let s = str
+
+        // 1. Unconditional removal of lyric/quote brackets (Content is usually lyrics snippets)
+        s = s.replace(/『[^』]*』/g, '')
+        s = s.replace(/「[^」]*」/g, '')
+
+        // 2. Smart removal of brackets
+        // If content contains junk keywords (MV, Version, etc), remove the whole block.
+        // Otherwise, just remove the brackets and keep the content.
+        const junkKeywords = [
+          'official', 'music video', 'preview', 'trailer', 'teaser',
+          'lyric', 'lyrics', 'sub', 'vietsub', 'pinyin', 'engsub',
+          '動態歌詞', '动态歌词', '歌詞', '歌词', '字幕',
+          'concert', 'stage', 'performance', '現場', '现场',
+          'cover', 'remix', 'medley', 'live',
+          'version', 'ver', '版', '翻唱', '原唱',
+          'ost', 'soundtrack', 'theme song', 'op', 'ed',
+          'hd', 'hq', 'sq', '4k', '1080p', 'hi-res',
+          'pure', 'full', 'complete', '純享', '纯享',
+          'feat', 'ft',
+          'prod', 'presents',
+          '好聲音', '好声音', '歌手', '聲生不息', '声生不息', '天賜的聲音', '天赐的声音',
+          '蒙面唱將', '蒙面唱将', '我們的歌', '我们的歌', '時光音樂會', '时光音乐会'
+        ]
+
+        const isJunk = (text: string) => {
+          const lower = text.toLowerCase()
+          return junkKeywords.some(k => lower.includes(k))
+        }
+
+        const replaceSmart = (text: string, open: string, close: string) => {
+          const esc = (c: string) => '\\' + c
+          const regex = new RegExp(`${esc(open)}([^${esc(close)}]*)?${esc(close)}`, 'gi')
+
+          return text.replace(regex, (_, content) => {
+            if (!content) return ' '
+            if (isJunk(content)) return ' '
+            return ' ' + content + ' '
+          })
+        }
+
+        s = replaceSmart(s, '(', ')')
+        s = replaceSmart(s, '（', '）')
+        s = replaceSmart(s, '[', ']')
+        s = replaceSmart(s, '【', '】')
+        s = replaceSmart(s, '{', '}')
+        s = replaceSmart(s, '《', '》')
+
+        // 3. Remove loose junk phrases
+        const looseJunk = [
+          'Official Music Video', 'Official Lyric Video', 'Official Video', 'Official Audio', 'Official MV',
+          'Music Video', 'Lyric Video',
+          'Theme Song', 'Ending Theme', 'Opening Theme',
+          'Dynamic Lyrics', 'High Quality'
+        ]
+
+        looseJunk.forEach(p => {
+          const regex = new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+          s = s.replace(regex, ' ')
+        })
+
+        // 4. Remove loose junk words (careful with boundaries)
+        const wordsToRemove = [
+          'official', 'mv', 'lyric', 'lyrics', 'video', 'hd', 'hq', 'sq', '4k',
+          'live', 'cover', 'remix', 'feat', 'ft',
+          '動態歌詞', '单纯', '純享', '纯享', 'vietsub', 'pinyin'
+        ]
+
+        wordsToRemove.forEach(w => {
+          // Simple replace for Chinese/Mixed, Word boundary for English
+          if (/^[a-z0-9]+$/i.test(w)) {
+            s = s.replace(new RegExp(`\\b${w}\\b`, 'gi'), ' ')
+          } else {
+            s = s.replace(new RegExp(w, 'gi'), ' ')
+          }
+        })
+
+        // 5. Symbols to space (Keep characters that might be part of names, remove separators)
+        s = s.replace(/[:"'_\|\.,!@#$%^&*+=?\/\\♪♫~`\-]/g, ' ')
+
+        // 6. Final Trim
+        return s.replace(/\s+/g, ' ').trim()
       }
 
       // Helper: Search LRCLib
