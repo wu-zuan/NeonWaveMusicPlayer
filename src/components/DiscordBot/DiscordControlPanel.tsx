@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react'
-import { Disc, Server, Volume2, LogOut, Power, Radio, Plus, Trash2, User } from 'lucide-react'
+import { Disc, Server, Volume2, LogOut, Power, Radio, Plus, Trash2, User, ChevronDown, Check } from 'lucide-react'
 import styles from './DiscordControlPanel.module.css'
 import { ConfirmationModal } from '../UI/ConfirmationModal'
 
@@ -58,6 +58,98 @@ export const DiscordControlPanel: React.FC = () => {
 
     const closeModal = () => {
         setModal(prev => ({ ...prev, isOpen: false }))
+    }
+
+    // -- User Menu Render Helper --
+    const [showUserMenu, setShowUserMenu] = useState(false)
+
+    // Close menu when clicking outside (simple handling)
+    useEffect(() => {
+        const handleClickOutside = () => setShowUserMenu(false)
+        if (showUserMenu) {
+            document.addEventListener('click', handleClickOutside)
+        }
+        return () => document.removeEventListener('click', handleClickOutside)
+    }, [showUserMenu])
+
+    const UserMenu = () => {
+        if (!userInfo) return null
+
+        return (
+            <div className={styles.userMenuContainer} onClick={e => e.stopPropagation()}>
+                <div
+                    className={`${styles.userInfo} ${showUserMenu ? styles.userInfoActive : ''}`}
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                >
+                    {userInfo.avatar ? (
+                        <img src={userInfo.avatar} className={styles.userAvatar} />
+                    ) : (
+                        <div className={styles.userAvatar} style={{ background: '#6d28d9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <User size={14} />
+                        </div>
+                    )}
+                    <span className={styles.userName}>{userInfo.username}</span>
+                    <ChevronDown size={14} color="#9ca3af" style={{ transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+                </div>
+
+                {showUserMenu && (
+                    <div className={styles.userDropdown}>
+                        <div className={styles.dropdownHeader}>切換機器人</div>
+
+                        {savedBots.map((bot, idx) => {
+                            const isActive = bot.token === localStorage.getItem('discord_bot_token')
+                            return (
+                                <button
+                                    key={idx}
+                                    className={`${styles.dropdownItem} ${isActive ? styles.active : ''}`}
+                                    onClick={() => {
+                                        if (!isActive) handleLogin(bot.token)
+                                        setShowUserMenu(false)
+                                    }}
+                                >
+                                    {bot.avatar ? (
+                                        <img src={bot.avatar} className={styles.dropdownAvatar} />
+                                    ) : (
+                                        <div className={styles.dropdownIcon}><User size={16} /></div>
+                                    )}
+                                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {bot.username}
+                                    </div>
+                                    {isActive && <Check size={16} />}
+                                </button>
+                            )
+                        })}
+
+                        <div className={styles.dropdownDivider} />
+
+                        <button
+                            className={styles.dropdownItem}
+                            onClick={() => {
+                                handleSwitchAccount() // This function actually resets state to Step 1
+                                setShowUserMenu(false)
+                            }}
+                        >
+                            <div className={styles.dropdownIcon}><Plus size={16} /></div>
+                            <span>新增機器人</span>
+                        </button>
+
+                        <div className={styles.dropdownDivider} />
+
+                        <button
+                            className={styles.dropdownItem}
+                            style={{ color: '#ef4444' }}
+                            onClick={() => {
+                                handleDisconnect()
+                                setShowUserMenu(false)
+                            }}
+                        >
+                            <div className={styles.dropdownIcon} style={{ color: '#ef4444' }}><Power size={16} /></div>
+                            <span>斷開連線</span>
+                        </button>
+                    </div>
+                )}
+            </div>
+        )
     }
 
     // -- Actions --
@@ -392,12 +484,7 @@ export const DiscordControlPanel: React.FC = () => {
                     <Server color="#a855f7" /> 選擇伺服器
                 </h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    {userInfo && (
-                        <div className={styles.userInfo}>
-                            {userInfo.avatar && <img src={userInfo.avatar} className={styles.userAvatar} />}
-                            <span className={styles.userName}>{userInfo.username}</span>
-                        </div>
-                    )}
+                    <UserMenu />
                     <button onClick={() => setStep(1)} className={styles.backBtn}>返回</button>
                 </div>
             </div>
@@ -434,7 +521,10 @@ export const DiscordControlPanel: React.FC = () => {
                     <span style={{ margin: '0 8px', opacity: 0.4 }}>/</span>
                     <Volume2 color="#f472b6" /> 選擇語音頻道
                 </h2>
-                <button onClick={() => setStep(2)} className={styles.backBtn}>返回</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <UserMenu />
+                    <button onClick={() => setStep(2)} className={styles.backBtn}>返回</button>
+                </div>
             </div>
 
             <div className={styles.grid} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>

@@ -212,6 +212,11 @@
     gap: 12px;
 }
 
+.userMenuContainer {
+    position: relative;
+    z-index: 50;
+}
+
 .userInfo {
     display: flex;
     align-items: center;
@@ -219,17 +224,116 @@
     background-color: rgba(255, 255, 255, 0.05);
     padding: 6px 12px;
     border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.userInfo:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(168, 85, 247, 0.3);
+}
+
+.userInfoActive {
+    background-color: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.5);
 }
 
 .userAvatar {
     width: 24px;
     height: 24px;
     border-radius: 50%;
+    object-fit: cover;
 }
 
 .userName {
     font-size: 14px;
     color: #d1d5db;
+    font-weight: 500;
+}
+
+.userDropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 260px;
+    background-color: #1f2937;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dropdownHeader {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 12px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dropdownItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: #e5e7eb;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+}
+
+.dropdownItem:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.dropdownItem.active {
+    background-color: rgba(168, 85, 247, 0.1);
+    color: #a855f7;
+}
+
+.dropdownDivider {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.05);
+    margin: 4px 0;
+}
+
+.dropdownAvatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dropdownIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #9ca3af;
 }
 
 .backBtn {
