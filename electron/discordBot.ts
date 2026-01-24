@@ -319,22 +319,58 @@ export class DiscordBotManager {
 
     // --- Streaming from Renderer ---
 
-    async playReceiverStream() {
+    async playReceiverStream(ffmpegPath?: string) {
         if (!this.currentConnection) throw new Error("Not connected");
 
         console.log('[DiscordBot] Starting Receiver Stream...');
         this.streamInput = new PassThrough();
 
-        // MediaRecorder output is usually WebM/Opus
-        const resource = createAudioResource(this.streamInput, {
-            inputType: StreamType.WebmOpus,
-            inlineVolume: true
-        });
+        // 1. If FFmpeg path provided, use manual spawning (Robust for Electron/Asar)
+        if (ffmpegPath) {
+            console.log(`[DiscordBot] Using manual FFmpeg spawn: ${ffmpegPath}`);
+            const { spawn } = await import('node:child_process');
 
-        this.currentResource = resource;
-        resource.volume?.setVolume(1.0);
+            const args = [
+                '-i', 'pipe:0',      // Input from stdin (PassThrough)
+                '-analyzeduration', '0',
+                '-loglevel', '0',
+                '-f', 's16le',       // Output PCM s16le
+                '-ar', '48000',
+                '-ac', '2',
+                'pipe:1'             // Output to stdout
+            ];
 
-        this.player.play(resource);
+            const ffmpegProcess = spawn(ffmpegPath, args);
+
+            // Pipe our input stream (chunks) into FFmpeg stdin
+            this.streamInput.pipe(ffmpegProcess.stdin);
+
+            ffmpegProcess.on('error', (err) => {
+                console.error('[DiscordBot] Stream FFmpeg Error:', err);
+            });
+
+            // Use FFmpeg stdout as raw PCM audio source
+            const resource = createAudioResource(ffmpegProcess.stdout, {
+                inputType: StreamType.Raw,
+                inlineVolume: true
+            });
+
+            this.currentResource = resource;
+            resource.volume?.setVolume(1.0);
+            this.player.play(resource);
+
+        } else {
+            // 2. Fallback: Trust prism-media to find ffmpeg (likely fails in packaged app)
+            const resource = createAudioResource(this.streamInput, {
+                inputType: StreamType.WebmOpus,
+                inlineVolume: true
+            });
+
+            this.currentResource = resource;
+            resource.volume?.setVolume(1.0);
+            this.player.play(resource);
+        }
+
         return true;
     }
 

@@ -197,7 +197,7 @@ app.whenReady().then(() => {
 
   // Streaming IPC
   ipcMain.handle('discord:startStreamMode', async () => {
-    return await discordBot.playReceiverStream()
+    return await discordBot.playReceiverStream(ffmpegPath)
   })
 
   // Note: For high frequency data, 'on' is better than 'handle' but 'handle' is easier to typed in my wrapper.
