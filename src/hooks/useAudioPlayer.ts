@@ -75,6 +75,12 @@ export function useAudioPlayer() {
         const fileUrl = `file:///${encodedPath}`
 
         if (currentTrack?.path !== track.path) {
+            // Force pause before switching to avoid MediaElementSource glitches
+            if (!audio.paused) {
+                try { audio.pause() } catch (e) { }
+            }
+            audio.currentTime = 0
+
             // Add to history if it's different
             if (currentTrack) setHistory(prev => [...prev, currentTrack])
 
