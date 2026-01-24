@@ -27,7 +27,8 @@ function App() {
     isShuffle, repeatMode,
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
-    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization
+    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
+    setIsMuted // Added
   } = useAudioPlayer()
 
   // Auto-Detect Context
@@ -44,19 +45,30 @@ function App() {
 
   // --- Discord Sync ---
   useEffect(() => {
-    if (currentTrack && isPlaying) {
-      if (currentTrack.path) {
-        // Send play command to Discord Bot
-        window.ipcRenderer.invoke('discord:play', currentTrack.path).catch(console.error)
-      }
-    } else if (!isPlaying) {
-      // Pause or Stop?
-      // window.ipcRenderer.invoke('discord:pause').catch(console.error)
-      // Actually if we just pause locally, we might want to pause bot too
-      if (currentTrack) { // if track exists but paused
-        window.ipcRenderer.invoke('discord:pause').catch(console.error)
+    const syncDiscord = async () => {
+      if (currentTrack && isPlaying) {
+        if (currentTrack.path) {
+          try {
+            // Check connection first to avoid unnecessary IPC or errors
+            // Actually, just sending play is fine, it will fail if not connected
+            // But getting status ensures we only mute if actually connected
+            const status = await window.ipcRenderer.invoke('discord:status')
+            if (status.isConnected && status.currentChannelId) {
+              await window.ipcRenderer.invoke('discord:play', currentTrack.path)
+              // Auto-mute local if successful
+              setIsMuted(true)
+            }
+          } catch (e) {
+            console.error("Discord sync error:", e)
+          }
+        }
+      } else if (!isPlaying) {
+        if (currentTrack) {
+          window.ipcRenderer.invoke('discord:pause').catch(console.error)
+        }
       }
     }
+    syncDiscord()
   }, [currentTrack, isPlaying])
 
   // Note: seek sync is harder, skipping for now unless requested

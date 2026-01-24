@@ -17,11 +17,13 @@ type RepeatMode = 'none' | 'all' | 'one'
 
 export function useAudioPlayer() {
     // State
+    // State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
     const [volume, setVolume] = useState(1)
+    const [isMuted, setIsMuted] = useState(false)
     const [is8D, setIs8D] = useState(false)
     const [defaultArtwork, setDefaultArtwork] = useState('')
 
@@ -54,9 +56,10 @@ export function useAudioPlayer() {
     // Effects for Audio Engine
     useEffect(() => { engineRef.current?.toggle8D(is8D) }, [is8D])
     useEffect(() => {
-        if (engineRef.current) engineRef.current.setVolume(volume)
-        else audioRef.current.volume = volume
-    }, [volume])
+        const effectiveVolume = isMuted ? 0 : volume
+        if (engineRef.current) engineRef.current.setVolume(effectiveVolume)
+        else audioRef.current.volume = effectiveVolume
+    }, [volume, isMuted])
 
     // Main Play Logic
     const playTrack = async (track: Track, newPlaylist?: Track[]) => {
@@ -262,6 +265,8 @@ export function useAudioPlayer() {
         },
         setFocusMode: (enable: boolean) => engineRef.current?.setFocusMode(enable),
         setNormalization: (enable: boolean) => engineRef.current?.setNormalization(enable),
-        setCrowd: (enable: boolean) => engineRef.current?.setCrowd(enable)
+        setCrowd: (enable: boolean) => engineRef.current?.setCrowd(enable),
+        isMuted,
+        setIsMuted
     }
 }
