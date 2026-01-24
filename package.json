@@ -1,7 +1,7 @@
 {
   "name": "neon-wave-music-player",
   "private": true,
-  "version": "5.4.2",
+  "version": "5.4.3",
   "description": "A modern, high-fidelity music player with 8D spatial audio effects.",
   "author": "DM-WuzuanTW",
   "type": "module",
@@ -31,10 +31,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.11.0",
-    "sodium-native": "^5.0.10",
     "yt-dlp-wrap": "^2.3.12",
-    "yt-search": "^2.13.1",
-    "zlib-sync": "^0.1.10"
+    "yt-search": "^2.13.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.64",

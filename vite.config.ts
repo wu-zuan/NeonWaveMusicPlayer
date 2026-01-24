@@ -14,7 +14,16 @@ export default defineConfig({
         vite: {
           build: {
             rollupOptions: {
-              external: ['yt-search', 'cheerio', 'iconv-lite', 'whatwg-encoding'],
+              external: [
+                'yt-search',
+                'cheerio',
+                'iconv-lite',
+                'whatwg-encoding',
+                'discord.js',
+                '@discordjs/voice',
+                'libsodium-wrappers',
+                '@snazzah/davey'
+              ],
             },
           },
         },
