@@ -28,7 +28,7 @@ function App() {
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
     setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
-    setIsMuted, getAudioStream, setLocalMute
+    getAudioStream, setLocalMute
   } = useAudioPlayer()
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)

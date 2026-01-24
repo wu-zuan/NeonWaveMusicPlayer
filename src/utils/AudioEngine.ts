@@ -9,7 +9,6 @@ export class AudioEngine {
     private masterGain: GainNode
     private compressor: DynamicsCompressorNode // Volume Normalization
     private crowdGain: GainNode
-    private crowdGain: GainNode
     private crowdSource: AudioBufferSourceNode | null = null
 
     // Streaming
