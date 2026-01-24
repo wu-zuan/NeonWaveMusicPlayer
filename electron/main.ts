@@ -172,7 +172,7 @@ app.whenReady().then(() => {
   ipcMain.handle('discord:play', async (_, filePath) => {
     // If we receive a specialized URL (like youtube stream), we might need different handling
     // For now, assume filePath is absolute local path which createAudioResource can handle
-    return await discordBot.playFile(filePath)
+    return await discordBot.playFile(filePath, ffmpegPath)
   })
 
   ipcMain.handle('discord:stop', () => {

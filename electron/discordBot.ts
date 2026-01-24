@@ -4,7 +4,8 @@ import {
     joinVoiceChannel,
     createAudioPlayer,
     createAudioResource,
-    AudioPlayerStatus
+    AudioPlayerStatus,
+    StreamType
 } from '@discordjs/voice';
 import { Readable } from 'node:stream';
 
@@ -159,18 +160,44 @@ export class DiscordBotManager {
     }
 
     // Play local file
-    async playFile(filePath: string) {
+    // Play local file - using explicit FFmpeg spawn for reliability
+    async playFile(filePath: string, ffmpegPath?: string) {
         try {
             console.log(`[DiscordBot] Playing file: ${filePath}`);
-            // Force ffmpeg via createAudioResource for broader format support if needed, 
-            // but for simple mp3, direct stream might work. 
-            // Using ffmpeg is safer for various formats (flac, etc)
-            const resource = createAudioResource(filePath, {
-                metadata: {
-                    title: filePath
-                }
+
+            if (!ffmpegPath) {
+                // Fallback to simpler method if no path provided (though we expect one)
+                const resource = createAudioResource(filePath);
+                this.player.play(resource);
+                return;
+            }
+
+            // Spawn FFmpeg to convert to PCM
+            // Arguments: Input file -> f32le/48000/2ch -> pipe:1
+            // Note: @discordjs/voice prefers Stereo 48kHz
+            const { spawn } = await import('node:child_process');
+
+            const args = [
+                '-i', filePath,
+                '-f', 's16le',
+                '-ar', '48000',
+                '-ac', '2',
+                'pipe:1'
+            ];
+
+            const ffmpegProcess = spawn(ffmpegPath, args);
+
+            ffmpegProcess.on('error', (err) => {
+                console.error('[DiscordBot] FFmpeg Spawn Error:', err);
             });
+
+            // Create Audio Resource from stdout
+            const resource = createAudioResource(ffmpegProcess.stdout, {
+                inputType: StreamType.Raw
+            });
+
             this.player.play(resource);
+
         } catch (e) {
             console.error("[DiscordBot] Play File Error:", e);
         }
