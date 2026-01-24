@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react'
-import { Disc, Server, Volume2, LogOut, Power, Radio } from 'lucide-react'
+import { Disc, Server, Volume2, LogOut, Power, Radio, Plus, Trash2, User } from 'lucide-react'
 import styles from './DiscordControlPanel.module.css'
+import { ConfirmationModal } from '../UI/ConfirmationModal'
 
 // Define IPC types for Renderer
 interface DiscordGuild {
@@ -18,9 +19,15 @@ interface DiscordChannel {
     members: string[]
 }
 
+interface SavedBot {
+    token: string
+    username: string
+    avatar: string | null
+}
+
 export const DiscordControlPanel: React.FC = () => {
     const [token, setToken] = useState('')
-    const [step, setStep] = useState(1) // 1: Input Token, 2: Select Server, 3: Select Channel, 4: Control
+    const [step, setStep] = useState(1) // 1: Select Account / Input Token, 2: Select Server, 3: Select Channel, 4: Control
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -31,25 +38,83 @@ export const DiscordControlPanel: React.FC = () => {
     const [selectedGuild, setSelectedGuild] = useState<DiscordGuild | null>(null)
     const [activeChannel, setActiveChannel] = useState<DiscordChannel | null>(null)
 
+    // Account Management
+    const [savedBots, setSavedBots] = useState<SavedBot[]>([])
+    const [isAddingNew, setIsAddingNew] = useState(false)
+
+    // Modal State
+    const [modal, setModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        action: () => { },
+        isDanger: false,
+        confirmText: 'Confirm'
+    })
+
+    const openModal = (title: string, message: string, action: () => void, isDanger = false, confirmText = 'Confirm') => {
+        setModal({ isOpen: true, title, message, action, isDanger, confirmText })
+    }
+
+    const closeModal = () => {
+        setModal(prev => ({ ...prev, isOpen: false }))
+    }
+
     // -- Actions --
 
-    const handleLogin = async () => {
-        if (!token) return
+    const handleLogin = async (loginToken: string = token) => {
+        if (!loginToken) return
         setLoading(true)
         setError(null)
         try {
-            const data = await window.ipcRenderer.invoke('discord:login', token)
+            const data = await window.ipcRenderer.invoke('discord:login', loginToken)
             setUserInfo({ username: data.username, avatar: data.avatar })
             const guildList = await window.ipcRenderer.invoke('discord:getGuilds')
             setGuilds(guildList)
             setStep(2)
-            // Save token to localStorage for convenience? User didn't ask, but good UX.
-            localStorage.setItem('discord_bot_token', token)
+
+            // Save bot to list
+            saveBotAccount(loginToken, data.username, data.avatar)
         } catch (e: any) {
             setError(e.message || 'Login failed')
         } finally {
             setLoading(false)
         }
+    }
+
+    const saveBotAccount = (botToken: string, username: string, avatar: string | null) => {
+        setSavedBots(prev => {
+            // Check if exists
+            const exists = prev.some(b => b.token === botToken)
+            if (exists) {
+                // Update info potentially
+                const updated = prev.map(b => b.token === botToken ? { token: botToken, username, avatar } : b)
+                localStorage.setItem('discord_saved_bots', JSON.stringify(updated))
+                return updated
+            }
+            const newList = [...prev, { token: botToken, username, avatar }]
+            localStorage.setItem('discord_saved_bots', JSON.stringify(newList))
+            return newList
+        })
+        // Also keep current token
+        localStorage.setItem('discord_bot_token', botToken)
+    }
+
+    const removeBotAccount = (botToken: string) => {
+        openModal(
+            '移除帳號',
+            '確定要從列表中移除此機器人帳號嗎？',
+            () => {
+                setSavedBots(prev => {
+                    const newList = prev.filter(b => b.token !== botToken)
+                    localStorage.setItem('discord_saved_bots', JSON.stringify(newList))
+                    return newList
+                })
+                closeModal()
+            },
+            true,
+            '移除'
+        )
     }
 
     const handleSelectGuild = async (guild: DiscordGuild) => {
@@ -83,20 +148,60 @@ export const DiscordControlPanel: React.FC = () => {
     }
 
     const handleDisconnect = async () => {
-        if (!confirm('Are you sure you want to disconnect the bot completely?')) return
-        setLoading(true)
-        try {
-            await window.ipcRenderer.invoke('discord:leave')
-            // Reset state logic
-            setStep(1)
-            setUserInfo(null)
-            setSelectedGuild(null)
-            setActiveChannel(null)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setLoading(false)
-        }
+        openModal(
+            '斷開連線',
+            '確定要完全斷開機器人連線嗎？',
+            async () => {
+                setLoading(true)
+                try {
+                    await window.ipcRenderer.invoke('discord:leave')
+                    await window.ipcRenderer.invoke('discord:disconnect') // Assuming we add a disconnect main process handler or reuse leave logic implies stop? 
+                    // Wait, previous code just used invoke('discord:leave') which just leaves channel. 
+                    // The user wants "Disconnect" to typically mean "Log out" or "Shutdown bot connection"
+                    // The previous code had a typo in handleDisconnect it called invoke('discord:leave') but logic implied reset.
+
+                    // Actually let's just reset state to 1
+                    setStep(1)
+                    setUserInfo(null)
+                    setSelectedGuild(null)
+                    setActiveChannel(null)
+                    setToken('') // Clear current token input
+                    closeModal()
+                } catch (e) {
+                    console.error(e)
+                } finally {
+                    setLoading(false)
+                }
+            },
+            true,
+            '斷開連線'
+        )
+    }
+
+    const handleSwitchAccount = async () => {
+        openModal(
+            '切換帳號',
+            '確定要切換帳號嗎？目前的機器人將會斷線。',
+            async () => {
+                setLoading(true)
+                try {
+                    await window.ipcRenderer.invoke('discord:leave')
+                    // Reset to accounts list
+                    setStep(1)
+                    setUserInfo(null)
+                    setSelectedGuild(null)
+                    setActiveChannel(null)
+                    setIsAddingNew(false)
+                    closeModal()
+                } catch (e) {
+                    console.error(e)
+                } finally {
+                    setLoading(false)
+                }
+            },
+            false,
+            '切換'
+        )
     }
 
     const handleLeaveChannel = async () => {
@@ -116,6 +221,17 @@ export const DiscordControlPanel: React.FC = () => {
     useEffect(() => {
         const checkStatus = async () => {
             setLoading(true)
+
+            // Load saved bots
+            try {
+                const saved = localStorage.getItem('discord_saved_bots')
+                if (saved) {
+                    setSavedBots(JSON.parse(saved))
+                }
+            } catch (e) {
+                console.error("Failed to parse saved bots", e)
+            }
+
             const savedToken = localStorage.getItem('discord_bot_token')
             if (savedToken) setToken(savedToken)
 
@@ -165,45 +281,109 @@ export const DiscordControlPanel: React.FC = () => {
 
     // -- Render Helpers --
 
-    const renderStep1 = () => (
-        <div className={styles.content}>
-            <div className={styles.card}>
-                <div className={styles.header}>
-                    <Disc size={48} className={styles.iconSpin} />
-                    <h2 className={styles.title}>
-                        Discord 機器人連線
-                    </h2>
-                    <p className={styles.subtitle}>直接在您的 Discord 伺服器中控制音樂播放。</p>
+    const renderStep1 = () => {
+        if (savedBots.length > 0 && !isAddingNew) {
+            return (
+                <div className={styles.content}>
+                    <div className={styles.card}>
+                        <div className={styles.header}>
+                            <Disc size={48} className={styles.iconSpin} />
+                            <h2 className={styles.title}>選擇機器人</h2>
+                            <p className={styles.subtitle}>選擇已儲存的機器人帳號或新增。</p>
+                        </div>
+
+                        <div className={styles.accountList}>
+                            {savedBots.map((bot, index) => (
+                                <div key={index} className={styles.accountItem}>
+                                    <div className={styles.accountInfo} onClick={() => handleLogin(bot.token)}>
+                                        {bot.avatar ? (
+                                            <img src={bot.avatar} className={styles.accountAvatar} alt="avatar" />
+                                        ) : (
+                                            <div className={styles.accountAvatarPlaceholder}>
+                                                <User size={20} />
+                                            </div>
+                                        )}
+                                        <span className={styles.accountName}>{bot.username}</span>
+                                    </div>
+                                    <button
+                                        className={styles.deleteBtn}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            removeBotAccount(bot.token)
+                                        }}
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            className={styles.btnAddAccount}
+                            onClick={() => {
+                                setToken('')
+                                setIsAddingNew(true)
+                            }}
+                        >
+                            <Plus size={18} /> 新增機器人
+                        </button>
+                    </div>
                 </div>
+            )
+        }
 
-                <div className={styles.formGroup}>
-                    <label className={styles.label}>機器人 Token</label>
-                    <input
-                        type="password"
-                        value={token}
-                        onChange={e => setToken(e.target.value)}
-                        className={styles.input}
-                        placeholder="請輸入 Discord Bot Token..."
-                        disabled={loading}
-                    />
+        return (
+            <div className={styles.content}>
+                <div className={styles.card}>
+                    <div className={styles.header}>
+                        <Disc size={48} className={styles.iconSpin} />
+                        <h2 className={styles.title}>
+                            Discord 機器人連線
+                        </h2>
+                        <p className={styles.subtitle}>直接在您的 Discord 伺服器中控制音樂播放。</p>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>機器人 Token</label>
+                        <input
+                            type="password"
+                            value={token}
+                            onChange={e => setToken(e.target.value)}
+                            className={styles.input}
+                            placeholder="請輸入 Discord Bot Token..."
+                            disabled={loading}
+                        />
+                    </div>
+
+                    {error && <div className={styles.error}>{error}</div>}
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        {savedBots.length > 0 && (
+                            <button
+                                onClick={() => setIsAddingNew(false)}
+                                className={styles.btnSecondary}
+                                style={{ flex: 1 }}
+                            >
+                                返回列表
+                            </button>
+                        )}
+                        <button
+                            onClick={() => handleLogin(token)}
+                            disabled={loading || !token}
+                            className={styles.button}
+                            style={{ flex: 2 }}
+                        >
+                            {loading ? '連線中...' : '連線機器人'}
+                        </button>
+                    </div>
+
+                    <p className={styles.footerText}>
+                        還沒有機器人？前往 <a href="#" onClick={() => window.open('https://discord.com/developers/applications')} className={styles.link}>Discord Developer Portal</a> 建立一個。
+                    </p>
                 </div>
-
-                {error && <div className={styles.error}>{error}</div>}
-
-                <button
-                    onClick={handleLogin}
-                    disabled={loading || !token}
-                    className={styles.button}
-                >
-                    {loading ? '連線中...' : '連線機器人'}
-                </button>
-
-                <p className={styles.footerText}>
-                    還沒有機器人？前往 <a href="#" onClick={() => window.open('https://discord.com/developers/applications')} className={styles.link}>Discord Developer Portal</a> 建立一個。
-                </p>
             </div>
-        </div>
-    )
+        )
+    }
 
     const renderStep2 = () => (
         <div className={styles.fullPageContainer}>
@@ -318,6 +498,12 @@ export const DiscordControlPanel: React.FC = () => {
             {/* Action Buttons */}
             <div className={styles.actions}>
                 <button
+                    onClick={handleSwitchAccount}
+                    className={styles.btnSecondary}
+                >
+                    <User size={18} /> 切換帳號
+                </button>
+                <button
                     onClick={handleLeaveChannel}
                     className={styles.btnSecondary}
                 >
@@ -341,6 +527,16 @@ export const DiscordControlPanel: React.FC = () => {
             {step === 2 && renderStep2()}
             {step === 3 && renderStep3()}
             {step === 4 && renderStep4()}
+
+            <ConfirmationModal
+                isOpen={modal.isOpen}
+                title={modal.title}
+                message={modal.message}
+                onConfirm={modal.action}
+                onCancel={closeModal}
+                isDanger={modal.isDanger}
+                confirmText={modal.confirmText}
+            />
         </div>
     )
 }

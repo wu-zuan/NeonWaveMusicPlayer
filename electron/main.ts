@@ -169,6 +169,10 @@ app.whenReady().then(() => {
     return await discordBot.leaveChannel()
   })
 
+  ipcMain.handle('discord:disconnect', async () => {
+    return await discordBot.disconnect()
+  })
+
   ipcMain.handle('discord:play', async (_, filePath) => {
     // If we receive a specialized URL (like youtube stream), we might need different handling
     // For now, assume filePath is absolute local path which createAudioResource can handle
