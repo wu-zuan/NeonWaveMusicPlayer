@@ -6,6 +6,7 @@ import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
 import { exec } from 'node:child_process'
 import { parseFile } from 'music-metadata'
+import { DiscordBotManager } from './discordBot'
 
 const require = createRequire(import.meta.url)
 let ffmpegPath = require('ffmpeg-static')
@@ -144,6 +145,47 @@ app.whenReady().then(() => {
 
   // Register 'media' protocol to bypass some security if needed, or rely on webSecurity: false for now
   createWindow()
+
+  // --- Discord Bot Integration ---
+  const discordBot = new DiscordBotManager()
+
+  ipcMain.handle('discord:login', async (_, token) => {
+    return await discordBot.login(token)
+  })
+
+  ipcMain.handle('discord:getGuilds', () => {
+    return discordBot.getGuilds()
+  })
+
+  ipcMain.handle('discord:getChannels', (_, guildId) => {
+    return discordBot.getChannels(guildId)
+  })
+
+  ipcMain.handle('discord:join', async (_, guildId, channelId) => {
+    return await discordBot.joinChannel(guildId, channelId)
+  })
+
+  ipcMain.handle('discord:leave', async () => {
+    return await discordBot.leaveChannel()
+  })
+
+  ipcMain.handle('discord:play', async (_, filePath) => {
+    // If we receive a specialized URL (like youtube stream), we might need different handling
+    // For now, assume filePath is absolute local path which createAudioResource can handle
+    return await discordBot.playFile(filePath)
+  })
+
+  ipcMain.handle('discord:stop', () => {
+    return discordBot.stop()
+  })
+
+  ipcMain.handle('discord:pause', () => {
+    return discordBot.pause()
+  })
+
+  ipcMain.handle('discord:resume', () => {
+    return discordBot.resume()
+  })
 
   // IPC Handlers
   ipcMain.handle('dialog:openDirectory', async () => {
@@ -420,7 +462,7 @@ app.whenReady().then(() => {
         let s = str
 
         // Remove Japanese-style quotes
-        s = s.replace(/『[^』]*』/g, '').replace(/「[^」]*」/g, '')
+        s = s.replace(/『[^』]*』/g, '').replace(/「[^」」]*」/g, '')
 
         // Smart Bracket Removal
         const junkKeywords = [
@@ -433,10 +475,11 @@ app.whenReady().then(() => {
           'ost', 'soundtrack', 'theme song', 'op', 'ed',
           'hd', 'hq', 'sq', '4k', '1080p', 'hi-res',
           'pure', 'full', 'complete', '純享', '纯享',
-          'feat', 'ft',
+          'feat', 'ft', '合唱',
           'prod', 'presents',
           '好聲音', '好声音', '歌手', '聲生不息', '声生不息', '天賜的聲音', '天赐的声音',
-          '蒙面唱將', '蒙面唱将', '我們的歌', '我们的歌', '時光音樂會', '时光音乐会'
+          '蒙面唱將', '蒙面唱将', '我們的歌', '我们的歌', '時光音樂會', '时光音乐会',
+          'mangotv', 'call me by fire', '乘風破浪', '披荊斬棘'
         ]
         const isJunk = (text: string) => junkKeywords.some(k => text.toLowerCase().includes(k))
 
@@ -446,6 +489,7 @@ app.whenReady().then(() => {
           return text.replace(regex, (_, content) => {
             if (!content) return ' '
             if (isJunk(content)) return ' '
+            // Keep content but remove brackets
             return ' ' + content + ' '
           })
         }
@@ -455,6 +499,8 @@ app.whenReady().then(() => {
         s = replaceSmart(s, '[', ']')
         s = replaceSmart(s, '【', '】')
         s = replaceSmart(s, '{', '}')
+        // Note: We handle 《》 carefully. In standard cleaning, we keep content.
+        // But for filenames, we have a special strategy (C-0) below.
         s = replaceSmart(s, '《', '》')
 
         // Remove loose phrases
@@ -470,7 +516,7 @@ app.whenReady().then(() => {
         // Remove specific words
         const wordsToRemove = [
           'official', 'mv', 'lyric', 'lyrics', 'video', 'hd', 'hq', 'sq', '4k',
-          'live', 'cover', 'remix', 'feat', 'ft',
+          'live', 'cover', 'remix', 'feat', 'ft', 'mangotv',
           '動態歌詞', '单纯', '純享', '纯享', 'vietsub', 'pinyin'
         ]
         wordsToRemove.forEach(w => {
@@ -621,18 +667,43 @@ app.whenReady().then(() => {
       if (filePath) {
         let filename = path.basename(filePath, path.extname(filePath))
 
-        // C-1: get-artist-title parsing
-        const parsed = getArtistTitle(filename)
+        // C-0: Chinese Variety Show Pattern heuristic (Strict Artist《Title》...Trash)
+        // Regex: Catch everything before 《 as Artist, inside 《》 as Title, ignore everything after 》
+        const varietyMatch = filename.match(/(.+?)《(.+?)》(.*)/)
+        if (varietyMatch) {
+          const rawArtist = varietyMatch[1] // before bracket
+          const rawTitle = varietyMatch[2]  // inside bracket
+
+          // Clean artist (remove _ , 合唱, junk)
+          const cA = cleanString(rawArtist).replace(/合唱/g, '').trim()
+          const cT = cleanString(rawTitle)
+
+          if (cT) {
+            const query = `${cT} ${cA}`
+            console.log(`[Lyrics] Strategy C-0 (Variety Pattern): ${query}`)
+            candidates.push(...await searchLrcLib(query, duration))
+            candidates.push(...await searchNetease(query, duration))
+
+            // Also try Title Only if artist is complex (often variety shows have long artist lists)
+            if (cA.length > 0) {
+              console.log(`[Lyrics] Strategy C-0 (Title + Duration): ${cT}`)
+              candidates.push(...await searchLrcLib(cT, duration))
+              candidates.push(...await searchNetease(cT, duration))
+            }
+          }
+        }
+
+        // C-1: get-artist-title parsing (Standard western format)
+        const parsed = getArtistTitle(filename.replace(/_/g, ' '))
         if (parsed && parsed.length === 2) {
           const [a, t] = parsed
           const query = `${t} ${a}`
           console.log(`[Lyrics] Strategy C-1 (Parsed): ${query}`)
           candidates.push(...await searchLrcLib(query, duration))
-          // Netease fallback lazy? No, do it.
           candidates.push(...await searchNetease(query, duration))
         }
 
-        // C-2: Cleaned Raw Filename
+        // C-2: Cleaned Raw Filename (Fallback)
         const cFilename = cleanString(filename)
         console.log(`[Lyrics] Strategy C-2 (Raw Cleaned): ${cFilename}`)
         candidates.push(...await searchLrcLib(cFilename, duration))

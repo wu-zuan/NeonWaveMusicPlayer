@@ -1,5 +1,5 @@
 import React from 'react'
-import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2, RefreshCw } from 'lucide-react'
+import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2, RefreshCw, Radio } from 'lucide-react'
 import styles from './Sidebar.module.css'
 import { Playlist } from '../../hooks/useLibrary'
 
@@ -107,6 +107,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                     <Search size={20} />
                     <span>線上搜尋</span>
+                </button>
+
+                <button
+                    className={`${styles.navItem} ${currentView === 'discord' ? styles.active : ''}`}
+                    onClick={() => onChangeView('discord')}
+                >
+                    <Radio size={20} />
+                    <span>Discord 機器人</span>
                 </button>
 
                 <button

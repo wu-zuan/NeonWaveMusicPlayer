@@ -11,6 +11,7 @@ import { useAppDetection } from './hooks/useAppDetection'
 import './index.css'
 
 import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
+import { DiscordControlPanel } from './components/DiscordBot/DiscordControlPanel'
 
 function App() {
   const {
@@ -40,6 +41,25 @@ function App() {
     }
     // 'game' mode currently does nothing specific, maybe future: lower volume
   }, [contextMode])
+
+  // --- Discord Sync ---
+  useEffect(() => {
+    if (currentTrack && isPlaying) {
+      if (currentTrack.path) {
+        // Send play command to Discord Bot
+        window.ipcRenderer.invoke('discord:play', currentTrack.path).catch(console.error)
+      }
+    } else if (!isPlaying) {
+      // Pause or Stop?
+      // window.ipcRenderer.invoke('discord:pause').catch(console.error)
+      // Actually if we just pause locally, we might want to pause bot too
+      if (currentTrack) { // if track exists but paused
+        window.ipcRenderer.invoke('discord:pause').catch(console.error)
+      }
+    }
+  }, [currentTrack, isPlaying])
+
+  // Note: seek sync is harder, skipping for now unless requested
 
   // Determine which tracks to show based on view
   let displayedTracks = allTracks
@@ -108,6 +128,10 @@ function App() {
 
           {view === 'settings' && (
             <SettingsView />
+          )}
+
+          {view === 'discord' && (
+            <DiscordControlPanel />
           )}
         </div>
 
