@@ -28,7 +28,7 @@ function App() {
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
     setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
-    setIsMuted // Added
+    setIsMuted
   } = useAudioPlayer()
 
   // Auto-Detect Context
@@ -49,17 +49,27 @@ function App() {
       if (currentTrack && isPlaying) {
         if (currentTrack.path) {
           try {
-            // Check connection first to avoid unnecessary IPC or errors
-            // Actually, just sending play is fine, it will fail if not connected
-            // But getting status ensures we only mute if actually connected
+            // Check connection first to avoid unnecessary errors
             const status = await window.ipcRenderer.invoke('discord:status')
             if (status.isConnected && status.currentChannelId) {
+              console.log('[App] Discord bot connected, attempting to sync playback...')
+
+              // Try to play on Discord
               await window.ipcRenderer.invoke('discord:play', currentTrack.path)
-              // Auto-mute local if successful
+
+              // Only mute local player if Discord playback succeeded
+              console.log('[App] ✓ Discord playback started, muting local player')
               setIsMuted(true)
+            } else {
+              // Bot not connected to voice channel, ensure local is not muted
+              console.log('[App] Discord bot not connected to voice channel')
+              setIsMuted(false)
             }
           } catch (e) {
-            console.error("Discord sync error:", e)
+            console.error('[App] Discord sync error:', e)
+            // If Discord playback failed, unmute local player so user hears music
+            console.log('[App] Discord playback failed, unmuting local player')
+            setIsMuted(false)
           }
         }
       } else if (!isPlaying) {

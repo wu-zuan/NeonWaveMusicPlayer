@@ -159,47 +159,108 @@ export class DiscordBotManager {
         };
     }
 
-    // Play local file
     // Play local file - using explicit FFmpeg spawn for reliability
     async playFile(filePath: string, ffmpegPath?: string) {
         try {
             console.log(`[DiscordBot] Playing file: ${filePath}`);
 
+            // Check if we have an active connection
+            if (!this.currentConnection) {
+                throw new Error('No active voice connection. Please join a channel first.');
+            }
+
+            // Check connection state
+            const connState = this.currentConnection.state.status;
+            console.log(`[DiscordBot] Connection state: ${connState}`);
+
+            if (connState === 'destroyed' || connState === 'disconnected') {
+                throw new Error(`Voice connection is ${connState}. Cannot play audio.`);
+            }
+
             if (!ffmpegPath) {
-                // Fallback to simpler method if no path provided (though we expect one)
-                const resource = createAudioResource(filePath);
+                console.warn('[DiscordBot] No FFmpeg path provided, using fallback direct resource');
+                const resource = createAudioResource(filePath, {
+                    metadata: { title: filePath }
+                });
                 this.player.play(resource);
                 return;
             }
 
             // Spawn FFmpeg to convert to PCM
-            // Arguments: Input file -> f32le/48000/2ch -> pipe:1
-            // Note: @discordjs/voice prefers Stereo 48kHz
+            // Arguments: Input file -> s16le/48000/2ch -> pipe:1
             const { spawn } = await import('node:child_process');
 
             const args = [
                 '-i', filePath,
+                '-analyzeduration', '0',
+                '-loglevel', '0',
                 '-f', 's16le',
                 '-ar', '48000',
                 '-ac', '2',
                 'pipe:1'
             ];
 
+            console.log(`[DiscordBot] Spawning FFmpeg: ${ffmpegPath} ${args.join(' ')}`);
             const ffmpegProcess = spawn(ffmpegPath, args);
+
+            let hasStarted = false;
 
             ffmpegProcess.on('error', (err) => {
                 console.error('[DiscordBot] FFmpeg Spawn Error:', err);
             });
 
-            // Create Audio Resource from stdout
-            const resource = createAudioResource(ffmpegProcess.stdout, {
-                inputType: StreamType.Raw
+            ffmpegProcess.on('close', (code) => {
+                console.log(`[DiscordBot] FFmpeg process exited with code ${code}`);
             });
 
+            // Log stderr for diagnostics
+            ffmpegProcess.stderr?.on('data', (data) => {
+                const msg = data.toString();
+                console.log(`[DiscordBot] FFmpeg: ${msg}`);
+            });
+
+            // Monitor stdout to confirm data is flowing
+            ffmpegProcess.stdout?.on('data', () => {
+                if (!hasStarted) {
+                    console.log('[DiscordBot] FFmpeg audio stream started');
+                    hasStarted = true;
+                }
+            });
+
+            // Create Audio Resource from stdout
+            const resource = createAudioResource(ffmpegProcess.stdout, {
+                inputType: StreamType.Raw,
+                metadata: {
+                    title: filePath
+                }
+            });
+
+            console.log('[DiscordBot] Audio resource created, starting playback');
             this.player.play(resource);
+
+            // Log playback events
+            const playingHandler = () => {
+                console.log('[DiscordBot] ✓ Audio player is now playing');
+            };
+            const idleHandler = () => {
+                console.log('[DiscordBot] Audio player became idle');
+            };
+            const errorHandler = (error: Error) => {
+                console.error('[DiscordBot] Audio player error:', error);
+            };
+
+            // Clean up old listeners to avoid memory leaks
+            this.player.removeAllListeners(AudioPlayerStatus.Playing);
+            this.player.removeAllListeners(AudioPlayerStatus.Idle);
+            this.player.removeAllListeners('error');
+
+            this.player.once(AudioPlayerStatus.Playing, playingHandler);
+            this.player.once(AudioPlayerStatus.Idle, idleHandler);
+            this.player.once('error', errorHandler);
 
         } catch (e) {
             console.error("[DiscordBot] Play File Error:", e);
+            throw e; // Re-throw so caller knows it failed
         }
     }
 
