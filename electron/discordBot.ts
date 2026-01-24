@@ -5,13 +5,15 @@ import {
     createAudioPlayer,
     createAudioResource,
     AudioPlayerStatus,
-    StreamType
+    StreamType,
+    AudioResource
 } from '@discordjs/voice';
 import { Readable } from 'node:stream';
 
 export class DiscordBotManager {
     private client: Client | null = null;
     private player = createAudioPlayer();
+    private currentResource: AudioResource | null = null;
     private currentConnection: any = null;
     public isConnected = false;
     public currentGuildId: string | null = null;
@@ -180,8 +182,11 @@ export class DiscordBotManager {
             if (!ffmpegPath) {
                 console.warn('[DiscordBot] No FFmpeg path provided, using fallback direct resource');
                 const resource = createAudioResource(filePath, {
-                    metadata: { title: filePath }
+                    metadata: { title: filePath },
+                    inlineVolume: true
                 });
+                this.currentResource = resource;
+                resource.volume?.setVolume(1.0);
                 this.player.play(resource);
                 return;
             }
@@ -232,8 +237,12 @@ export class DiscordBotManager {
                 inputType: StreamType.Raw,
                 metadata: {
                     title: filePath
-                }
+                },
+                inlineVolume: true
             });
+            this.currentResource = resource;
+            // Default volume 100%
+            resource.volume?.setVolume(1.0);
 
             console.log('[DiscordBot] Audio resource created, starting playback');
             this.player.play(resource);
@@ -269,7 +278,14 @@ export class DiscordBotManager {
     async playStream(stream: Readable) {
         try {
             console.log(`[DiscordBot] Playing stream`);
-            const resource = createAudioResource(stream);
+            // Enable inline volume for streams too
+            const resource = createAudioResource(stream, {
+                inlineVolume: true
+            });
+            this.currentResource = resource;
+            // Set initial volume if needed, e.g. 1.0
+            resource.volume?.setVolume(1.0);
+
             this.player.play(resource);
         } catch (e) {
             console.error("[DiscordBot] Play Stream Error:", e);
@@ -286,5 +302,17 @@ export class DiscordBotManager {
 
     stop() {
         this.player.stop();
+    }
+
+    setVolume(volume: number) {
+        // volume is 0-100
+        const normalized = Math.max(0, Math.min(100, volume)) / 100;
+        console.log(`[DiscordBot] Setting volume to ${normalized}`);
+
+        if (this.currentResource && this.currentResource.volume) {
+            this.currentResource.volume.setVolume(normalized);
+            return true;
+        }
+        return false;
     }
 }

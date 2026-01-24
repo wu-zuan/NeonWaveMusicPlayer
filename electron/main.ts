@@ -187,6 +187,10 @@ app.whenReady().then(() => {
     return discordBot.resume()
   })
 
+  ipcMain.handle('discord:setVolume', (_, volume) => {
+    return discordBot.setVolume(volume)
+  })
+
   ipcMain.handle('discord:status', () => {
     return discordBot.getStatus()
   })

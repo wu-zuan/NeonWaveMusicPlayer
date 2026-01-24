@@ -81,6 +81,11 @@ function App() {
     syncDiscord()
   }, [currentTrack, isPlaying])
 
+  useEffect(() => {
+    // Sync Volume to Discord Bot
+    window.ipcRenderer.invoke('discord:setVolume', volume * 100).catch(console.error)
+  }, [volume])
+
   // Note: seek sync is harder, skipping for now unless requested
 
   // Determine which tracks to show based on view

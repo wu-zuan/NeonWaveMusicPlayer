@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react'
-import { Disc, Server, Volume2, LogOut, Power, Radio, Play, Pause, StopCircle, VolumeX, Activity } from 'lucide-react'
+import { Disc, Server, Volume2, LogOut, Power, Radio } from 'lucide-react'
 import styles from './DiscordControlPanel.module.css'
 
 // Define IPC types for Renderer
@@ -305,96 +305,13 @@ export const DiscordControlPanel: React.FC = () => {
                 </div>
             </div>
 
-            {/* Playback Controls Section */}
-            <div className={styles.controlSection}>
-                <h3 className={styles.sectionTitle}>
-                    <Play size={18} /> 播放控制
-                </h3>
-                <div className={styles.playbackControls}>
-                    <button
-                        className={styles.controlBtn}
-                        onClick={() => window.ipcRenderer.invoke('discord:resume').catch(console.error)}
-                        title="播放"
-                    >
-                        <Play size={24} />
-                    </button>
-                    <button
-                        className={styles.controlBtn}
-                        onClick={() => window.ipcRenderer.invoke('discord:pause').catch(console.error)}
-                        title="暫停"
-                    >
-                        <Pause size={24} />
-                    </button>
-                    <button
-                        className={styles.controlBtn}
-                        onClick={() => window.ipcRenderer.invoke('discord:stop').catch(console.error)}
-                        title="停止"
-                    >
-                        <StopCircle size={24} />
-                    </button>
-                </div>
-            </div>
-
-            {/* Volume Control Section */}
-            <div className={styles.controlSection}>
-                <h3 className={styles.sectionTitle}>
-                    <Volume2 size={18} /> 音量控制
-                </h3>
-                <div className={styles.volumeControl}>
-                    <VolumeX size={18} color="#6b7280" />
-                    <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        defaultValue="100"
-                        className={styles.volumeSlider}
-                        onChange={(e) => {
-                            // TODO: Implement volume control IPC
-                            console.log('Discord volume:', e.target.value)
-                        }}
-                    />
-                    <Volume2 size={18} color="#a855f7" />
-                    <span className={styles.volumeLabel}>100%</span>
-                </div>
-            </div>
-
-            {/* Audio Effects Section */}
-            <div className={styles.controlSection}>
-                <h3 className={styles.sectionTitle}>
-                    <Activity size={18} /> 音訊效果
-                </h3>
-                <div className={styles.effectsGrid}>
-                    <div className={styles.effectItem}>
-                        <input type="checkbox" id="discord-8d" className={styles.checkbox} disabled />
-                        <label htmlFor="discord-8d" className={styles.checkboxLabel}>
-                            8D 音效
-                        </label>
-                    </div>
-                    <div className={styles.effectItem}>
-                        <input type="checkbox" id="discord-spatial" className={styles.checkbox} disabled />
-                        <label htmlFor="discord-spatial" className={styles.checkboxLabel}>
-                            空間音訊
-                        </label>
-                    </div>
-                    <div className={styles.effectItem}>
-                        <input type="checkbox" id="discord-normalize" className={styles.checkbox} disabled />
-                        <label htmlFor="discord-normalize" className={styles.checkboxLabel}>
-                            音量標準化
-                        </label>
-                    </div>
-                </div>
-                <p className={styles.effectNote}>
-                    ⚠️ 音訊效果功能開發中，即將推出
-                </p>
-            </div>
-
             {/* Info Box */}
             <div className={styles.infoBox}>
                 <h3 className={styles.infoTitle}>💡 使用提示</h3>
                 <p className={styles.infoDesc}>
                     • 在主播放器中播放歌曲，機器人會自動同步<br />
                     • 本地播放器會自動靜音，音樂轉給機器人播放<br />
-                    • 使用上方控制按鈕管理 Discord 播放狀態
+                    • 所有播放控制、音量調整皆同步主播放器
                 </p>
             </div>
 
