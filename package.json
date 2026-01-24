@@ -1,7 +1,7 @@
 {
   "name": "neon-wave-music-player",
   "private": true,
-  "version": "5.4.5",
+  "version": "5.4.6",
   "description": "A modern, high-fidelity music player with 8D spatial audio effects.",
   "author": "DM-WuzuanTW",
   "type": "module",
@@ -16,6 +16,7 @@
   "dependencies": {
     "@discordjs/voice": "^0.19.0",
     "@distube/ytdl-core": "^4.16.12",
+    "@snazzah/davey": "^0.1.9",
     "axios": "^1.13.2",
     "discord.js": "^14.25.1",
     "electron-updater": "^6.6.2",

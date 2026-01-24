@@ -114,8 +114,53 @@ export const DiscordControlPanel: React.FC = () => {
     }
 
     useEffect(() => {
-        const savedToken = localStorage.getItem('discord_bot_token')
-        if (savedToken) setToken(savedToken)
+        const checkStatus = async () => {
+            setLoading(true)
+            const savedToken = localStorage.getItem('discord_bot_token')
+            if (savedToken) setToken(savedToken)
+
+            try {
+                const status = await window.ipcRenderer.invoke('discord:status')
+                if (status.isConnected) {
+                    setUserInfo({
+                        username: status.username || 'Bot',
+                        avatar: status.avatar
+                    })
+
+                    // We need to reconstruct minimal guild/channel objects to satisfy the UI state
+                    if (status.currentGuildId) {
+                        setSelectedGuild({
+                            id: status.currentGuildId,
+                            name: status.currentGuildName || 'Unknown Server',
+                            icon: null, // we can't get icon easily without re-fetching guilds, but that's ok
+                            memberCount: 0
+                        })
+                    }
+
+                    if (status.currentChannelId) {
+                        setActiveChannel({
+                            id: status.currentChannelId,
+                            name: status.currentChannelName || 'Unknown Channel',
+                            userLimit: 0,
+                            members: []
+                        })
+                        // If we have a channel, we are in "Control" mode
+                        setStep(4)
+                    } else {
+                        // Connected but no channel? Should be Step 2 or 3. 
+                        // Let's go to Step 2 (Guild Selection) and fetch guilds really quick
+                        const guildList = await window.ipcRenderer.invoke('discord:getGuilds')
+                        setGuilds(guildList)
+                        setStep(2)
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to check discord status", e)
+            } finally {
+                setLoading(false)
+            }
+        }
+        checkStatus()
     }, [])
 
     // -- Render Helpers --

@@ -187,6 +187,10 @@ app.whenReady().then(() => {
     return discordBot.resume()
   })
 
+  ipcMain.handle('discord:status', () => {
+    return discordBot.getStatus()
+  })
+
   // IPC Handlers
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(win!, {

@@ -146,6 +146,18 @@ export class DiscordBotManager {
         }
     }
 
+    getStatus() {
+        return {
+            isConnected: this.isConnected,
+            username: this.client?.user?.tag || null,
+            avatar: this.client?.user?.avatarURL() || null,
+            currentGuildId: this.currentGuildId,
+            currentChannelId: this.currentChannelId,
+            currentGuildName: this.client?.guilds.cache.get(this.currentGuildId!)?.name || null,
+            currentChannelName: this.client?.guilds.cache.get(this.currentGuildId!)?.channels.cache.get(this.currentChannelId!)?.name || null
+        };
+    }
+
     // Play local file
     async playFile(filePath: string) {
         try {

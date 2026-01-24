@@ -27,6 +27,7 @@ interface Window {
         invoke(channel: 'discord:pause'): Promise<void>
         invoke(channel: 'discord:resume'): Promise<void>
         invoke(channel: 'discord:stop'): Promise<void>
+        invoke(channel: 'discord:status'): Promise<{ isConnected: boolean; username: string | null; avatar: string | null; currentGuildId: string | null; currentChannelId: string | null; currentGuildName: string | null; currentChannelName: string | null }>
 
 
         on(channel: string, listener: (...args: any[]) => void): void
