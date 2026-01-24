@@ -480,3 +480,157 @@
 .btnDanger:hover {
     background-color: rgba(239, 68, 68, 0.2);
 }
+
+/* Control Sections */
+.controlSection {
+    width: 100%;
+    max-width: 500px;
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.sectionTitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #d1d5db;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Playback Controls */
+.playbackControls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+.controlBtn {
+    width: 56px;
+    height: 56px;
+    background-color: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 12px;
+    color: #a855f7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.controlBtn:hover {
+    background-color: rgba(168, 85, 247, 0.2);
+    border-color: #a855f7;
+    transform: scale(1.05);
+}
+
+.controlBtn:active {
+    transform: scale(0.95);
+}
+
+/* Volume Control */
+.volumeControl {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.volumeSlider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: linear-gradient(to right, #a855f7 0%, #a855f7 100%, rgba(255, 255, 255, 0.1) 100%);
+    border-radius: 3px;
+    outline: none;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background-color: #a855f7;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+    transition: all 0.2s;
+}
+
+.volumeSlider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.volumeSlider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background-color: #a855f7;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+    transition: all 0.2s;
+}
+
+.volumeSlider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+.volumeLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: #a855f7;
+    min-width: 42px;
+    text-align: right;
+}
+
+/* Audio Effects */
+.effectsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.effectItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: #a855f7;
+    cursor: pointer;
+}
+
+.checkbox:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.checkboxLabel {
+    font-size: 14px;
+    color: #d1d5db;
+    cursor: pointer;
+}
+
+.checkbox:disabled+.checkboxLabel {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.effectNote {
+    font-size: 12px;
+    color: #6b7280;
+    font-style: italic;
+    margin: 0;
+    text-align: center;
+}

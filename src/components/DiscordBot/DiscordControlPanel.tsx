@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react'
-import { Disc, Server, Volume2, LogOut, Power, Radio, Play, Pause, StopCircle, Volume1, VolumeX, Activity } from 'lucide-react'
+import { Disc, Server, Volume2, LogOut, Power, Radio, Play, Pause, StopCircle, VolumeX, Activity } from 'lucide-react'
 import styles from './DiscordControlPanel.module.css'
 
 // Define IPC types for Renderer
