@@ -267,6 +267,8 @@ export function useAudioPlayer() {
         setNormalization: (enable: boolean) => engineRef.current?.setNormalization(enable),
         setCrowd: (enable: boolean) => engineRef.current?.setCrowd(enable),
         isMuted,
-        setIsMuted
+        setIsMuted,
+        getAudioStream: () => engineRef.current?.getAudioStream(),
+        setLocalMute: (muted: boolean) => engineRef.current?.setLocalMute(muted)
     }
 }

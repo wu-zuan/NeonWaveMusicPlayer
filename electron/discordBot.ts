@@ -8,13 +8,14 @@ import {
     StreamType,
     AudioResource
 } from '@discordjs/voice';
-import { Readable } from 'node:stream';
+import { Readable, PassThrough } from 'node:stream';
 
 export class DiscordBotManager {
     private client: Client | null = null;
     private player = createAudioPlayer();
     private currentResource: AudioResource | null = null;
     private currentConnection: any = null;
+    private streamInput: PassThrough | null = null;
     public isConnected = false;
     public currentGuildId: string | null = null;
     public currentChannelId: string | null = null;
@@ -314,5 +315,32 @@ export class DiscordBotManager {
             return true;
         }
         return false;
+    }
+
+    // --- Streaming from Renderer ---
+
+    async playReceiverStream() {
+        if (!this.currentConnection) throw new Error("Not connected");
+
+        console.log('[DiscordBot] Starting Receiver Stream...');
+        this.streamInput = new PassThrough();
+
+        // MediaRecorder output is usually WebM/Opus
+        const resource = createAudioResource(this.streamInput, {
+            inputType: StreamType.WebmOpus,
+            inlineVolume: true
+        });
+
+        this.currentResource = resource;
+        resource.volume?.setVolume(1.0);
+
+        this.player.play(resource);
+        return true;
+    }
+
+    writeAudioChunk(buffer: Uint8Array) {
+        if (this.streamInput && !this.streamInput.destroyed) {
+            this.streamInput.write(buffer);
+        }
     }
 }

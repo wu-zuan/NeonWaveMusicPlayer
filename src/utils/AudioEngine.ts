@@ -9,7 +9,12 @@ export class AudioEngine {
     private masterGain: GainNode
     private compressor: DynamicsCompressorNode // Volume Normalization
     private crowdGain: GainNode
+    private crowdGain: GainNode
     private crowdSource: AudioBufferSourceNode | null = null
+
+    // Streaming
+    private streamDestination: MediaStreamAudioDestinationNode
+    private isLocalMuted: boolean = false
 
     // Reverb (Spatial)
     private convolver: ConvolverNode
@@ -70,6 +75,9 @@ export class AudioEngine {
         this.crowdGain.gain.value = 0
         this.crowdGain.connect(this.masterGain) // Bypass Panner/Reverb (Ambient)
 
+        // 7. Stream Destination (For Discord/Recorder)
+        this.streamDestination = this.context.createMediaStreamDestination()
+
         // Graph Construction
         // Path A (Dry/Direct): Source -> Panner -> FocusEQ -> DistanceFilter -> DryGain -> Master
         // Path B (Wet/Reflect): Source -> Panner -> Convolver -> ReverbGain -> Master
@@ -87,8 +95,10 @@ export class AudioEngine {
         this.reverbGain.connect(this.masterGain)
 
         // Master -> Compressor -> Out
+        // Master -> Compressor -> Out
         this.masterGain.connect(this.compressor)
         this.compressor.connect(this.context.destination)
+        this.compressor.connect(this.streamDestination)
 
         // Generate a basic impulse response for testing space
         this.generateImpulse(2, 3)
@@ -376,6 +386,22 @@ export class AudioEngine {
         if (this.intervalId) {
             clearInterval(this.intervalId)
             this.intervalId = null
+        }
+    }
+
+    // --- Streaming Support ---
+    getAudioStream(): MediaStream {
+        return this.streamDestination.stream
+    }
+
+    setLocalMute(muted: boolean) {
+        if (this.isLocalMuted === muted) return
+        this.isLocalMuted = muted
+
+        if (muted) {
+            try { this.compressor.disconnect(this.context.destination) } catch (e) { }
+        } else {
+            this.compressor.connect(this.context.destination)
         }
     }
 }

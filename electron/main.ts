@@ -195,6 +195,19 @@ app.whenReady().then(() => {
     return discordBot.getStatus()
   })
 
+  // Streaming IPC
+  ipcMain.handle('discord:startStreamMode', async () => {
+    return await discordBot.playReceiverStream()
+  })
+
+  // Note: For high frequency data, 'on' is better than 'handle' but 'handle' is easier to typed in my wrapper.
+  // Actually, for chunks, we use `ipcMain.on` usually?
+  // But App.tsx uses `window.ipcRenderer.invoke` or `send`.
+  // Let's use `ipcMain.on` for 'discord:audio-chunk' (fire and forget)
+  ipcMain.on('discord:audio-chunk', (_, buffer) => {
+    discordBot.writeAudioChunk(new Uint8Array(buffer))
+  })
+
   // IPC Handlers
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
