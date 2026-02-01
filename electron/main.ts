@@ -329,7 +329,8 @@ app.whenReady().then(() => {
       const stdout = await yt.execPromise([
         `ytsearch20:${query}`,
         '--dump-json',
-        '--flat-playlist'
+        '--flat-playlist',
+        '--js-runtimes', 'node'
       ])
 
       const results = stdout
@@ -382,6 +383,7 @@ app.whenReady().then(() => {
         const args = [
           url,
           '-f', 'bestaudio[ext=m4a]',
+          '--js-runtimes', 'node',
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
           '--embed-thumbnail',
