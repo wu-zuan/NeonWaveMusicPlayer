@@ -301,6 +301,7 @@ app.whenReady().then(() => {
   const YtDlpWrap = createRequire(import.meta.url)('yt-dlp-wrap').default
 
   // Ensure we have a binary (lazy load helper)
+  let isYtDlpUpdated = false
   const getYtDlp = async () => {
     const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
     const binaryPath = path.join(app.getPath('userData'), binaryName)
@@ -313,9 +314,22 @@ app.whenReady().then(() => {
       console.log('Downloading yt-dlp binary...')
       await YtDlpWrap.downloadFromGithub(binaryPath)
       console.log('Downloaded yt-dlp to', binaryPath)
+      isYtDlpUpdated = true
     }
 
     const wrapper = new YtDlpWrap(binaryPath)
+
+    if (!isYtDlpUpdated) {
+      try {
+        console.log("Checking for yt-dlp updates...")
+        await wrapper.execPromise(["-U"])
+        console.log("yt-dlp updated successfully.")
+      } catch (e: any) {
+        console.warn("Failed to update yt-dlp:", e.message)
+      }
+      isYtDlpUpdated = true
+    }
+
     return wrapper
   }
 
@@ -384,7 +398,6 @@ app.whenReady().then(() => {
           url,
           '-f', 'bestaudio[ext=m4a]',
           '--js-runtimes', 'node',
-          '--extractor-args', 'youtube:player_client=android',
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
           '--embed-thumbnail',
