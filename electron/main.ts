@@ -384,6 +384,7 @@ app.whenReady().then(() => {
           url,
           '-f', 'bestaudio[ext=m4a]',
           '--js-runtimes', 'node',
+          '--extractor-args', 'youtube:player_client=ios',
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
           '--embed-thumbnail',
