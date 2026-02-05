@@ -4,11 +4,10 @@ import {
     joinVoiceChannel,
     createAudioPlayer,
     createAudioResource,
-    AudioPlayerStatus,
     StreamType,
     AudioResource
 } from '@discordjs/voice';
-import { Readable, PassThrough } from 'node:stream';
+import { PassThrough } from 'node:stream';
 
 export class DiscordBotManager {
     private client: Client | null = null;
@@ -24,18 +23,9 @@ export class DiscordBotManager {
         this.player.on('error', error => {
             console.error('[DiscordBot] Audio Player Error:', error.message);
         });
-
-        this.player.on(AudioPlayerStatus.Playing, () => {
-            console.log('[DiscordBot] Audio Player Playing');
-        });
-
-        this.player.on(AudioPlayerStatus.Idle, () => {
-            console.log('[DiscordBot] Audio Player Idle');
-        });
     }
 
     async login(token: string): Promise<{ username: string, avatar: string | null }> {
-        // Destroy old client if exists
         if (this.client) {
             await this.disconnect();
             await this.client.destroy();
@@ -51,14 +41,12 @@ export class DiscordBotManager {
         return new Promise((resolve, reject) => {
             if (!this.client) return reject("Client init failed");
 
-            // Timeout safety
             const timeout = setTimeout(() => {
                 reject(new Error("Login timed out"));
             }, 10000);
 
             this.client.once('ready', async (c) => {
                 clearTimeout(timeout);
-                console.log(`[DiscordBot] Ready! Logged in as ${c.user.tag}`);
                 this.isConnected = true;
                 resolve({
                     username: c.user.tag,
@@ -94,9 +82,9 @@ export class DiscordBotManager {
                 id: c.id,
                 name: c.name,
                 userLimit: c.userLimit,
-                members: c.members.map(m => m.user.tag) // Preview who is there
+                members: c.members.map(m => m.user.tag)
             }))
-            .sort((a, b) => a.name.localeCompare(b.name)); // Sort by position? usually position is better but name is safely available
+            .sort((a, b) => a.name.localeCompare(b.name));
 
         return channels;
     }
@@ -113,7 +101,7 @@ export class DiscordBotManager {
             this.currentConnection = joinVoiceChannel({
                 channelId: channelId,
                 guildId: guildId,
-                adapterCreator: guild.voiceAdapterCreator as any, // Type cast often needed with strict TS
+                adapterCreator: guild.voiceAdapterCreator as any,
             });
 
             this.currentConnection.subscribe(this.player);
@@ -121,10 +109,8 @@ export class DiscordBotManager {
             this.currentGuildId = guildId;
             this.currentChannelId = channelId;
 
-            console.log(`[DiscordBot] Joined channel ${channel.name} in ${guild.name}`);
             return true;
         } catch (e) {
-            console.error("[DiscordBot] Join Error:", e);
             throw e;
         }
     }
@@ -162,26 +148,19 @@ export class DiscordBotManager {
         };
     }
 
-    // Play local file - using explicit FFmpeg spawn for reliability
     async playFile(filePath: string, ffmpegPath?: string) {
         try {
-            console.log(`[DiscordBot] Playing file: ${filePath}`);
-
-            // Check if we have an active connection
             if (!this.currentConnection) {
                 throw new Error('No active voice connection. Please join a channel first.');
             }
 
-            // Check connection state
             const connState = this.currentConnection.state.status;
-            console.log(`[DiscordBot] Connection state: ${connState}`);
 
             if (connState === 'destroyed' || connState === 'disconnected') {
                 throw new Error(`Voice connection is ${connState}. Cannot play audio.`);
             }
 
             if (!ffmpegPath) {
-                console.warn('[DiscordBot] No FFmpeg path provided, using fallback direct resource');
                 const resource = createAudioResource(filePath, {
                     metadata: { title: filePath },
                     inlineVolume: true
@@ -192,8 +171,6 @@ export class DiscordBotManager {
                 return;
             }
 
-            // Spawn FFmpeg to convert to PCM
-            // Arguments: Input file -> s16le/48000/2ch -> pipe:1
             const { spawn } = await import('node:child_process');
 
             const args = [
@@ -206,7 +183,6 @@ export class DiscordBotManager {
                 'pipe:1'
             ];
 
-            console.log(`[DiscordBot] Spawning FFmpeg: ${ffmpegPath} ${args.join(' ')}`);
             const ffmpegProcess = spawn(ffmpegPath, args);
 
             let hasStarted = false;
@@ -215,25 +191,14 @@ export class DiscordBotManager {
                 console.error('[DiscordBot] FFmpeg Spawn Error:', err);
             });
 
-            ffmpegProcess.on('close', (code) => {
-                console.log(`[DiscordBot] FFmpeg process exited with code ${code}`);
-            });
+            ffmpegProcess.on('close', () => { });
 
-            // Log stderr for diagnostics
-            ffmpegProcess.stderr?.on('data', (data) => {
-                const msg = data.toString();
-                console.log(`[DiscordBot] FFmpeg: ${msg}`);
-            });
-
-            // Monitor stdout to confirm data is flowing
             ffmpegProcess.stdout?.on('data', () => {
                 if (!hasStarted) {
-                    console.log('[DiscordBot] FFmpeg audio stream started');
                     hasStarted = true;
                 }
             });
 
-            // Create Audio Resource from stdout
             const resource = createAudioResource(ffmpegProcess.stdout, {
                 inputType: StreamType.Raw,
                 metadata: {
@@ -242,54 +207,12 @@ export class DiscordBotManager {
                 inlineVolume: true
             });
             this.currentResource = resource;
-            // Default volume 100%
-            resource.volume?.setVolume(1.0);
-
-            console.log('[DiscordBot] Audio resource created, starting playback');
-            this.player.play(resource);
-
-            // Log playback events
-            const playingHandler = () => {
-                console.log('[DiscordBot] ✓ Audio player is now playing');
-            };
-            const idleHandler = () => {
-                console.log('[DiscordBot] Audio player became idle');
-            };
-            const errorHandler = (error: Error) => {
-                console.error('[DiscordBot] Audio player error:', error);
-            };
-
-            // Clean up old listeners to avoid memory leaks
-            this.player.removeAllListeners(AudioPlayerStatus.Playing);
-            this.player.removeAllListeners(AudioPlayerStatus.Idle);
-            this.player.removeAllListeners('error');
-
-            this.player.once(AudioPlayerStatus.Playing, playingHandler);
-            this.player.once(AudioPlayerStatus.Idle, idleHandler);
-            this.player.once('error', errorHandler);
-
-        } catch (e) {
-            console.error("[DiscordBot] Play File Error:", e);
-            throw e; // Re-throw so caller knows it failed
-        }
-    }
-
-    // Play Stream (from ytdl for example)
-    // Note: If resource is a Readable stream
-    async playStream(stream: Readable) {
-        try {
-            console.log(`[DiscordBot] Playing stream`);
-            // Enable inline volume for streams too
-            const resource = createAudioResource(stream, {
-                inlineVolume: true
-            });
-            this.currentResource = resource;
-            // Set initial volume if needed, e.g. 1.0
             resource.volume?.setVolume(1.0);
 
             this.player.play(resource);
+
         } catch (e) {
-            console.error("[DiscordBot] Play Stream Error:", e);
+            throw e;
         }
     }
 
@@ -306,9 +229,7 @@ export class DiscordBotManager {
     }
 
     setVolume(volume: number) {
-        // volume is 0-100
         const normalized = Math.max(0, Math.min(100, volume)) / 100;
-        console.log(`[DiscordBot] Setting volume to ${normalized}`);
 
         if (this.currentResource && this.currentResource.volume) {
             this.currentResource.volume.setVolume(normalized);
@@ -317,39 +238,40 @@ export class DiscordBotManager {
         return false;
     }
 
-    // --- Streaming from Renderer ---
-
     async playReceiverStream(ffmpegPath?: string) {
         if (!this.currentConnection) throw new Error("Not connected");
 
-        console.log('[DiscordBot] Starting Receiver Stream...');
         this.streamInput = new PassThrough();
 
-        // 1. If FFmpeg path provided, use manual spawning (Robust for Electron/Asar)
         if (ffmpegPath) {
-            console.log(`[DiscordBot] Using manual FFmpeg spawn: ${ffmpegPath}`);
             const { spawn } = await import('node:child_process');
 
             const args = [
-                '-i', 'pipe:0',      // Input from stdin (PassThrough)
+                '-i', 'pipe:0',
                 '-analyzeduration', '0',
                 '-loglevel', '0',
-                '-f', 's16le',       // Output PCM s16le
+                '-f', 's16le',
                 '-ar', '48000',
                 '-ac', '2',
-                'pipe:1'             // Output to stdout
+                'pipe:1'
             ];
 
             const ffmpegProcess = spawn(ffmpegPath, args);
 
-            // Pipe our input stream (chunks) into FFmpeg stdin
+            ffmpegProcess.stdin.on('error', () => { });
+
             this.streamInput.pipe(ffmpegProcess.stdin);
 
-            ffmpegProcess.on('error', (err) => {
-                console.error('[DiscordBot] Stream FFmpeg Error:', err);
+            this.streamInput.on('error', () => { });
+
+            ffmpegProcess.on('error', () => {
+                if (this.streamInput) this.streamInput.destroy();
             });
 
-            // Use FFmpeg stdout as raw PCM audio source
+            ffmpegProcess.on('close', () => {
+                if (this.streamInput) this.streamInput.destroy();
+            });
+
             const resource = createAudioResource(ffmpegProcess.stdout, {
                 inputType: StreamType.Raw,
                 inlineVolume: true
@@ -360,7 +282,6 @@ export class DiscordBotManager {
             this.player.play(resource);
 
         } else {
-            // 2. Fallback: Trust prism-media to find ffmpeg (likely fails in packaged app)
             const resource = createAudioResource(this.streamInput, {
                 inputType: StreamType.WebmOpus,
                 inlineVolume: true
@@ -376,7 +297,11 @@ export class DiscordBotManager {
 
     writeAudioChunk(buffer: Uint8Array) {
         if (this.streamInput && !this.streamInput.destroyed) {
-            this.streamInput.write(buffer);
+            try {
+                this.streamInput.write(buffer);
+            } catch (e) {
+                // ignore
+            }
         }
     }
 }

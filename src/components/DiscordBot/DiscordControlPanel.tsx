@@ -618,6 +618,28 @@ export const DiscordControlPanel: React.FC = () => {
             {step === 3 && renderStep3()}
             {step === 4 && renderStep4()}
 
+            {loading && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    backdropFilter: 'blur(4px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 100
+                }}>
+                    <Disc size={48} className={styles.iconSpin} />
+                    <div style={{ marginTop: '16px', color: '#fff', fontWeight: 500 }}>
+                        處理中...
+                    </div>
+                </div>
+            )}
+
             <ConfirmationModal
                 isOpen={modal.isOpen}
                 title={modal.title}
