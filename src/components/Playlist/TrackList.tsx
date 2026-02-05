@@ -34,11 +34,19 @@ export const TrackList: React.FC<TrackListProps> = ({
             <div className={styles.trackList}>
                 {tracks.map((track) => {
                     const isFav = favorites.some(f => f.path === track.path)
+                    const isActive = currentTrack?.path === track.path
+
+                    // Optimization: Use currentTrack's artwork for the active item
+                    // effectively showing the cover for the playing song without loading it for everyone
+                    const displayTrack = (isActive && currentTrack?.artwork)
+                        ? { ...track, artwork: currentTrack.artwork }
+                        : track
+
                     return (
                         <TrackItem
                             key={track.path}
-                            track={track}
-                            isActive={currentTrack?.path === track.path}
+                            track={displayTrack}
+                            isActive={isActive}
                             onClick={() => onPlay(track)}
                             isFavorite={isFav}
                             onToggleFavorite={() => onToggleFavorite && onToggleFavorite(track)}

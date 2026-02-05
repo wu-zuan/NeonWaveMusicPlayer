@@ -5,7 +5,8 @@ interface Window {
         invoke<T = any>(channel: string, ...args: any[]): Promise<T>
         openDirectory(): Promise<string | null>
         listMusicFiles(path: string): Promise<string[]>
-        getAudioMetadata(path: string): Promise<any>
+        getAudioMetadata(path: string, options?: { loadArtwork: boolean }): Promise<any>
+        getAudioArtwork(path: string): Promise<string | null>
         readFileBuffer(path: string): Promise<Uint8Array | null>
 
         checkUpdate(): Promise<void>

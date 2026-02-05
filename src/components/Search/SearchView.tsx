@@ -12,7 +12,7 @@ interface SearchResult {
     url: string
 }
 
-const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) => {
+const ArtistCard = React.memo(({ name, onClick }: { name: string, onClick: () => void }) => {
     const [img, setImg] = useState<string | null>(() => localStorage.getItem(`artist_img_v5_${name}`))
     const [isVisible, setIsVisible] = useState(false)
     const cardRef = useRef<HTMLDivElement>(null)
@@ -89,7 +89,7 @@ const ArtistCard = ({ name, onClick }: { name: string, onClick: () => void }) =>
             <span className={styles.artistName}>{name}</span>
         </div>
     )
-}
+})
 
 export const SearchView = () => {
     const [query, setQuery] = useState('')

@@ -265,11 +265,26 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('files:getMetadata', async (_, filePath) => {
+  ipcMain.handle('files:getArtwork', async (_, filePath) => {
     try {
-      const metadata = await parseFile(filePath)
-      let artwork = null
+      const metadata = await parseFile(filePath, { skipCovers: false }) // ensure covers are parsed
       if (metadata.common.picture && metadata.common.picture.length > 0) {
+        const pic = metadata.common.picture[0]
+        return `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
+      }
+      return null
+    } catch (e) {
+      return null
+    }
+  })
+
+  ipcMain.handle('files:getMetadata', async (_, filePath, options = { loadArtwork: true }) => {
+    try {
+      const parseOptions = options.loadArtwork ? {} : { skipCovers: true }
+      const metadata = await parseFile(filePath, parseOptions)
+
+      let artwork = null
+      if (options.loadArtwork && metadata.common.picture && metadata.common.picture.length > 0) {
         const pic = metadata.common.picture[0]
         artwork = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
       }
@@ -300,8 +315,22 @@ app.whenReady().then(() => {
   // yt-dlp-wrap integration
   const YtDlpWrap = createRequire(import.meta.url)('yt-dlp-wrap').default
 
+  // Helper: Update yt-dlp in background (fire & forget)
+  const updateYtDlpInBackground = async () => {
+    const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
+    const binaryPath = path.join(app.getPath('userData'), binaryName)
+    try {
+      const wrapper = new YtDlpWrap(binaryPath)
+      console.log("[Main] Checking for yt-dlp updates in background...")
+      await wrapper.execPromise(["-U"])
+      console.log("[Main] yt-dlp updated successfully.")
+    } catch (e: any) {
+      console.warn("[Main] Failed to update yt-dlp (background):", e.message)
+    }
+  }
+
   // Ensure we have a binary (lazy load helper)
-  let isYtDlpUpdated = false
+  // Modified: No longer blocks for update check on every call
   const getYtDlp = async () => {
     const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
     const binaryPath = path.join(app.getPath('userData'), binaryName)
@@ -310,38 +339,30 @@ app.whenReady().then(() => {
     try {
       await fs.access(binaryPath)
     } catch {
-      // Download if missing
+      // If missing, we MUST wait for download
       console.log('Downloading yt-dlp binary...')
       await YtDlpWrap.downloadFromGithub(binaryPath)
       console.log('Downloaded yt-dlp to', binaryPath)
-      isYtDlpUpdated = true
     }
 
-    const wrapper = new YtDlpWrap(binaryPath)
-
-    if (!isYtDlpUpdated) {
-      try {
-        console.log("Checking for yt-dlp updates...")
-        await wrapper.execPromise(["-U"])
-        console.log("yt-dlp updated successfully.")
-      } catch (e: any) {
-        console.warn("Failed to update yt-dlp:", e.message)
-      }
-      isYtDlpUpdated = true
-    }
-
-    return wrapper
+    return new YtDlpWrap(binaryPath)
   }
 
+  // Start background update check for yt-dlp
+  updateYtDlpInBackground()
+
+  // --- Youtube Search & Lyrics (merged) ---
   ipcMain.handle('search:youtube', async (_, query) => {
     try {
+      // Use helper that no longer blocks
       const yt = await getYtDlp()
-      // ytsearch20:query triggers yt-dlp to search and return first 20 results
+
+      // ytsearch12:query triggers yt-dlp to search and return first 12 results (Optimized from 20)
       // --dump-json outputs JSON for each result
       // --flat-playlist ensures we get fast results without full extraction
-      // --default-search ytsearch20
+      // --default-search ytsearch12
       const stdout = await yt.execPromise([
-        `ytsearch20:${query}`,
+        `ytsearch12:${query}`,
         '--dump-json',
         '--flat-playlist',
         '--js-runtimes', 'node'

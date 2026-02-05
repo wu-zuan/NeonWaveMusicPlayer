@@ -62,19 +62,32 @@ export function useAudioPlayer() {
     }, [volume, isMuted])
 
     // Main Play Logic
-    const playTrack = async (track: Track, newPlaylist?: Track[]) => {
+    const playTrack = async (originalTrack: Track, newPlaylist?: Track[]) => {
         const audio = audioRef.current
 
         if (newPlaylist) {
             setPlaylist(newPlaylist)
         }
 
+        // Clone track to avoid mutating the playlist object which should remain lightweight
+        const trackToPlay = { ...originalTrack }
+
         // Handle special characters in file path (e.g. #, ?, %) which break file:// URLs
         // We split by / or \ to encode each segment individually
-        const encodedPath = track.path.split(/[\\/]/).map(encodeURIComponent).join('/')
+        const encodedPath = trackToPlay.path.split(/[\\/]/).map(encodeURIComponent).join('/')
         const fileUrl = `file:///${encodedPath}`
 
-        if (currentTrack?.path !== track.path) {
+        if (currentTrack?.path !== trackToPlay.path) {
+            // Lazy Load Artwork if missing (ON THE COPY ONLY)
+            if (!trackToPlay.artwork) {
+                try {
+                    const art = await window.ipcRenderer.getAudioArtwork(trackToPlay.path)
+                    if (art) trackToPlay.artwork = art
+                } catch (e) {
+                    console.warn("Failed to load artwork lazily", e)
+                }
+            }
+
             // Force pause before switching to avoid MediaElementSource glitches
             if (!audio.paused) {
                 try { audio.pause() } catch (e) { }
@@ -82,10 +95,20 @@ export function useAudioPlayer() {
             audio.currentTime = 0
 
             // Add to history if it's different
-            if (currentTrack) setHistory(prev => [...prev, currentTrack])
+            if (currentTrack) {
+                setHistory(prev => {
+                    // Optimized: Strip artwork from history to save memory
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { artwork, ...lightweightTrack } = currentTrack
+                    const newHistory = [...prev, lightweightTrack]
+                    // Limit history size
+                    if (newHistory.length > 50) return newHistory.slice(-50)
+                    return newHistory
+                })
+            }
 
             audio.src = fileUrl
-            setCurrentTrack(track)
+            setCurrentTrack(trackToPlay)
             audio.load()
         }
 

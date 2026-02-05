@@ -81,34 +81,46 @@ export function useLibrary() {
         try {
             const files = await window.ipcRenderer.listMusicFiles(folderPath)
 
-            // Parallel fetch metadata
-            const tracks = await Promise.all(files.map(async (filePath) => {
-                const filename = filePath.replace(/^.*[\\/]/, '')
-                try {
-                    const meta = await window.ipcRenderer.getAudioMetadata(filePath)
-                    return {
-                        path: filePath,
-                        title: meta?.title || filename,
-                        artist: meta?.artist || '未知演出者',
-                        album: meta?.album || '未知專輯',
-                        artwork: meta?.artwork,
-                        duration: meta?.duration || 0,
-                        codec: meta?.codec,
-                        bitrate: meta?.bitrate,
-                        sampleRate: meta?.sampleRate
-                    }
-                } catch {
-                    return {
-                        path: filePath,
-                        title: filename,
-                        artist: '未知演出者',
-                        album: '未知專輯',
-                        duration: 0
-                    }
-                }
-            }))
+            // Batch Processing to avoid IPC overload
+            const chunk = <T>(arr: T[], size: number) =>
+                Array.from({ length: Math.ceil(arr.length / size) }, (_: any, i: number) =>
+                    arr.slice(i * size, i * size + size));
 
-            return tracks
+            const chunks = chunk(files, 50); // Process 50 files at a time
+            const allTracks: Track[] = []
+
+            for (const batch of chunks) {
+                const batchResults = await Promise.all(batch.map(async (filePath) => {
+                    const filename = filePath.replace(/^.*[\\/]/, '')
+                    try {
+                        // Optimization: Do NOT load artwork during scan. Load it on play.
+                        const meta = await window.ipcRenderer.getAudioMetadata(filePath, { loadArtwork: false })
+                        return {
+                            path: filePath,
+                            title: meta?.title || filename,
+                            artist: meta?.artist || '未知演出者',
+                            album: meta?.album || '未知專輯',
+                            artwork: undefined, // Will be loaded lazily on play
+                            duration: meta?.duration || 0,
+                            codec: meta?.codec,
+                            bitrate: meta?.bitrate,
+                            sampleRate: meta?.sampleRate
+                        }
+                    } catch {
+                        return {
+                            path: filePath,
+                            title: filename,
+                            artist: '未知演出者',
+                            album: '未知專輯',
+                            duration: 0
+                        }
+                    }
+                }))
+                allTracks.push(...batchResults)
+                // Small delay to let UI breathe if needed, but await Promise.all yields anyway
+            }
+
+            return allTracks
         } catch (e) {
             console.error("Failed to scan folder", folderPath, e)
             return []
