@@ -369,6 +369,9 @@ export const DiscordControlPanel: React.FC = () => {
             }
         }
         checkStatus()
+        // Poll status every 5 seconds to keep UI in sync (e.g. if bot disconnects remotely)
+        const interval = setInterval(checkStatus, 5000)
+        return () => clearInterval(interval)
     }, [])
 
     // -- Render Helpers --

@@ -68,7 +68,9 @@ function App() {
             // B. Start Recorder
             const stream = getAudioStream()
             if (stream) {
-              const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 })
+              // Optimization: 96kbps is Discord's standard high quality. 
+              // Reducing from 128k saves CPU encoding time and bandwidth without noticeable quality loss.
+              const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 96000 })
 
               recorder.ondataavailable = async (e) => {
                 if (e.data.size > 0) {

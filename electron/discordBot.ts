@@ -1,4 +1,3 @@
-
 import { Client, GatewayIntentBits, ChannelType } from 'discord.js';
 import {
     joinVoiceChannel,
@@ -8,6 +7,7 @@ import {
     AudioResource
 } from '@discordjs/voice';
 import { PassThrough } from 'node:stream';
+import type { ChildProcess } from 'node:child_process';
 
 export class DiscordBotManager {
     private client: Client | null = null;
@@ -15,6 +15,7 @@ export class DiscordBotManager {
     private currentResource: AudioResource | null = null;
     private currentConnection: any = null;
     private streamInput: PassThrough | null = null;
+    private currentProcess: ChildProcess | null = null;
     public isConnected = false;
     public currentGuildId: string | null = null;
     public currentChannelId: string | null = null;
@@ -102,6 +103,33 @@ export class DiscordBotManager {
                 channelId: channelId,
                 guildId: guildId,
                 adapterCreator: guild.voiceAdapterCreator as any,
+                selfDeaf: true,
+                selfMute: false
+            });
+
+            // Robust Connection Handling
+            this.currentConnection.on('stateChange', async (_: any, newState: any) => {
+                const status = newState.status;
+                if (status === 'disconnected') {
+                    try {
+                        await Promise.race([
+                            import('@discordjs/voice').then(m => m.entersState(this.currentConnection, m.VoiceConnectionStatus.Signalling, 5000)),
+                            import('@discordjs/voice').then(m => m.entersState(this.currentConnection, m.VoiceConnectionStatus.Connecting, 5000))
+                        ]);
+                        // Seems to be reconnecting...
+                    } catch (error) {
+                        // Failed to reconnect
+                        try { this.currentConnection.destroy(); } catch { }
+                        this.currentConnection = null;
+                        this.currentChannelId = null;
+                        this.currentGuildId = null;
+                    }
+                } else if (status === 'destroyed') {
+                    this.currentConnection = null;
+                    this.currentChannelId = null;
+                    this.currentGuildId = null;
+                    this.stop(); // Kill ffmpeg
+                }
             });
 
             this.currentConnection.subscribe(this.player);
@@ -116,6 +144,7 @@ export class DiscordBotManager {
     }
 
     async leaveChannel() {
+        this.stop(); // Ensure cleanup
         if (this.currentConnection) {
             this.currentConnection.destroy();
             this.currentConnection = null;
@@ -148,8 +177,22 @@ export class DiscordBotManager {
         };
     }
 
+    private killCurrentProcess() {
+        if (this.currentProcess) {
+            console.log('[DiscordBot] Killing active FFmpeg process');
+            try {
+                this.currentProcess.kill();
+            } catch (e) {
+                // ignore
+            }
+            this.currentProcess = null;
+        }
+    }
+
     async playFile(filePath: string, ffmpegPath?: string) {
         try {
+            this.killCurrentProcess(); // Cleanup previous process
+
             if (!this.currentConnection) {
                 throw new Error('No active voice connection. Please join a channel first.');
             }
@@ -184,6 +227,7 @@ export class DiscordBotManager {
             ];
 
             const ffmpegProcess = spawn(ffmpegPath, args);
+            this.currentProcess = ffmpegProcess;
 
             let hasStarted = false;
 
@@ -191,7 +235,11 @@ export class DiscordBotManager {
                 console.error('[DiscordBot] FFmpeg Spawn Error:', err);
             });
 
-            ffmpegProcess.on('close', () => { });
+            ffmpegProcess.on('close', () => {
+                if (this.currentProcess === ffmpegProcess) {
+                    this.currentProcess = null;
+                }
+            });
 
             ffmpegProcess.stdout?.on('data', () => {
                 if (!hasStarted) {
@@ -226,6 +274,7 @@ export class DiscordBotManager {
 
     stop() {
         this.player.stop();
+        this.killCurrentProcess();
     }
 
     setVolume(volume: number) {
@@ -240,6 +289,8 @@ export class DiscordBotManager {
 
     async playReceiverStream(ffmpegPath?: string) {
         if (!this.currentConnection) throw new Error("Not connected");
+
+        this.killCurrentProcess(); // Cleanup
 
         this.streamInput = new PassThrough();
 
@@ -257,6 +308,7 @@ export class DiscordBotManager {
             ];
 
             const ffmpegProcess = spawn(ffmpegPath, args);
+            this.currentProcess = ffmpegProcess;
 
             ffmpegProcess.stdin.on('error', () => { });
 
@@ -270,6 +322,7 @@ export class DiscordBotManager {
 
             ffmpegProcess.on('close', () => {
                 if (this.streamInput) this.streamInput.destroy();
+                if (this.currentProcess === ffmpegProcess) this.currentProcess = null;
             });
 
             const resource = createAudioResource(ffmpegProcess.stdout, {
