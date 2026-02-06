@@ -12,11 +12,47 @@ interface TrackItemProps {
 }
 
 export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, isFavorite, onClick, onToggleFavorite }) => {
+    const [artwork, setArtwork] = React.useState<string | undefined>(track.artwork)
+    const itemRef = React.useRef<HTMLDivElement>(null)
+
+    // Sync with prop if it updates (e.g. from player or playlist update)
+    React.useEffect(() => {
+        if (track.artwork) setArtwork(track.artwork)
+    }, [track.artwork])
+
+    // Lazy load artwork when visible
+    React.useEffect(() => {
+        if (artwork || !itemRef.current) return
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                // Fetch artwork
+                // Using a small delay or low priority queue could be even better, but direct IPC is fine for now
+                window.ipcRenderer.getAudioArtwork(track.path)
+                    .then((art: string | null) => {
+                        if (art) setArtwork(art)
+                    })
+                    .catch(() => {
+                        // ignore errors
+                    })
+                observer.disconnect()
+            }
+        }, { rootMargin: '50px' }) // Start loading slightly before it appears
+
+        observer.observe(itemRef.current)
+
+        return () => observer.disconnect()
+    }, [artwork, track.path])
+
     return (
-        <div className={`${styles.trackItem} ${isActive ? styles.active : ''}`} onClick={onClick}>
+        <div
+            ref={itemRef}
+            className={`${styles.trackItem} ${isActive ? styles.active : ''}`}
+            onClick={onClick}
+        >
             <div className={styles.icon}>
-                {track.artwork ? (
-                    <img src={track.artwork} alt="" style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }} />
+                {artwork ? (
+                    <img src={artwork} alt="" style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }} />
                 ) : (
                     isActive ? <AudioWaveform size={20} /> : <Music size={20} />
                 )}
