@@ -18,27 +18,35 @@ type RepeatMode = 'none' | 'all' | 'one'
 export function useAudioPlayer() {
     // State
     // State
+    // State - Initialized from localStorage where applicable
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
-    const [volume, setVolume] = useState(1)
-    const [isMuted, setIsMuted] = useState(false)
-    const [is8D, setIs8D] = useState(false)
+
+    // Settings Persistence
+    const [volume, setVolume] = useState(() => {
+        const saved = localStorage.getItem('nw_volume')
+        return saved ? parseFloat(saved) : 1
+    })
+    const [isMuted, setIsMuted] = useState(() => localStorage.getItem('nw_muted') === 'true')
+    const [is8D, setIs8D] = useState(() => localStorage.getItem('nw_8d') === 'true')
     const [defaultArtwork, setDefaultArtwork] = useState('')
 
     // Playlist & Ordering
     const [playlist, setPlaylist] = useState<Track[]>([])
-    const [isShuffle, setIsShuffle] = useState(false)
-    const [repeatMode, setRepeatMode] = useState<RepeatMode>('none')
+    const [shuffledQueue, setShuffledQueue] = useState<Track[]>([]) // Internal shuffled list
+    const [isShuffle, setIsShuffle] = useState(() => localStorage.getItem('nw_shuffle') === 'true')
+    const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
+        return (localStorage.getItem('nw_repeat') as RepeatMode) || 'none'
+    })
     const [history, setHistory] = useState<Track[]>([])
 
     // Refs
     const audioRef = useRef<HTMLAudioElement>(new Audio())
     const engineRef = useRef<AudioEngine | null>(null)
 
-    // Helper to get random index
-    const getRandomIndex = (max: number) => Math.floor(Math.random() * max)
+
 
     // Load Default Logo as Data URI (Workaround for ASAR/Windows SMTC)
     useEffect(() => {
@@ -54,12 +62,35 @@ export function useAudioPlayer() {
 
 
     // Effects for Audio Engine
+    // Effects for Audio Engine
     useEffect(() => { engineRef.current?.toggle8D(is8D) }, [is8D])
     useEffect(() => {
         const effectiveVolume = isMuted ? 0 : volume
         if (engineRef.current) engineRef.current.setVolume(effectiveVolume)
         else audioRef.current.volume = effectiveVolume
     }, [volume, isMuted])
+
+    // Save Settings to LocalStorage
+    useEffect(() => { localStorage.setItem('nw_volume', volume.toString()) }, [volume])
+    useEffect(() => { localStorage.setItem('nw_muted', String(isMuted)) }, [isMuted])
+    useEffect(() => { localStorage.setItem('nw_8d', String(is8D)) }, [is8D])
+    useEffect(() => { localStorage.setItem('nw_shuffle', String(isShuffle)) }, [isShuffle])
+    useEffect(() => { localStorage.setItem('nw_repeat', repeatMode) }, [repeatMode])
+
+    // Generate Shuffle Queue
+    useEffect(() => {
+        if (isShuffle && playlist.length > 0) {
+            // Fisher-Yates Shuffle
+            const sh = [...playlist]
+            for (let i = sh.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [sh[i], sh[j]] = [sh[j], sh[i]];
+            }
+            setShuffledQueue(sh)
+        } else {
+            setShuffledQueue([])
+        }
+    }, [isShuffle, playlist])
 
     // Main Play Logic
     const playTrack = async (originalTrack: Track, newPlaylist?: Track[]) => {
@@ -134,35 +165,34 @@ export function useAudioPlayer() {
             return
         }
 
-        if (isShuffle) {
-            // Simple random pick for now
-            const idx = getRandomIndex(playlist.length)
-            nextTrack = playlist[idx]
-            // Avoid repeating same track in shuffle if possible, unless only 1 track
-            if (nextTrack.path === currentTrack.path && playlist.length > 1) {
-                handleNext(autoTrigger) // try again
-                return
-            }
-        } else {
-            // Sequential
-            const idx = playlist.findIndex(t => t.path === currentTrack.path)
-            const nextIdx = (idx + 1)
+        // Determine active list (Shuffle Queue or Normal Playlist)
+        const activeList = isShuffle ? shuffledQueue : playlist
 
-            if (nextIdx >= playlist.length) {
-                // End of playlist
-                if (repeatMode === 'all') {
-                    nextTrack = playlist[0]
-                } else {
-                    // Stop playing
-                    return
-                }
+        // Find current position in the active list
+        let currentIdx = activeList.findIndex(t => t.path === currentTrack.path)
+
+        // Fallback: If not found (shouldn't happen), start from 0
+        if (currentIdx === -1) currentIdx = -1
+
+        let nextIdx = currentIdx + 1
+
+        if (nextIdx >= activeList.length) {
+            // End of list reached
+            if (repeatMode === 'all') {
+                nextIdx = 0
+                // Note: If we wanted to re-shuffle on every loop, we'd do it here. 
+                // For now, looping the same shuffled order is standard behavior.
             } else {
-                nextTrack = playlist[nextIdx]
+                // Stop playing if no repeat
+                return
             }
         }
 
+        nextTrack = activeList[nextIdx]
+
+        // Play without replacing the playlist (keep current playlist/context)
         playTrack(nextTrack)
-    }, [currentTrack, playlist, isShuffle, repeatMode])
+    }, [currentTrack, playlist, shuffledQueue, isShuffle, repeatMode])
 
     const handlePrev = useCallback(() => {
         if (audioRef.current.currentTime > 3) {
@@ -178,15 +208,17 @@ export function useAudioPlayer() {
             return
         }
 
-        // If no history, just go previous in list or restart
+        // If no history, navigate backwards in current list
         if (!currentTrack || playlist.length === 0) return
 
-        const idx = playlist.findIndex(t => t.path === currentTrack.path)
-        const prevIdx = (idx - 1 + playlist.length) % playlist.length
-        playTrack(playlist[prevIdx])
+        const activeList = isShuffle ? shuffledQueue : playlist
+        const idx = activeList.findIndex(t => t.path === currentTrack.path)
 
+        // Wrap around logic
+        const prevIdx = (idx - 1 + activeList.length) % activeList.length
+        playTrack(activeList[prevIdx])
 
-    }, [currentTrack, playlist, history])
+    }, [currentTrack, playlist, shuffledQueue, isShuffle, history])
 
     // Audio Engine Init
     useEffect(() => {
