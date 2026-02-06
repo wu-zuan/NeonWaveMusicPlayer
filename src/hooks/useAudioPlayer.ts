@@ -100,39 +100,38 @@ export function useAudioPlayer() {
             setPlaylist(newPlaylist)
         }
 
-        // Clone track to avoid mutating the playlist object which should remain lightweight
+        // Clone track to avoid mutating the playlist object
         const trackToPlay = { ...originalTrack }
 
-        // Handle special characters in file path (e.g. #, ?, %) which break file:// URLs
-        // We split by / or \ to encode each segment individually
+        // Always attempt to load artwork if missing, ensuring UI has it even on replay
+        if (!trackToPlay.artwork) {
+            try {
+                const art = await window.ipcRenderer.getAudioArtwork(trackToPlay.path)
+                if (art) trackToPlay.artwork = art
+            } catch (e) {
+                console.warn("Failed to load artwork lazily", e)
+            }
+        }
+
         const encodedPath = trackToPlay.path.split(/[\\/]/).map(encodeURIComponent).join('/')
         const fileUrl = `file:///${encodedPath}`
 
+        // If switching tracks
         if (currentTrack?.path !== trackToPlay.path) {
-            // Lazy Load Artwork if missing (ON THE COPY ONLY)
-            if (!trackToPlay.artwork) {
-                try {
-                    const art = await window.ipcRenderer.getAudioArtwork(trackToPlay.path)
-                    if (art) trackToPlay.artwork = art
-                } catch (e) {
-                    console.warn("Failed to load artwork lazily", e)
-                }
-            }
 
-            // Force pause before switching to avoid MediaElementSource glitches
+            // Force pause before switching
             if (!audio.paused) {
                 try { audio.pause() } catch (e) { }
             }
             audio.currentTime = 0
 
-            // Add to history if it's different
+            // Add to history if it's different and we have a current track
             if (currentTrack) {
                 setHistory(prev => {
                     // Optimized: Strip artwork from history to save memory
                     // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     const { artwork, ...lightweightTrack } = currentTrack
                     const newHistory = [...prev, lightweightTrack]
-                    // Limit history size
                     if (newHistory.length > 50) return newHistory.slice(-50)
                     return newHistory
                 })
@@ -141,6 +140,11 @@ export function useAudioPlayer() {
             audio.src = fileUrl
             setCurrentTrack(trackToPlay)
             audio.load()
+        } else {
+            // Same track: If we just loaded artwork (and it wasn't there before), update state
+            if (trackToPlay.artwork && !currentTrack?.artwork) {
+                setCurrentTrack(prev => prev ? ({ ...prev, artwork: trackToPlay.artwork }) : trackToPlay)
+            }
         }
 
         try {
