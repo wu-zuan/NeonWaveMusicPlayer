@@ -59,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
-                <div className={styles.scrollableNav} style={{ maxHeight: '180px', flex: 'none', marginBottom: '10px' }}>
+                <div className={styles.scrollableNav} style={{ marginBottom: '10px' }}>
                     {folders.map(pl => (
                         <div key={pl.id} className={`${styles.navItem} ${currentView === pl.id ? styles.active : ''}`} onClick={() => onChangeView(pl.id)}>
                             <div className={styles.navItemContent}>
@@ -68,6 +68,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             </div>
 
                             <div className={styles.actions}>
+                                <button
+                                    className={styles.actionBtn}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onExportPlaylist(pl)
+                                    }}
+                                    title="匯出分享 (.nwp)"
+                                >
+                                    <Share2 size={14} />
+                                </button>
                                 <button
                                     className={styles.actionBtn}
                                     onClick={(e) => {
@@ -110,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                 </div>
 
-                <div className={styles.scrollableNav} style={{ flex: 1 }}>
+                <div className={styles.scrollableNav} style={{ marginBottom: '10px' }}>
                     {customLists.map(pl => (
                         <div key={pl.id} className={`${styles.navItem} ${currentView === pl.id ? styles.active : ''}`} onClick={() => onChangeView(pl.id)}>
                             <div className={styles.navItemContent}>
