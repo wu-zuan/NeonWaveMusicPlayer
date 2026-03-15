@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Search, Download, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Download, Loader2, ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react'
 import styles from './Search.module.css'
 import { ARTIST_NAMES } from '../../data/artists'
 
@@ -98,6 +98,62 @@ export const SearchView = () => {
     const [hasSearched, setHasSearched] = useState(false)
     const [page, setPage] = useState(1)
     const PAGE_SIZE = 15
+
+    const [previewSongId, setPreviewSongId] = useState<string | null>(null)
+    const [previewLoading, setPreviewLoading] = useState<string | null>(null)
+    const audioRef = useRef<HTMLAudioElement | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause()
+                audioRef.current.src = ''
+            }
+        }
+    }, [])
+
+    const handlePreview = async (item: SearchResult) => {
+        if (previewSongId === item.id && audioRef.current) {
+            if (audioRef.current.paused) {
+                audioRef.current.play()
+            } else {
+                audioRef.current.pause()
+                setPreviewSongId(null)
+            }
+            return
+        }
+
+        if (audioRef.current) {
+            audioRef.current.pause()
+            audioRef.current.src = ''
+            setPreviewSongId(null)
+        }
+        
+        setPreviewLoading(item.id)
+        try {
+            const data = await window.ipcRenderer.getYouTubePreview(item.url)
+            if (data && data.url) {
+                const audio = new Audio(data.url)
+                audio.currentTime = data.startTime
+                audio.volume = 0.5 // Default preview volume
+                audio.play()
+                audioRef.current = audio
+                setPreviewSongId(item.id)
+                audio.onended = () => setPreviewSongId(null)
+                audio.onerror = () => {
+                    setPreviewSongId(null)
+                    alert("試聽連結播放失敗")
+                }
+            } else {
+                alert("無法獲取試聽連結")
+            }
+        } catch(e) {
+             console.error(e)
+             alert("試聽失敗")
+        } finally {
+            setPreviewLoading(null)
+        }
+    }
 
     const handleSearch = async (overrideQuery?: string) => {
         const q = overrideQuery ?? query
@@ -279,6 +335,15 @@ export const SearchView = () => {
                             <div className={styles.meta}>時長: {formatDuration(item.duration)}</div>
                         </div>
                         <div className={styles.actions}>
+                            <button
+                                className={styles.actionBtn}
+                                onClick={() => handlePreview(item)}
+                                title="試聽最熱門片段"
+                                style={{ background: previewSongId === item.id ? 'var(--accent-primary)' : '', color: previewSongId === item.id ? '#000' : '' }}
+                            >
+                                {previewLoading === item.id ? <Loader2 size={18} className="animate-spin" /> : 
+                                 previewSongId === item.id ? <Pause size={18} /> : <Play size={18} />}
+                            </button>
                             <button
                                 className={styles.actionBtn}
                                 onClick={() => handleDownload(item)}

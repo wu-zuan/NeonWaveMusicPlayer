@@ -391,6 +391,46 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('search:youtubePreview', async (_, url) => {
+    try {
+      const yt = await getYtDlp()
+      const stdout = await yt.execPromise([url, '-J', '--js-runtimes', 'node'])
+      const dat = JSON.parse(stdout)
+      
+      let bestStart = 0
+      if (dat.heatmap && dat.heatmap.length > 0) {
+        // Sort heatmap segments by value descending to find the most played part
+        const best = [...dat.heatmap].sort((a,b) => b.value - a.value)[0]
+        bestStart = best.start_time
+      } else if (dat.duration) {
+        // Fallback: Start at 1/3 of the video if no heatmap
+        bestStart = Math.floor(dat.duration / 3)
+      }
+
+      // Filter for audio-only formats, sort by bitrate (tbr)
+      const formats = dat.formats || []
+      const audioFormats = formats.filter((f: any) => f.acodec !== 'none' && f.vcodec === 'none')
+      let streamUrl = ''
+      
+      if (audioFormats.length > 0) {
+        audioFormats.sort((a: any, b: any) => (b.tbr || 0) - (a.tbr || 0))
+        streamUrl = audioFormats[0].url
+      } else {
+        // Fallback to highest quality overall if no audio-only format
+        formats.sort((a: any, b: any) => (b.tbr || 0) - (a.tbr || 0))
+        if(formats.length > 0) streamUrl = formats[0].url
+      }
+
+      return {
+        url: streamUrl,
+        startTime: bestStart
+      }
+    } catch (e: any) {
+      console.error("Youtube preview error:", e)
+      return null
+    }
+  })
+
   ipcMain.handle('download:youtube', async (_, url, inputTitle, inputArtist) => {
     try {
       const yt = await getYtDlp()
