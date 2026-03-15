@@ -391,12 +391,14 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('search:youtubePreview', async (_, url) => {
+  ipcMain.handle('search:youtubePreview', async (_, url, title?: string, artist?: string) => {
     try {
       const yt = await getYtDlp()
       const stdout = await yt.execPromise([url, '-J', '--js-runtimes', 'node'])
       const dat = JSON.parse(stdout)
       let bestStart = 0
+      let hasHeatmap = false
+      
       if (dat.heatmap && dat.heatmap.length > 0) {
         // Filter out first 15 seconds as it's often the default highest for UI reasons
         const duration = dat.duration || 0
@@ -405,8 +407,73 @@ app.whenReady().then(() => {
         // Sort heatmap segments by value descending to find the most played part
         const best = [...pool].sort((a: any, b: any) => b.value - a.value)[0]
         bestStart = best.start_time
-      } else if (dat.duration) {
-        // Fallback: Start at 1/3 of the video if no heatmap
+        hasHeatmap = true
+      } 
+      
+      // Secondary Strategy: LRCLib Chorus Detection
+      // If we don't have a heatmap, OR if we want to be more accurate with vocals, try dynamic lyrics.
+      // Many MVs have long intros where the heatmap spikes before the actual singing.
+      // We will try lyrics analysis if title/artist is provided, as a fallback or enhancement.
+      if (!hasHeatmap && title) {
+        try {
+            const query = artist ? `${title} ${artist}` : title
+            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`)
+            if (res.ok) {
+                const data: any[] = await res.json()
+                if (data && data.length > 0 && data[0].syncedLyrics) {
+                    const lyrics = data[0].syncedLyrics
+                    const lines = lyrics.split('\n')
+                    const parsed: {time: number, text: string}[] = []
+                    const regex = /\[(\d{2}):(\d{2}\.\d{2})\]\s*(.*)/
+                    
+                    for(const line of lines) {
+                        const match = line.match(regex)
+                        if(match) {
+                            const m = parseInt(match[1])
+                            const s = parseFloat(match[2])
+                            const text = match[3].trim()
+                            if(text.length > 2) parsed.push({ time: m * 60 + s, text })
+                        }
+                    }
+                    
+                    if(parsed.length > 0) {
+                        const lineFreq = new Map<string, number>()
+                        for(const p of parsed) {
+                            const t = p.text.toLowerCase()
+                            lineFreq.set(t, (lineFreq.get(t) || 0) + 1)
+                        }
+                        
+                        let maxScore = 0
+                        let bestIdx = -1
+                        const WINDOW = 4
+                        for(let i=0; i <= parsed.length - WINDOW; i++) {
+                            let score = 0
+                            for(let j=0; j<WINDOW; j++) {
+                                const t = parsed[i+j].text.toLowerCase()
+                                const count = lineFreq.get(t) || 0
+                                if(count > 1) score += count
+                            }
+                            if(score > maxScore) {
+                                maxScore = score
+                                bestIdx = i
+                            }
+                        }
+                        
+                        // If we found a repeating block (a chorus), use it!
+                        if(bestIdx !== -1 && maxScore >= 4) {
+                            bestStart = parsed[bestIdx].time
+                        } else {
+                            // If no chorus found, jump to 1/3 of the song
+                            if(dat.duration) bestStart = Math.floor(dat.duration / 3)
+                        }
+                    }
+                }
+            }
+        } catch(e) { /* ignore lyric fetch error */ }
+      }
+
+      // If absolutely no strategy worked, fallback
+      if (bestStart === 0 && dat.duration) {
         bestStart = Math.floor(dat.duration / 3)
       }
 

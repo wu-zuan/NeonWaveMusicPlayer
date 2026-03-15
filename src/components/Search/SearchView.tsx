@@ -137,7 +137,7 @@ export const SearchView = () => {
         
         setPreviewLoading(item.id)
         try {
-            const data = await window.ipcRenderer.getYouTubePreview(item.url)
+            const data = await window.ipcRenderer.getYouTubePreview(item.url, item.title, item.artist)
             if (data && data.url) {
                 const audio = new Audio(data.url)
                 audio.currentTime = data.startTime
