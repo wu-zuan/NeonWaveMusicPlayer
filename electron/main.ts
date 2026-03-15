@@ -396,11 +396,14 @@ app.whenReady().then(() => {
       const yt = await getYtDlp()
       const stdout = await yt.execPromise([url, '-J', '--js-runtimes', 'node'])
       const dat = JSON.parse(stdout)
-      
       let bestStart = 0
       if (dat.heatmap && dat.heatmap.length > 0) {
+        // Filter out first 15 seconds as it's often the default highest for UI reasons
+        const duration = dat.duration || 0
+        const validHeatmap = dat.heatmap.filter((h: any) => h.start_time >= 15 && (duration === 0 || h.start_time <= duration - 15))
+        const pool = validHeatmap.length > 0 ? validHeatmap : dat.heatmap
         // Sort heatmap segments by value descending to find the most played part
-        const best = [...dat.heatmap].sort((a,b) => b.value - a.value)[0]
+        const best = [...pool].sort((a: any, b: any) => b.value - a.value)[0]
         bestStart = best.start_time
       } else if (dat.duration) {
         // Fallback: Start at 1/3 of the video if no heatmap
@@ -409,10 +412,14 @@ app.whenReady().then(() => {
 
       // Filter for audio-only formats, sort by bitrate (tbr)
       const formats = dat.formats || []
-      const audioFormats = formats.filter((f: any) => f.acodec !== 'none' && f.vcodec === 'none')
+      let audioFormats = formats.filter((f: any) => f.acodec !== 'none' && f.vcodec === 'none')
       let streamUrl = ''
       
       if (audioFormats.length > 0) {
+        // Prefer m4a for highest compatibility with HTML Audio elements natively
+        const m4aFormats = audioFormats.filter((f: any) => f.ext === 'm4a')
+        if (m4aFormats.length > 0) audioFormats = m4aFormats
+
         audioFormats.sort((a: any, b: any) => (b.tbr || 0) - (a.tbr || 0))
         streamUrl = audioFormats[0].url
       } else {
