@@ -109,6 +109,7 @@ export const SearchView = () => {
         return () => {
             if (audioRef.current) {
                 audioRef.current.pause()
+                audioRef.current.onerror = null
                 audioRef.current.src = ''
             }
         }
@@ -127,6 +128,7 @@ export const SearchView = () => {
 
         if (audioRef.current) {
             audioRef.current.pause()
+            audioRef.current.onerror = null
             audioRef.current.src = ''
             setPreviewSongId(null)
             setPreviewCurrentTime(0)
@@ -140,7 +142,17 @@ export const SearchView = () => {
                 const audio = new Audio(data.url)
                 audio.currentTime = data.startTime
                 audio.volume = 0.5 // Default preview volume
-                audio.play()
+                
+                audio.play().catch(e => {
+                    console.warn("Audio play interrupted or failed:", e)
+                    // Only alert if it's a real failure, not an abort error from switching
+                    if (e.name !== 'AbortError') {
+                        setPreviewSongId(null)
+                        setPreviewCurrentTime(0)
+                        alert("部分連結可能需要等待或暫時無法播放")
+                    }
+                })
+                
                 audioRef.current = audio
                 setPreviewSongId(item.id)
                 audio.ontimeupdate = () => setPreviewCurrentTime(audio.currentTime)
@@ -149,10 +161,14 @@ export const SearchView = () => {
                     setPreviewSongId(null)
                     setPreviewCurrentTime(0)
                 }
-                audio.onerror = () => {
-                    setPreviewSongId(null)
-                    setPreviewCurrentTime(0)
-                    alert("試聽連結播放失敗")
+                audio.onerror = (e) => {
+                    console.error("Audio Load Error:", e)
+                    const errStatus = audio.error
+                    if (errStatus && errStatus.code !== 4) { // Ignore MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED on empty src
+                        setPreviewSongId(null)
+                        setPreviewCurrentTime(0)
+                        // Removed alert to prevent annoying popups; rely on UI state instead
+                    }
                 }
             } else {
                 alert("無法獲取試聽連結")
