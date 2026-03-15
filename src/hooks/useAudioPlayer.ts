@@ -113,8 +113,27 @@ export function useAudioPlayer() {
             }
         }
 
-        const encodedPath = trackToPlay.path.split(/[\\/]/).map(encodeURIComponent).join('/')
-        const fileUrl = `file:///${encodedPath}`
+        // Handle dynamic streaming for shared playlists
+        let finalUrl = ''
+        if (trackToPlay.path.startsWith('shared:')) {
+            try {
+                const query = trackToPlay.path.replace('shared:', '')
+                const results = await window.ipcRenderer.searchYouTube(query)
+                if (results && results.length > 0) {
+                    const streamInfo = await window.ipcRenderer.getYouTubePreview(results[0].url)
+                    if (streamInfo && streamInfo.url) {
+                        finalUrl = streamInfo.url
+                    } else throw new Error("No stream URL")
+                } else throw new Error("Not found on YouTube")
+            } catch (e) {
+                console.error("Failed to resolve shared track:", e)
+                // Might want to automatically skip to next track here.
+                return
+            }
+        } else {
+            const encodedPath = trackToPlay.path.split(/[\\/]/).map(encodeURIComponent).join('/')
+            finalUrl = `file:///${encodedPath}`
+        }
 
         // If switching tracks
         if (currentTrack?.path !== trackToPlay.path) {
@@ -137,7 +156,7 @@ export function useAudioPlayer() {
                 })
             }
 
-            audio.src = fileUrl
+            audio.src = finalUrl
             setCurrentTrack(trackToPlay)
             audio.load()
         } else {

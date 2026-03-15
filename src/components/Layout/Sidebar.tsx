@@ -1,5 +1,5 @@
 import React from 'react'
-import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2, RefreshCw, Radio } from 'lucide-react'
+import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2, RefreshCw, Radio, Share2, Upload } from 'lucide-react'
 import styles from './Sidebar.module.css'
 import { Playlist } from '../../hooks/useLibrary'
 
@@ -11,11 +11,15 @@ interface SidebarProps {
     onRemoveFolder: (path: string) => void
     onRenameFolder: (path: string, newName: string) => void
     onRefreshLibrary: () => void
+    onExportPlaylist: (playlist: Playlist) => void
+    onImportPlaylist: () => void
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-    playlists, currentView, onChangeView, onOpenFolder, onRemoveFolder, onRenameFolder, onRefreshLibrary
+    playlists, currentView, onChangeView, onOpenFolder, onRemoveFolder, onRenameFolder, onRefreshLibrary, onExportPlaylist, onImportPlaylist
 }) => {
+    const folders = playlists.filter(p => !p.type || p.type === 'folder')
+    const customLists = playlists.filter(p => p.type === 'custom')
     return (
         <aside className={styles.sidebar}>
             <div className={styles.brand}>
@@ -55,8 +59,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
-                <div className={styles.scrollableNav}>
-                    {playlists.map(pl => (
+                <div className={styles.scrollableNav} style={{ maxHeight: '180px', flex: 'none', marginBottom: '10px' }}>
+                    {folders.map(pl => (
                         <div key={pl.id} className={`${styles.navItem} ${currentView === pl.id ? styles.active : ''}`} onClick={() => onChangeView(pl.id)}>
                             <div className={styles.navItemContent}>
                                 <ListMusic size={18} />
@@ -91,9 +95,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     ))}
 
-                    {playlists.length === 0 && (
+                    {folders.length === 0 && (
                         <div className={styles.emptyHint}>
-                            點擊 + 加入
+                            點擊右上角加入
+                        </div>
+                    )}
+                </div>
+
+                {/* Custom Playlists */}
+                <div className={styles.sectionTitle} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    我的歌單
+                    <button className={styles.miniAddBtn} onClick={onImportPlaylist} title="匯入分享歌單 (.nwp)">
+                        <Upload size={14} />
+                    </button>
+                </div>
+
+                <div className={styles.scrollableNav} style={{ flex: 1 }}>
+                    {customLists.map(pl => (
+                        <div key={pl.id} className={`${styles.navItem} ${currentView === pl.id ? styles.active : ''}`} onClick={() => onChangeView(pl.id)}>
+                            <div className={styles.navItemContent}>
+                                <ListMusic size={18} />
+                                <span className={styles.truncate}>{pl.name}</span>
+                            </div>
+
+                            <div className={styles.actions}>
+                                <button
+                                    className={styles.actionBtn}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onExportPlaylist(pl)
+                                    }}
+                                    title="匯出分享 (.nwp)"
+                                >
+                                    <Share2 size={14} />
+                                </button>
+                                <button
+                                    className={styles.actionBtn}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        const newName = prompt("請輸入新名稱:", pl.name)
+                                        if (newName && newName.trim()) {
+                                            onRenameFolder(pl.id, newName.trim())
+                                        }
+                                    }}
+                                    title="重新命名"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                                <button
+                                    className={styles.actionBtn}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (confirm(`確定要移除歌單 "${pl.name}" 嗎?`)) onRemoveFolder(pl.id)
+                                    }}
+                                    title="移除"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+
+                    {customLists.length === 0 && (
+                        <div className={styles.emptyHint}>
+                            點擊右上角匯入
                         </div>
                     )}
                 </div>

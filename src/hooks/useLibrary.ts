@@ -4,6 +4,7 @@ import { Track } from './useAudioPlayer'
 // Persist folders in localStorage
 const STORAGE_KEY_FOLDERS_V2 = 'neonwave_folders_v2' // Upgrade storage key for new format
 const STORAGE_KEY_FAVORITES = 'neonwave_favorites'
+const STORAGE_KEY_CUSTOM_PLAYLISTS = 'neonwave_custom_playlists'
 
 interface FolderData {
     path: string
@@ -66,6 +67,13 @@ export function useLibrary() {
                     path: item.path,
                     tracks: tracks
                 })
+            }
+
+            // 3. Load Custom Playlists (Imported)
+            const customJson = localStorage.getItem(STORAGE_KEY_CUSTOM_PLAYLISTS)
+            if (customJson) {
+                const customPlaylists = JSON.parse(customJson) as Playlist[]
+                loadedPlaylists.push(...customPlaylists)
             }
 
             setPlaylists(loadedPlaylists)
@@ -172,11 +180,21 @@ export function useLibrary() {
         }
     }
 
-    const removeFolder = (folderPath: string) => {
-        const currentData: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
-        const newData = currentData.filter(p => p.path !== folderPath)
-        localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
-        setPlaylists(prev => prev.filter(p => p.path !== folderPath))
+    const removeFolder = (idToRemove: string) => {
+        // Find if it's a folder or custom
+        const isCustom = playlists.find(p => p.id === idToRemove)?.type === 'custom'
+        
+        if (isCustom) {
+            const currentData: Playlist[] = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_PLAYLISTS) || '[]')
+            const newData = currentData.filter(p => p.id !== idToRemove)
+            localStorage.setItem(STORAGE_KEY_CUSTOM_PLAYLISTS, JSON.stringify(newData))
+        } else {
+            const currentData: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
+            const newData = currentData.filter(p => p.path !== idToRemove)
+            localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
+        }
+        
+        setPlaylists(prev => prev.filter(p => p.id !== idToRemove))
     }
 
     const renameFolder = (folderPath: string, newName: string) => {
@@ -213,6 +231,65 @@ export function useLibrary() {
         })
     }
 
+    const exportPlaylist = (playlist: Playlist) => {
+        const exportData = {
+            version: 1,
+            name: playlist.name,
+            tracks: playlist.tracks.map(t => ({ title: t.title, artist: t.artist }))
+        }
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${playlist.name}.nwp`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    }
+
+    const importPlaylist = () => {
+        return new Promise<void>((resolve, reject) => {
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.accept = '.nwp,.json'
+            input.onchange = (e: any) => {
+                const file = e.target.files[0]
+                if (!file) { resolve(); return }
+                
+                const reader = new FileReader()
+                reader.onload = (re) => {
+                    try {
+                        const data = JSON.parse(re.target!.result as string)
+                        if (!data.tracks) throw new Error("Invalid playlist format")
+                        
+                        const newPlaylist: Playlist = {
+                            id: `custom-${Date.now()}`,
+                            name: data.name || '匯入歌單',
+                            type: 'custom',
+                            tracks: data.tracks.map((t: any) => ({
+                                title: t.title,
+                                artist: t.artist || '',
+                                path: `shared:${t.title} ${t.artist || ''}`.trim()
+                            }))
+                        }
+                        
+                        const currentData: Playlist[] = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_PLAYLISTS) || '[]')
+                        localStorage.setItem(STORAGE_KEY_CUSTOM_PLAYLISTS, JSON.stringify([...currentData, newPlaylist]))
+                        setPlaylists(prev => [...prev, newPlaylist])
+                        alert(`成功匯入歌單: ${newPlaylist.name}`)
+                        resolve()
+                    } catch (err) {
+                        alert("匯入失敗：檔案格式不正確")
+                        reject(err)
+                    }
+                }
+                reader.readAsText(file)
+            }
+            input.click()
+        })
+    }
+
     // Flatten all tracks for "All Songs" view
     const allTracks = playlists.flatMap(p => p.tracks)
 
@@ -224,6 +301,8 @@ export function useLibrary() {
         removeFolder,
         renameFolder,
         toggleFavorite,
+        exportPlaylist,
+        importPlaylist,
         isLoading,
         refreshLibrary: loadSavedData
     }

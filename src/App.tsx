@@ -16,7 +16,8 @@ import { DiscordControlPanel } from './components/DiscordBot/DiscordControlPanel
 function App() {
   const {
     playlists, favorites, allTracks,
-    addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary
+    addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
+    exportPlaylist, importPlaylist
   } = useLibrary()
 
   const [view, setView] = useState('all_songs')
@@ -157,6 +158,8 @@ function App() {
         onRemoveFolder={removeFolder}
         onRenameFolder={renameFolder}
         onRefreshLibrary={refreshLibrary}
+        onExportPlaylist={exportPlaylist}
+        onImportPlaylist={importPlaylist}
         currentView={view}
         onChangeView={setView}
       />

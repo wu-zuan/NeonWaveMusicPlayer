@@ -4,14 +4,16 @@ import styles from './Playlist.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 
 interface TrackItemProps {
+    id?: string
     track: Track
     isActive: boolean
     isFavorite?: boolean
+    isHighlighted?: boolean
     onClick: () => void
     onToggleFavorite?: () => void
 }
 
-export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, isFavorite, onClick, onToggleFavorite }) => {
+export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFavorite, isHighlighted, onClick, onToggleFavorite }) => {
     const [artwork, setArtwork] = React.useState<string | undefined>(track.artwork)
     const itemRef = React.useRef<HTMLDivElement>(null)
 
@@ -46,8 +48,9 @@ export const TrackItem: React.FC<TrackItemProps> = ({ track, isActive, isFavorit
 
     return (
         <div
+            id={id}
             ref={itemRef}
-            className={`${styles.trackItem} ${isActive ? styles.active : ''}`}
+            className={`${styles.trackItem} ${isActive ? styles.active : ''} ${isHighlighted ? styles.highlighted : ''}`}
             onClick={onClick}
         >
             <div className={styles.icon}>
