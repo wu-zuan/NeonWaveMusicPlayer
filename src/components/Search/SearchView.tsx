@@ -101,6 +101,8 @@ export const SearchView = () => {
 
     const [previewSongId, setPreviewSongId] = useState<string | null>(null)
     const [previewLoading, setPreviewLoading] = useState<string | null>(null)
+    const [previewCurrentTime, setPreviewCurrentTime] = useState(0)
+    const [previewDuration, setPreviewDuration] = useState(0)
     const audioRef = useRef<HTMLAudioElement | null>(null)
 
     useEffect(() => {
@@ -127,6 +129,8 @@ export const SearchView = () => {
             audioRef.current.pause()
             audioRef.current.src = ''
             setPreviewSongId(null)
+            setPreviewCurrentTime(0)
+            setPreviewDuration(0)
         }
         
         setPreviewLoading(item.id)
@@ -139,9 +143,15 @@ export const SearchView = () => {
                 audio.play()
                 audioRef.current = audio
                 setPreviewSongId(item.id)
-                audio.onended = () => setPreviewSongId(null)
+                audio.ontimeupdate = () => setPreviewCurrentTime(audio.currentTime)
+                audio.ondurationchange = () => setPreviewDuration(audio.duration)
+                audio.onended = () => {
+                    setPreviewSongId(null)
+                    setPreviewCurrentTime(0)
+                }
                 audio.onerror = () => {
                     setPreviewSongId(null)
+                    setPreviewCurrentTime(0)
                     alert("試聽連結播放失敗")
                 }
             } else {
@@ -333,6 +343,15 @@ export const SearchView = () => {
                             <div className={styles.title}>{item.title}</div>
                             <div className={styles.artist}>{item.artist}</div>
                             <div className={styles.meta}>時長: {formatDuration(item.duration)}</div>
+                            {previewSongId === item.id && previewDuration > 0 && (
+                                <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                    <span style={{ fontSize: '12px', color: 'var(--accent-primary)', minWidth: '35px' }}>{formatDuration(Math.floor(previewCurrentTime))}</span>
+                                    <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', background: 'var(--accent-primary)', width: `${(previewCurrentTime / previewDuration) * 100}%`, transition: 'width 0.1s linear' }} />
+                                    </div>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatDuration(Math.floor(previewDuration))}</span>
+                                </div>
+                            )}
                         </div>
                         <div className={styles.actions}>
                             <button
