@@ -611,6 +611,27 @@ app.whenReady().then(() => {
 
         const eventEmitter = yt.exec(args)
 
+        eventEmitter.on('progress', (progress: any) => {
+          // Send progress updates to renderer
+          if (win && progress && progress.currentSpeed) {
+            win.webContents.send('download:progress', { 
+              url: url, 
+              speed: progress.currentSpeed, 
+              percent: progress.percent 
+            })
+          }
+        })
+        
+        // Fallback for manual parsing just in case
+        eventEmitter.on('ytDlpEvent', (eventType: string, eventData: string) => {
+          if (eventType === 'download' && eventData.includes('at')) {
+            const speedMatch = eventData.match(/at\s+([0-9.]+[a-zA-Z]+\/s)/)
+            if (speedMatch && win) {
+              win.webContents.send('download:progress', { url: url, speed: speedMatch[1] })
+            }
+          }
+        })
+
         eventEmitter.on('error', (err: any) => {
           console.error("yt-dlp error:", err)
           reject(new Error(`下載錯誤: ${err.message}`))

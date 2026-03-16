@@ -23,11 +23,45 @@ export function useLibrary() {
     const [playlists, setPlaylists] = useState<Playlist[]>([])
     const [favorites, setFavorites] = useState<Track[]>([])
     const [isLoading, setIsLoading] = useState(false)
-    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string; isPaused: boolean; eta?: string } | null>(null)
+    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string; isPaused: boolean; eta?: string; speedStr?: string } | null>(null)
     const downloadControlRef = useRef({ isPaused: false, isCancelled: false, startTime: 0, pauseStartTime: 0, totalPausedMs: 0 })
+    const downloadSpeedsRef = useRef<Record<string, string>>({})
 
     useEffect(() => {
         loadSavedData()
+        
+        if (window.ipcRenderer && window.ipcRenderer.onDownloadProgress) {
+            window.ipcRenderer.onDownloadProgress((data) => {
+                downloadSpeedsRef.current[data.url] = data.speed
+                
+                let totalBps = 0;
+                for (const s of Object.values(downloadSpeedsRef.current)) {
+                    if (!s) continue;
+                    const match = s.match(/([0-9.]+)([a-zA-Z]+)\/s/);
+                    if (match) {
+                        let val = parseFloat(match[1]);
+                        const unit = match[2].toUpperCase();
+                        if (unit.includes('K')) val *= 1024;
+                        else if (unit.includes('M')) val *= 1024 * 1024;
+                        else if (unit.includes('G')) val *= 1024 * 1024 * 1024;
+                        totalBps += val;
+                    }
+                }
+                
+                let combinedSpeedStr = "";
+                if (totalBps > 1024 * 1024) combinedSpeedStr = (totalBps / (1024 * 1024)).toFixed(2) + " MB/s";
+                else if (totalBps > 1024) combinedSpeedStr = (totalBps / 1024).toFixed(2) + " KB/s";
+                else combinedSpeedStr = totalBps.toFixed(0) + " B/s";
+
+                setDownloadProgress(prev => prev ? { ...prev, speedStr: combinedSpeedStr } : null)
+            })
+        }
+
+        return () => {
+            if (window.ipcRenderer && window.ipcRenderer.offDownloadProgress) {
+                window.ipcRenderer.offDownloadProgress()
+            }
+        }
     }, [])
 
     const loadSavedData = async () => {
@@ -308,6 +342,30 @@ export function useLibrary() {
         let completedCount = 0
         const total = data.tracks.length
         
+        setDownloadProgress({ current: 0, total: 1, currentTrack: '分析現有檔案，準備增量更新...', isPaused: false, eta: '分析中...' })
+        let existingTitles = new Set<string>()
+        try {
+            const existingTracks = await scanFolder(targetDir)
+            existingTitles = new Set(existingTracks.map(trk => (trk.title || '').trim().toLowerCase()))
+        } catch (e) {}
+        
+        const tracksToDownload = data.tracks
+            .map((t: Track, index: number) => ({ t, index }))
+            .filter(({ t }: { t: Track }) => !existingTitles.has((t.title || '').trim().toLowerCase()))
+            
+        const totalToDownload = tracksToDownload.length
+        
+        if (totalToDownload === 0) {
+            alert(`目標資料夾已經包含此歌單的所有歌曲，無須更新！`)
+            setIsLoading(false)
+            setDownloadProgress(null)
+            return
+        }
+        
+        downloadSpeedsRef.current = {}
+        // Reset start time so ETA won't count folder scan time
+        downloadControlRef.current.startTime = Date.now()
+        
         const concurrency = parseInt(localStorage.getItem('neonwave_download_concurrency') || '2')
         const speedLimit = localStorage.getItem('neonwave_download_speed') || '0'
 
@@ -319,7 +377,7 @@ export function useLibrary() {
         let currentIndex = 0
         
         // Initial state
-        setDownloadProgress({ current: 0, total, currentTrack: '準備中...', isPaused: false, eta: '計算中...' })
+        setDownloadProgress({ current: 0, total: totalToDownload, currentTrack: `準備下載 ${totalToDownload} 首新歌...`, isPaused: false, eta: '計算中...' })
         
         const worker = async () => {
             while (true) {
@@ -343,14 +401,14 @@ export function useLibrary() {
                 // In JS, synchronous blocks are atomic.
                 taskIndex = currentIndex++
                 
-                if (taskIndex >= total) {
+                if (taskIndex >= totalToDownload) {
                     break
                 }
 
-                const t = data.tracks[taskIndex]
+                const { t, index: originalIndex } = tracksToDownload[taskIndex]
                 
-                // 由新到舊分配時間 (Task 0 = 最新時間 = 排在最頂端)
-                const trackMs = nowMs - taskIndex * stepMs
+                // 由新到舊分配時間 (使用原始歌單的 Index, 而非下載 Task Index)
+                const trackMs = nowMs - originalIndex * stepMs
                 
                 setDownloadProgress(prev => prev ? { ...prev, currentTrack: t.title || '處理中...' } : null)
                 
@@ -378,7 +436,7 @@ export function useLibrary() {
                         activeMs = Math.max(1000, activeMs)
                         
                         const avgMsPerTrack = activeMs / completedCount
-                        const remainingTracks = total - completedCount
+                        const remainingTracks = totalToDownload - completedCount
                         const remainingMs = avgMsPerTrack * remainingTracks
                         
                         const remainingSec = Math.floor(remainingMs / 1000)
@@ -413,9 +471,9 @@ export function useLibrary() {
 
         setTimeout(async () => {
             if (isCancelled) {
-                alert(`已取消下載。排程已終止 (已完成 ${finalSuccessCount} 首)。\n即使取消，已成功下載的歌曲仍會為您加入音樂庫中！`)
+                alert(`已取消下載。排程已終止 (本次新增 ${finalSuccessCount} 首)。\n即使取消，已成功下載的新歌曲仍會為您加入音樂庫中！`)
             } else {
-                alert(`下載任務完全結束！在 ${total} 首中成功下載了 ${finalSuccessCount} 首。\n正在將資料夾加入音樂庫...`)
+                alert(`更新結束！本次新增了 ${finalSuccessCount} 首歌曲 (歌單總計 ${total} 首)。\n正在將資料夾加入音樂庫...`)
             }
             
             const currentFolders: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')

@@ -2,7 +2,7 @@ import React from 'react';
 import styles from './ConfirmationModal.module.css';
 
 interface DownloadProgressModalProps {
-    progress: { current: number; total: number; currentTrack: string; isPaused: boolean; eta?: string } | null;
+    progress: { current: number; total: number; currentTrack: string; isPaused: boolean; eta?: string; speedStr?: string } | null;
     onPause: () => void;
     onResume: () => void;
     onCancel: () => void;
@@ -29,9 +29,16 @@ export const DownloadProgressModal: React.FC<DownloadProgressModalProps> = ({
                     目前下載：{progress.currentTrack}
                 </p>
                 {progress.eta && (
-                    <p className={styles.message} style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginTop: '4px' }}>
-                        預計剩餘時間：{progress.isPaused ? '已暫停' : progress.eta}
-                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                        <p className={styles.message} style={{ color: 'var(--text-muted)', fontSize: '0.9em', margin: 0 }}>
+                            預計剩餘時間：{progress.isPaused ? '已暫停' : progress.eta}
+                        </p>
+                        {progress.speedStr && !progress.isPaused && (
+                            <p className={styles.message} style={{ color: '#8b5cf6', fontSize: '0.9em', margin: 0, fontWeight: 'bold' }}>
+                                ↓ {progress.speedStr}
+                            </p>
+                        )}
+                    </div>
                 )}
                 <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', margin: '16px 0' }}>
                     <div style={{ width: `${percentage}%`, height: '100%', background: '#8b5cf6', transition: 'width 0.3s ease' }}></div>

@@ -39,5 +39,11 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   getYouTubePreview: (url: string, title?: string, artist?: string) => ipcRenderer.invoke('search:youtubePreview', url, title, artist),
   downloadYouTube: (url: string, title: string) => ipcRenderer.invoke('download:youtube', url, title),
   downloadYouTubeToDir: (url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number) => ipcRenderer.invoke('download:youtubeToDir', url, title, artist, dir, limitRate, fileTimestamp),
-  getLyrics: (title: string, artist: string, filePath?: string, duration?: number) => ipcRenderer.invoke('search:lyrics', title, artist, filePath, duration)
+  getLyrics: (title: string, artist: string, filePath?: string, duration?: number) => ipcRenderer.invoke('search:lyrics', title, artist, filePath, duration),
+  onDownloadProgress: (callback: (data: { url: string, speed: string, percent?: number }) => void) => {
+    ipcRenderer.on('download:progress', (_, data) => callback(data))
+  },
+  offDownloadProgress: () => {
+    ipcRenderer.removeAllListeners('download:progress')
+  }
 })

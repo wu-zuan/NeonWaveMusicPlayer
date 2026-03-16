@@ -19,6 +19,8 @@ interface Window {
         downloadYouTubeToDir(url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number): Promise<string | null>
         getArtistImage(name: string): Promise<string | null>
         getLyrics(title: string, artist: string, filePath?: string, duration?: number): Promise<string | null>
+        onDownloadProgress(callback: (data: { url: string, speed: string, percent?: number }) => void): void
+        offDownloadProgress(): void
 
         // Discord Bot
         invoke(channel: 'discord:login', token: string): Promise<{ username: string; avatar: string | null }>
