@@ -258,29 +258,73 @@ export function useLibrary() {
                 if (!file) { resolve(); return }
                 
                 const reader = new FileReader()
-                reader.onload = (re) => {
+                reader.onload = async (re) => {
                     try {
                         const data = JSON.parse(re.target!.result as string)
                         if (!data.tracks) throw new Error("Invalid playlist format")
                         
-                        const newPlaylist: Playlist = {
-                            id: `custom-${Date.now()}`,
-                            name: data.name || '匯入歌單',
-                            type: 'custom',
-                            tracks: data.tracks.map((t: any) => ({
-                                title: t.title,
-                                artist: t.artist || '',
-                                path: `shared:${t.title} ${t.artist || ''}`.trim()
-                            }))
+                        const isDownload = confirm(`匯入歌單：${data.name || '匯入歌單'}\n\n您想要將此歌單的音樂完整「下載」到電腦裡嗎？\n\n(按「確定」選擇下載實體檔案；按「取消」加入線上串流歌單)`)
+
+                        if (isDownload) {
+                            const targetDir = await window.ipcRenderer.openDirectory()
+                            if (!targetDir) {
+                                alert("取消匯入：未選擇下載儲存資料夾。")
+                                resolve()
+                                return
+                            }
+                            
+                            setIsLoading(true)
+                            alert("開始下載歌單，依據網路速度可能需要數分鐘，請勿關閉應用程式...")
+
+                            let successCount = 0
+                            for (const t of data.tracks) {
+                                try {
+                                    const query = `${t.title} ${t.artist || ''}`.trim()
+                                    const results = await window.ipcRenderer.searchYouTube(query)
+                                    if (results && results.length > 0) {
+                                        await (window as any).ipcRenderer.downloadYouTubeToDir(results[0].url, t.title, t.artist || '', targetDir)
+                                        successCount++
+                                    }
+                                } catch(err) {
+                                    console.error("Failed to download track", t, err)
+                                }
+                            }
+                            
+                            alert(`下載完成！成功 ${successCount}/${data.tracks.length} 首歌。\n正在將資料夾加入音樂庫...`)
+                            
+                            const currentFolders: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
+                            if (!currentFolders.some(f => f.path === targetDir)) {
+                                const defaultName = data.name || targetDir.split(/[\\/]/).pop() || '新歌單'
+                                const newItem: FolderData = { path: targetDir, name: defaultName }
+                                localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify([...currentFolders, newItem]))
+                            }
+                            
+                            // Refresh library to pickup new files
+                            await loadSavedData()
+                            setIsLoading(false)
+                            resolve()
+                        } else {
+                            // Stream branch
+                            const newPlaylist: Playlist = {
+                                id: `custom-${Date.now()}`,
+                                name: data.name || '匯入歌單',
+                                type: 'custom',
+                                tracks: data.tracks.map((t: any) => ({
+                                    title: t.title,
+                                    artist: t.artist || '',
+                                    path: `shared:${t.title} ${t.artist || ''}`.trim()
+                                }))
+                            }
+                            
+                            const currentData: Playlist[] = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_PLAYLISTS) || '[]')
+                            localStorage.setItem(STORAGE_KEY_CUSTOM_PLAYLISTS, JSON.stringify([...currentData, newPlaylist]))
+                            setPlaylists(prev => [...prev, newPlaylist])
+                            alert(`成功匯入串流歌單: ${newPlaylist.name}`)
+                            resolve()
                         }
-                        
-                        const currentData: Playlist[] = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_PLAYLISTS) || '[]')
-                        localStorage.setItem(STORAGE_KEY_CUSTOM_PLAYLISTS, JSON.stringify([...currentData, newPlaylist]))
-                        setPlaylists(prev => [...prev, newPlaylist])
-                        alert(`成功匯入歌單: ${newPlaylist.name}`)
-                        resolve()
                     } catch (err) {
                         alert("匯入失敗：檔案格式不正確")
+                        setIsLoading(false)
                         reject(err)
                     }
                 }

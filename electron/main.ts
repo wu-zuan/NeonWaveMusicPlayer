@@ -572,6 +572,54 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('download:youtubeToDir', async (_, url, inputTitle, inputArtist, outputDir) => {
+    try {
+      const yt = await getYtDlp()
+
+      // Get ffmpeg path
+      const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
+        .replace('app.asar', 'app.asar.unpacked') // Fix for production builds
+
+      let safeTitle = inputTitle.replace(/[\\/:*?"<>|]/g, '_').trim()
+      const filePath = path.join(outputDir, `${safeTitle}.m4a`)
+
+      return new Promise((resolve, reject) => {
+        const args = [
+          url,
+          '-f', 'bestaudio[ext=m4a]',
+          '--js-runtimes', 'node',
+          '--ffmpeg-location', ffmpegPath,
+          '--add-metadata',
+          '--embed-thumbnail',
+          '-o', filePath
+        ]
+
+        if (inputArtist) {
+          args.push('--parse-metadata', `${inputArtist}:%(artist)s`)
+          args.push('--parse-metadata', `${inputArtist}:%(album_artist)s`)
+        }
+        if (inputTitle) {
+          args.push('--parse-metadata', `${inputTitle}:%(title)s`)
+        }
+
+        const eventEmitter = yt.exec(args)
+
+        eventEmitter.on('error', (err: any) => {
+          console.error("yt-dlp error:", err)
+          reject(new Error(`下載錯誤: ${err.message}`))
+        })
+
+        eventEmitter.on('close', () => {
+          resolve(filePath)
+        })
+      })
+
+    } catch (e: any) {
+      console.error("Download fatal error:", e)
+      throw new Error(e.message) // Propagate pure message
+    }
+  })
+
   ipcMain.handle('search:artistImage', async (_, artistName) => {
     try {
       // 1. Try Deezer
