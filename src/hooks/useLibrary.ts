@@ -23,6 +23,7 @@ export function useLibrary() {
     const [playlists, setPlaylists] = useState<Playlist[]>([])
     const [favorites, setFavorites] = useState<Track[]>([])
     const [isLoading, setIsLoading] = useState(false)
+    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string } | null>(null)
 
     useEffect(() => {
         loadSavedData()
@@ -300,10 +301,14 @@ export function useLibrary() {
         }
         
         setIsLoading(true)
-        alert("開始下載歌單，依據網路速度可能需要數分鐘，請勿關閉應用程式...")
 
         let successCount = 0
-        for (const t of data.tracks) {
+        const total = data.tracks.length
+
+        for (let i = 0; i < total; i++) {
+            const t = data.tracks[i]
+            setDownloadProgress({ current: i, total, currentTrack: t.title || '處理中...' })
+            
             try {
                 const query = `${t.title} ${t.artist || ''}`.trim()
                 const results = await window.ipcRenderer.searchYouTube(query)
@@ -316,7 +321,9 @@ export function useLibrary() {
             }
         }
         
-        alert(`下載完成！成功 ${successCount}/${data.tracks.length} 首歌。\n正在將資料夾加入音樂庫...`)
+        setDownloadProgress({ current: total, total, currentTrack: '即將完成...' })
+        alert(`下載完成！成功 ${successCount}/${total} 首歌。\n正在將資料夾加入音樂庫...`)
+        setDownloadProgress(null)
         
         const currentFolders: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
         if (!currentFolders.some(f => f.path === targetDir)) {
@@ -346,6 +353,7 @@ export function useLibrary() {
         processStreamImport,
         processDownloadImport,
         isLoading,
+        downloadProgress,
         refreshLibrary: loadSavedData
     }
 }

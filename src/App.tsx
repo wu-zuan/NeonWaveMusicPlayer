@@ -13,12 +13,14 @@ import './index.css'
 import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
 import { DiscordControlPanel } from './components/DiscordBot/DiscordControlPanel'
 import { ImportChoiceModal } from './components/UI/ImportChoiceModal'
+import { DownloadProgressModal } from './components/UI/DownloadProgressModal'
 
 function App() {
   const {
     playlists, favorites, allTracks,
     addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
-    exportPlaylist, readImportFile, processStreamImport, processDownloadImport
+    exportPlaylist, readImportFile, processStreamImport, processDownloadImport,
+    downloadProgress
   } = useLibrary()
 
   const [view, setView] = useState('all_songs')
@@ -269,6 +271,8 @@ function App() {
           onSelectDownload={handleSelectDownload}
           onCancel={() => setImportModalData(null)}
         />
+
+        <DownloadProgressModal progress={downloadProgress} />
       </main>
     </div>
   )
