@@ -147,35 +147,26 @@ export function SettingsView() {
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>並行下載數量 (最多幾首歌同時下載)</span>
+                            <span style={{ color: 'var(--text-muted)' }}>並行下載數量 (請依據您的網路頻寬選擇)</span>
                             <select 
                                 className="settings-select"
                                 defaultValue={localStorage.getItem('neonwave_download_concurrency') || '2'}
-                                onChange={(e) => localStorage.setItem('neonwave_download_concurrency', e.target.value)}
+                                onChange={(e) => {
+                                    localStorage.setItem('neonwave_download_concurrency', e.target.value);
+                                    // 確保無單獨限速，自動發揮最大頻寬
+                                    localStorage.removeItem('neonwave_download_speed');
+                                }}
                             >
-                                <option value="1">1 首 (低配電腦/筆電)</option>
-                                <option value="2">2 首 (建議預設)</option>
-                                <option value="3">3 首 (進階多工)</option>
-                                <option value="5">5 首 (不建議配置普通網路)</option>
+                                <option value="1">1 首 (背景下載 / 較省 CPU)</option>
+                                <option value="3">3 首 (一般 Wi-Fi / 筆電建議)</option>
+                                <option value="5">5 首 (100M 光世代建議)</option>
+                                <option value="10">10 首 (300M 光世代建議)</option>
+                                <option value="15">15 首 (500M 光世代建議)</option>
+                                <option value="24">24 首 (1G 光世代火力全開！)</option>
                             </select>
                         </div>
-                        
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>網路速度限制 (單首歌最高速度)</span>
-                            <select 
-                                className="settings-select"
-                                defaultValue={localStorage.getItem('neonwave_download_speed') || '0'}
-                                onChange={(e) => localStorage.setItem('neonwave_download_speed', e.target.value)}
-                            >
-                                <option value="0">無限制 (自動適應極速)</option>
-                                <option value="125M">1 Gbps (光世代 1G)</option>
-                                <option value="62M">500 Mbps (光世代 500M)</option>
-                                <option value="37M">300 Mbps (光世代 300M)</option>
-                                <option value="12M">100 Mbps (光世代 100M)</option>
-                                <option value="7M">60 Mbps (光世代 60M)</option>
-                                <option value="2M">一般家庭 Wi-Fi 分享</option>
-                                <option value="500K">省頻寬 (背景低速下載)</option>
-                            </select>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '-8px' }}>
+                            * 註：不提供人為限速，系統將直接根據您的網路頻寬發揮最大效益。請注意並行數量越高，越吃重電腦的 CPU 處理能力 (因需同步執行轉碼)。
                         </div>
                     </div>
                 </div>
