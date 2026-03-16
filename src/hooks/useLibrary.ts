@@ -344,14 +344,37 @@ export function useLibrary() {
         
         setDownloadProgress({ current: 0, total: 1, currentTracks: ['分析現有檔案，準備增量更新...'], isPaused: false, eta: '分析中...' })
         let existingTitles = new Set<string>()
+        let rawExistingTitles: string[] = []
         try {
             const existingTracks = await scanFolder(targetDir)
-            existingTitles = new Set(existingTracks.map(trk => (trk.title || '').trim().toLowerCase()))
+            rawExistingTitles = existingTracks.map(trk => (trk.title || '').toLowerCase())
+            
+            // Normalize names by removing extra spaces, brackets, and making lowercase
+            existingTitles = new Set(existingTracks.map(trk => {
+                let stripped = (trk.title || '').replace(/[\(\[\{].*?[\)\]\}]/g, '').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').trim().toLowerCase()
+                return stripped.length > 0 ? stripped : (trk.title || '').trim().toLowerCase()
+            }))
         } catch (e) {}
         
         const tracksToDownload = data.tracks
             .map((t: Track, index: number) => ({ t, index }))
-            .filter(({ t }: { t: Track }) => !existingTitles.has((t.title || '').trim().toLowerCase()))
+            .filter(({ t }: { t: Track }) => {
+                const titleStr = (t.title || '').toLowerCase()
+                
+                // Very basic check first: if exact match exists
+                if (rawExistingTitles.some(et => et === titleStr || et.includes(titleStr) || titleStr.includes(et))) {
+                    return false;
+                }
+                
+                let normalizedQuery = (t.title || '').replace(/[\(\[\{].*?[\)\]\}]/g, '').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').trim().toLowerCase()
+                
+                // Fallback if stripped completely
+                if (normalizedQuery.length === 0) {
+                    normalizedQuery = (t.title || '').trim().toLowerCase()
+                }
+
+                return !existingTitles.has(normalizedQuery)
+            })
             
         const totalToDownload = tracksToDownload.length
         
