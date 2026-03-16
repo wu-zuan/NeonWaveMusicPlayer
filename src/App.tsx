@@ -20,7 +20,7 @@ function App() {
     playlists, favorites, allTracks,
     addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
     exportPlaylist, readImportFile, processStreamImport, processDownloadImport,
-    downloadProgress
+    downloadProgress, pauseDownload, resumeDownload, cancelDownload
   } = useLibrary()
 
   const [view, setView] = useState('all_songs')
@@ -272,7 +272,12 @@ function App() {
           onCancel={() => setImportModalData(null)}
         />
 
-        <DownloadProgressModal progress={downloadProgress} />
+        <DownloadProgressModal 
+          progress={downloadProgress} 
+          onPause={pauseDownload}
+          onResume={resumeDownload}
+          onCancel={cancelDownload}
+        />
       </main>
     </div>
   )

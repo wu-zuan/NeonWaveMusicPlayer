@@ -141,6 +141,41 @@ export function SettingsView() {
                         </div>
                     )}
                 </div>
+
+                <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '24px', marginTop: '24px' }}>
+                    <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>下載設定</h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>並行下載數量 (最多幾首歌同時下載)</span>
+                            <select 
+                                defaultValue={localStorage.getItem('neonwave_download_concurrency') || '2'}
+                                onChange={(e) => localStorage.setItem('neonwave_download_concurrency', e.target.value)}
+                                style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--glass-border)', padding: '8px', borderRadius: '8px' }}
+                            >
+                                <option value="1">1 首 (較省效能)</option>
+                                <option value="2">2 首</option>
+                                <option value="3">3 首</option>
+                                <option value="5">5 首 (不建議配置普通網路)</option>
+                            </select>
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>網路速度限制 (單首歌最高速度)</span>
+                            <select 
+                                defaultValue={localStorage.getItem('neonwave_download_speed') || '0'}
+                                onChange={(e) => localStorage.setItem('neonwave_download_speed', e.target.value)}
+                                style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--glass-border)', padding: '8px', borderRadius: '8px' }}
+                            >
+                                <option value="0">無限制 (極速下載)</option>
+                                <option value="1M">1 MB/s</option>
+                                <option value="3M">3 MB/s</option>
+                                <option value="5M">5 MB/s</option>
+                                <option value="500K">500 KB/s</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <style>{`

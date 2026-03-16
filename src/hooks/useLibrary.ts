@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Track } from './useAudioPlayer'
 
 // Persist folders in localStorage
@@ -23,7 +23,8 @@ export function useLibrary() {
     const [playlists, setPlaylists] = useState<Playlist[]>([])
     const [favorites, setFavorites] = useState<Track[]>([])
     const [isLoading, setIsLoading] = useState(false)
-    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string } | null>(null)
+    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string; isPaused: boolean } | null>(null)
+    const downloadControlRef = useRef({ isPaused: false, isCancelled: false })
 
     useEffect(() => {
         loadSavedData()
@@ -301,29 +302,84 @@ export function useLibrary() {
         }
         
         setIsLoading(true)
+        downloadControlRef.current = { isPaused: false, isCancelled: false }
 
         let successCount = 0
         const total = data.tracks.length
+        
+        const concurrency = parseInt(localStorage.getItem('neonwave_download_concurrency') || '2')
+        const speedLimit = localStorage.getItem('neonwave_download_speed') || '0'
 
-        for (let i = 0; i < total; i++) {
-            const t = data.tracks[i]
-            setDownloadProgress({ current: i, total, currentTrack: t.title || '處理中...' })
-            
-            try {
-                const query = `${t.title} ${t.artist || ''}`.trim()
-                const results = await window.ipcRenderer.searchYouTube(query)
-                if (results && results.length > 0) {
-                    await (window as any).ipcRenderer.downloadYouTubeToDir(results[0].url, t.title, t.artist || '', targetDir)
-                    successCount++
+        // Map timestamps from oldest to newest (2022 ~ Now)
+        const nowMs = Date.now()
+        const start2022Ms = new Date('2022-01-01T00:00:00Z').getTime()
+        const stepMs = total > 1 ? (nowMs - start2022Ms) / (total - 1) : 0
+
+        let currentIndex = 0
+        
+        const worker = async () => {
+            while (true) {
+                // Check if cancelled
+                if (downloadControlRef.current.isCancelled) {
+                    break
                 }
-            } catch(err) {
-                console.error("Failed to download track", t, err)
+                
+                // Check if paused
+                if (downloadControlRef.current.isPaused) {
+                    setDownloadProgress(prev => prev ? { ...prev, isPaused: true } : null)
+                    await new Promise(r => setTimeout(r, 1000))
+                    continue
+                } else {
+                    setDownloadProgress(prev => prev ? { ...prev, isPaused: false } : null)
+                }
+
+                // Get next track
+                let taskIndex = -1
+                // We need to coordinate between workers safely.
+                // In JS, synchronous blocks are atomic.
+                taskIndex = currentIndex++
+                
+                if (taskIndex >= total) {
+                    break
+                }
+
+                const t = data.tracks[taskIndex]
+                const trackMs = start2022Ms + taskIndex * stepMs
+                
+                setDownloadProgress(prev => prev ? { ...prev, current: taskIndex, currentTrack: t.title || '處理中...' } : { current: taskIndex, total, currentTrack: t.title || '處理中...', isPaused: false })
+                
+                try {
+                    const query = `${t.title} ${t.artist || ''}`.trim()
+                    const results = await window.ipcRenderer.searchYouTube(query)
+                    if (results && results.length > 0) {
+                        await (window as any).ipcRenderer.downloadYouTubeToDir(results[0].url, t.title, t.artist || '', targetDir, speedLimit, trackMs)
+                        if (!downloadControlRef.current.isCancelled) successCount++
+                    }
+                } catch(err) {
+                    console.error("Failed to download track", t, err)
+                }
             }
         }
         
-        setDownloadProgress({ current: total, total, currentTrack: '即將完成...' })
-        alert(`下載完成！成功 ${successCount}/${total} 首歌。\n正在將資料夾加入音樂庫...`)
-        setDownloadProgress(null)
+        // Start workers
+        const workers = []
+        for (let i = 0; i < concurrency; i++) {
+            workers.push(worker())
+        }
+        
+        await Promise.all(workers)
+
+        if (downloadControlRef.current.isCancelled) {
+            alert(`已取消下載。已成功下載 ${successCount} 首歌。\n正在將資料夾加入音樂庫...`)
+            setDownloadProgress(null)
+            setIsLoading(false)
+            // Still add folder up to now
+        } else {
+            setDownloadProgress({ current: total, total, currentTrack: '即將完成...', isPaused: false })
+            alert(`下載完成！成功 ${successCount}/${total} 首歌。\n正在將資料夾加入音樂庫...`)
+            setDownloadProgress(null)
+        }
+        
         
         const currentFolders: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
         if (!currentFolders.some(f => f.path === targetDir)) {
@@ -354,6 +410,9 @@ export function useLibrary() {
         processDownloadImport,
         isLoading,
         downloadProgress,
+        pauseDownload: () => { downloadControlRef.current.isPaused = true },
+        resumeDownload: () => { downloadControlRef.current.isPaused = false },
+        cancelDownload: () => { downloadControlRef.current.isCancelled = true },
         refreshLibrary: loadSavedData
     }
 }

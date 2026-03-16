@@ -572,7 +572,7 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('download:youtubeToDir', async (_, url, inputTitle, inputArtist, outputDir) => {
+  ipcMain.handle('download:youtubeToDir', async (_, url, inputTitle, inputArtist, outputDir, limitRate, fileTimestamp) => {
     try {
       const yt = await getYtDlp()
 
@@ -586,13 +586,20 @@ app.whenReady().then(() => {
       return new Promise((resolve, reject) => {
         const args = [
           url,
-          '-f', 'bestaudio[ext=m4a]',
+          '-f', 'bestaudio[ext=m4a]'
+        ]
+        
+        if (limitRate && limitRate !== '0') {
+           args.push('--limit-rate', limitRate)
+        }
+        
+        args.push(
           '--js-runtimes', 'node',
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
           '--embed-thumbnail',
           '-o', filePath
-        ]
+        )
 
         if (inputArtist) {
           args.push('--parse-metadata', `${inputArtist}:%(artist)s`)
@@ -609,7 +616,15 @@ app.whenReady().then(() => {
           reject(new Error(`下載錯誤: ${err.message}`))
         })
 
-        eventEmitter.on('close', () => {
+        eventEmitter.on('close', async () => {
+          if (fileTimestamp) {
+            try {
+              const timeDate = new Date(fileTimestamp);
+              await fs.utimes(filePath, timeDate, timeDate);
+            } catch(e) {
+              console.error("Failed to set file timestamp:", e)
+            }
+          }
           resolve(filePath)
         })
       })
