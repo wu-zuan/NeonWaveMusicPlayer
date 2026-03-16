@@ -23,8 +23,8 @@ export function useLibrary() {
     const [playlists, setPlaylists] = useState<Playlist[]>([])
     const [favorites, setFavorites] = useState<Track[]>([])
     const [isLoading, setIsLoading] = useState(false)
-    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string; isPaused: boolean } | null>(null)
-    const downloadControlRef = useRef({ isPaused: false, isCancelled: false })
+    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string; isPaused: boolean; eta?: string } | null>(null)
+    const downloadControlRef = useRef({ isPaused: false, isCancelled: false, startTime: 0, pauseStartTime: 0, totalPausedMs: 0 })
 
     useEffect(() => {
         loadSavedData()
@@ -302,7 +302,7 @@ export function useLibrary() {
         }
         
         setIsLoading(true)
-        downloadControlRef.current = { isPaused: false, isCancelled: false }
+        downloadControlRef.current = { isPaused: false, isCancelled: false, startTime: Date.now(), pauseStartTime: 0, totalPausedMs: 0 }
 
         let successCount = 0
         let completedCount = 0
@@ -319,7 +319,7 @@ export function useLibrary() {
         let currentIndex = 0
         
         // Initial state
-        setDownloadProgress({ current: 0, total, currentTrack: '準備中...', isPaused: false })
+        setDownloadProgress({ current: 0, total, currentTrack: '準備中...', isPaused: false, eta: '計算中...' })
         
         const worker = async () => {
             while (true) {
@@ -367,7 +367,31 @@ export function useLibrary() {
                 
                 if (!downloadControlRef.current.isCancelled) {
                     completedCount++
-                    setDownloadProgress(prev => prev ? { ...prev, current: completedCount } : null)
+                    
+                    let etaStr = '計算中...'
+                    if (completedCount > 0) {
+                        const ref = downloadControlRef.current
+                        let activeMs = Date.now() - ref.startTime - ref.totalPausedMs
+                        if (ref.isPaused && ref.pauseStartTime > 0) {
+                            activeMs -= (Date.now() - ref.pauseStartTime)
+                        }
+                        activeMs = Math.max(1000, activeMs)
+                        
+                        const avgMsPerTrack = activeMs / completedCount
+                        const remainingTracks = total - completedCount
+                        const remainingMs = avgMsPerTrack * remainingTracks
+                        
+                        const remainingSec = Math.floor(remainingMs / 1000)
+                        if (remainingSec < 60) {
+                            etaStr = `約 ${remainingSec} 秒`
+                        } else {
+                            const remainingMin = Math.floor(remainingSec / 60)
+                            const remainingSecRem = remainingSec % 60
+                            etaStr = `約 ${remainingMin} 分 ${remainingSecRem} 秒`
+                        }
+                    }
+                    
+                    setDownloadProgress(prev => prev ? { ...prev, current: completedCount, eta: etaStr } : null)
                 }
             }
         }
@@ -423,8 +447,19 @@ export function useLibrary() {
         processDownloadImport,
         isLoading,
         downloadProgress,
-        pauseDownload: () => { downloadControlRef.current.isPaused = true; setDownloadProgress(prev => prev ? { ...prev, isPaused: true } : null); },
-        resumeDownload: () => { downloadControlRef.current.isPaused = false; setDownloadProgress(prev => prev ? { ...prev, isPaused: false } : null); },
+        pauseDownload: () => { 
+            downloadControlRef.current.isPaused = true; 
+            downloadControlRef.current.pauseStartTime = Date.now();
+            setDownloadProgress(prev => prev ? { ...prev, isPaused: true } : null); 
+        },
+        resumeDownload: () => { 
+            downloadControlRef.current.isPaused = false; 
+            if (downloadControlRef.current.pauseStartTime > 0) {
+                downloadControlRef.current.totalPausedMs += Date.now() - downloadControlRef.current.pauseStartTime;
+                downloadControlRef.current.pauseStartTime = 0;
+            }
+            setDownloadProgress(prev => prev ? { ...prev, isPaused: false } : null); 
+        },
         cancelDownload: () => { 
             downloadControlRef.current.isCancelled = true;
             setDownloadProgress(null); 
