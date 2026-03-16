@@ -2,7 +2,7 @@ import React from 'react';
 import styles from './ConfirmationModal.module.css';
 
 interface DownloadProgressModalProps {
-    progress: { current: number; total: number; currentTrack: string; isPaused: boolean; eta?: string; speedStr?: string } | null;
+    progress: { current: number; total: number; currentTracks: string[]; isPaused: boolean; eta?: string; speedStr?: string } | null;
     onPause: () => void;
     onResume: () => void;
     onCancel: () => void;
@@ -25,9 +25,13 @@ export const DownloadProgressModal: React.FC<DownloadProgressModalProps> = ({
                 <p className={styles.message} style={{ marginBottom: '12px' }}>
                     整體進度：{progress.current} / {progress.total} 首
                 </p>
-                <p className={styles.message} style={{ color: '#fff', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    目前下載：{progress.currentTrack}
-                </p>
+                <div style={{ maxHeight: '60px', overflowY: 'auto', marginBottom: '8px' }}>
+                    {progress.currentTracks.map((title, i) => (
+                        <p key={i} className={styles.message} style={{ color: '#fff', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: '4px 0' }}>
+                            <span style={{ color: '#8b5cf6', marginRight: '6px' }}>⟳</span> {title}
+                        </p>
+                    ))}
+                </div>
                 {progress.eta && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
                         <p className={styles.message} style={{ color: 'var(--text-muted)', fontSize: '0.9em', margin: 0 }}>

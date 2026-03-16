@@ -23,8 +23,8 @@ export function useLibrary() {
     const [playlists, setPlaylists] = useState<Playlist[]>([])
     const [favorites, setFavorites] = useState<Track[]>([])
     const [isLoading, setIsLoading] = useState(false)
-    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTrack: string; isPaused: boolean; eta?: string; speedStr?: string } | null>(null)
-    const downloadControlRef = useRef({ isPaused: false, isCancelled: false, startTime: 0, pauseStartTime: 0, totalPausedMs: 0 })
+    const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTracks: string[]; isPaused: boolean; eta?: string; speedStr?: string } | null>(null)
+    const downloadControlRef = useRef({ isPaused: false, isCancelled: false, startTime: 0, pauseStartTime: 0, totalPausedMs: 0, activeTracks: [] as string[] })
     const downloadSpeedsRef = useRef<Record<string, string>>({})
 
     useEffect(() => {
@@ -336,13 +336,13 @@ export function useLibrary() {
         }
         
         setIsLoading(true)
-        downloadControlRef.current = { isPaused: false, isCancelled: false, startTime: Date.now(), pauseStartTime: 0, totalPausedMs: 0 }
+        downloadControlRef.current = { isPaused: false, isCancelled: false, startTime: Date.now(), pauseStartTime: 0, totalPausedMs: 0, activeTracks: [] }
 
         let successCount = 0
         let completedCount = 0
         const total = data.tracks.length
         
-        setDownloadProgress({ current: 0, total: 1, currentTrack: '分析現有檔案，準備增量更新...', isPaused: false, eta: '分析中...' })
+        setDownloadProgress({ current: 0, total: 1, currentTracks: ['分析現有檔案，準備增量更新...'], isPaused: false, eta: '分析中...' })
         let existingTitles = new Set<string>()
         try {
             const existingTracks = await scanFolder(targetDir)
@@ -377,7 +377,7 @@ export function useLibrary() {
         let currentIndex = 0
         
         // Initial state
-        setDownloadProgress({ current: 0, total: totalToDownload, currentTrack: `準備下載 ${totalToDownload} 首新歌...`, isPaused: false, eta: '計算中...' })
+        setDownloadProgress({ current: 0, total: totalToDownload, currentTracks: [`準備下載 ${totalToDownload} 首新歌...`], isPaused: false, eta: '計算中...' })
         
         const worker = async () => {
             while (true) {
@@ -410,7 +410,10 @@ export function useLibrary() {
                 // 由新到舊分配時間 (使用原始歌單的 Index, 而非下載 Task Index)
                 const trackMs = nowMs - originalIndex * stepMs
                 
-                setDownloadProgress(prev => prev ? { ...prev, currentTrack: t.title || '處理中...' } : null)
+                // Update state: Add to active tracks
+                const currentDownloadingTitle = t.title || '處理中...'
+                downloadControlRef.current.activeTracks.push(currentDownloadingTitle)
+                setDownloadProgress(prev => prev ? { ...prev, currentTracks: [...downloadControlRef.current.activeTracks] } : null)
                 
                 try {
                     const query = `${t.title} ${t.artist || ''}`.trim()
@@ -426,6 +429,9 @@ export function useLibrary() {
                 if (!downloadControlRef.current.isCancelled) {
                     completedCount++
                     
+                    // Remove from active tracks
+                    downloadControlRef.current.activeTracks = downloadControlRef.current.activeTracks.filter(name => name !== currentDownloadingTitle)
+
                     let etaStr = '計算中...'
                     if (completedCount > 0) {
                         const ref = downloadControlRef.current
@@ -449,7 +455,7 @@ export function useLibrary() {
                         }
                     }
                     
-                    setDownloadProgress(prev => prev ? { ...prev, current: completedCount, eta: etaStr } : null)
+                    setDownloadProgress(prev => prev ? { ...prev, current: completedCount, currentTracks: [...downloadControlRef.current.activeTracks], eta: etaStr } : null)
                 }
             }
         }
