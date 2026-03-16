@@ -343,37 +343,21 @@ export function useLibrary() {
         const total = data.tracks.length
         
         setDownloadProgress({ current: 0, total: 1, currentTracks: ['分析現有檔案，準備增量更新...'], isPaused: false, eta: '分析中...' })
-        let existingTitles = new Set<string>()
-        let rawExistingTitles: string[] = []
+        
+        let existingFiles = new Set<string>()
         try {
-            const existingTracks = await scanFolder(targetDir)
-            rawExistingTitles = existingTracks.map(trk => (trk.title || '').toLowerCase())
-            
-            // Normalize names by removing extra spaces, brackets, and making lowercase
-            existingTitles = new Set(existingTracks.map(trk => {
-                let stripped = (trk.title || '').replace(/[\(\[\{].*?[\)\]\}]/g, '').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').trim().toLowerCase()
-                return stripped.length > 0 ? stripped : (trk.title || '').trim().toLowerCase()
-            }))
+            const files = await window.ipcRenderer.listMusicFiles(targetDir)
+            existingFiles = new Set(files.map(f => f.replace(/^.*[\\/]/, '').toLowerCase()))
         } catch (e) {}
         
         const tracksToDownload = data.tracks
             .map((t: Track, index: number) => ({ t, index }))
             .filter(({ t }: { t: Track }) => {
-                const titleStr = (t.title || '').toLowerCase()
+                const safeTitle = (t.title || '').replace(/[\\/:*?"<>|]/g, '_').trim()
+                const expectedFilename = `${safeTitle}.m4a`.toLowerCase()
                 
-                // Very basic check first: if exact match exists
-                if (rawExistingTitles.some(et => et === titleStr || et.includes(titleStr) || titleStr.includes(et))) {
-                    return false;
-                }
-                
-                let normalizedQuery = (t.title || '').replace(/[\(\[\{].*?[\)\]\}]/g, '').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').trim().toLowerCase()
-                
-                // Fallback if stripped completely
-                if (normalizedQuery.length === 0) {
-                    normalizedQuery = (t.title || '').trim().toLowerCase()
-                }
-
-                return !existingTitles.has(normalizedQuery)
+                // Only skip if the EXACT safe filename we are about to generate already exists
+                return !existingFiles.has(expectedFilename)
             })
             
         const totalToDownload = tracksToDownload.length
