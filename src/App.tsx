@@ -12,16 +12,35 @@ import './index.css'
 
 import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
 import { DiscordControlPanel } from './components/DiscordBot/DiscordControlPanel'
+import { ImportChoiceModal } from './components/UI/ImportChoiceModal'
 
 function App() {
   const {
     playlists, favorites, allTracks,
     addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
-    exportPlaylist, importPlaylist
+    exportPlaylist, readImportFile, processStreamImport, processDownloadImport
   } = useLibrary()
 
   const [view, setView] = useState('all_songs')
   const [showLyrics, setShowLyrics] = useState(false)
+  const [importModalData, setImportModalData] = useState<any | null>(null)
+
+  const handleImportClick = async () => {
+    const data = await readImportFile()
+    if (data) {
+      setImportModalData(data)
+    }
+  }
+
+  const handleSelectStream = () => {
+    if (importModalData) processStreamImport(importModalData)
+    setImportModalData(null)
+  }
+
+  const handleSelectDownload = () => {
+    if (importModalData) processDownloadImport(importModalData)
+    setImportModalData(null)
+  }
 
   const {
     isPlaying, currentTrack, currentTime, duration, volume, is8D,
@@ -159,7 +178,7 @@ function App() {
         onRenameFolder={renameFolder}
         onRefreshLibrary={refreshLibrary}
         onExportPlaylist={exportPlaylist}
-        onImportPlaylist={importPlaylist}
+        onImportPlaylist={handleImportClick}
         currentView={view}
         onChangeView={setView}
       />
@@ -241,6 +260,14 @@ function App() {
           onSetFocusMode={setFocusMode}
           onSetNormalization={setNormalization}
           onToggleLyrics={() => setShowLyrics(!showLyrics)}
+        />
+
+        <ImportChoiceModal
+          isOpen={!!importModalData}
+          playlistName={importModalData?.name || ''}
+          onSelectStream={handleSelectStream}
+          onSelectDownload={handleSelectDownload}
+          onCancel={() => setImportModalData(null)}
         />
       </main>
     </div>
