@@ -344,7 +344,9 @@ export function useLibrary() {
                 }
 
                 const t = data.tracks[taskIndex]
-                const trackMs = start2022Ms + taskIndex * stepMs
+                
+                // 由新到舊分配時間 (Task 0 = 最新時間 = 排在最頂端)
+                const trackMs = nowMs - taskIndex * stepMs
                 
                 setDownloadProgress(prev => prev ? { ...prev, current: taskIndex, currentTrack: t.title || '處理中...' } : { current: taskIndex, total, currentTrack: t.title || '處理中...', isPaused: false })
                 
@@ -370,8 +372,7 @@ export function useLibrary() {
         await Promise.all(workers)
 
         if (downloadControlRef.current.isCancelled) {
-            alert(`已取消下載。已成功下載 ${successCount} 首歌。\n正在將資料夾加入音樂庫...`)
-            setDownloadProgress(null)
+            alert(`已取消下載。排程已終止 (已完成 ${successCount} 首)。\n正在將資料夾加入音樂庫...`)
             setIsLoading(false)
             // Still add folder up to now
         } else {
@@ -410,9 +411,12 @@ export function useLibrary() {
         processDownloadImport,
         isLoading,
         downloadProgress,
-        pauseDownload: () => { downloadControlRef.current.isPaused = true },
-        resumeDownload: () => { downloadControlRef.current.isPaused = false },
-        cancelDownload: () => { downloadControlRef.current.isCancelled = true },
+        pauseDownload: () => { downloadControlRef.current.isPaused = true; setDownloadProgress(prev => prev ? { ...prev, isPaused: true } : null); },
+        resumeDownload: () => { downloadControlRef.current.isPaused = false; setDownloadProgress(prev => prev ? { ...prev, isPaused: false } : null); },
+        cancelDownload: () => { 
+            downloadControlRef.current.isCancelled = true;
+            setDownloadProgress(null); 
+        },
         refreshLibrary: loadSavedData
     }
 }
