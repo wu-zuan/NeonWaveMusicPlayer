@@ -28,15 +28,27 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFav
 
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
-                // Fetch artwork
-                // Using a small delay or low priority queue could be even better, but direct IPC is fine for now
-                window.ipcRenderer.getAudioArtwork(track.path)
-                    .then((art: string | null) => {
-                        if (art) setArtwork(art)
-                    })
-                    .catch(() => {
-                        // ignore errors
-                    })
+                if (track.path.startsWith('shared:')) {
+                    const query = track.path.replace('shared:', '')
+                    window.ipcRenderer.searchYouTube(query).then(results => {
+                        if (results && results.length > 0) {
+                            if (results[0].thumbnail) setArtwork(results[0].thumbnail)
+                            if (results[0].duration) {
+                                track.duration = results[0].duration
+                                // Force re-render of this item to show duration
+                                setArtwork((prev) => prev);
+                            }
+                        }
+                    }).catch(() => {})
+                } else {
+                    window.ipcRenderer.getAudioArtwork(track.path)
+                        .then((art: string | null) => {
+                            if (art) setArtwork(art)
+                        })
+                        .catch(() => {
+                            // ignore errors
+                        })
+                }
                 observer.disconnect()
             }
         }, { rootMargin: '50px' }) // Start loading slightly before it appears

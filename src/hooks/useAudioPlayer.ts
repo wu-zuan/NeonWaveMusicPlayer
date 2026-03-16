@@ -102,12 +102,37 @@ export function useAudioPlayer() {
 
         // Clone track to avoid mutating the playlist object
         const trackToPlay = { ...originalTrack }
+        
+        // Optimistic UI update: Set the current track immediately so it shows up in PlayerBar
+        if (currentTrack?.path !== trackToPlay.path) {
+            if (!audio.paused) {
+                try { audio.pause() } catch (e) { }
+            }
+            audio.currentTime = 0
+            
+            // Add to history
+            if (currentTrack) {
+                setHistory(prev => {
+                    const { artwork, ...lightweightTrack } = currentTrack
+                    const newHistory = [...prev, lightweightTrack]
+                    if (newHistory.length > 50) return newHistory.slice(-50)
+                    return newHistory
+                })
+            }
+            
+            setCurrentTrack(trackToPlay)
+            // Empty src while loading to stop previous audio
+            audio.src = ''
+        }
 
         // Always attempt to load artwork if missing, ensuring UI has it even on replay
-        if (!trackToPlay.artwork) {
+        if (!trackToPlay.artwork && !trackToPlay.path.startsWith('shared:')) {
             try {
                 const art = await window.ipcRenderer.getAudioArtwork(trackToPlay.path)
-                if (art) trackToPlay.artwork = art
+                if (art) {
+                    trackToPlay.artwork = art
+                    setCurrentTrack({ ...trackToPlay }) // Update UI with art
+                }
             } catch (e) {
                 console.warn("Failed to load artwork lazily", e)
             }
@@ -120,9 +145,25 @@ export function useAudioPlayer() {
                 const query = trackToPlay.path.replace('shared:', '')
                 const results = await window.ipcRenderer.searchYouTube(query)
                 if (results && results.length > 0) {
+                    // Start preview loading
                     const streamInfo = await window.ipcRenderer.getYouTubePreview(results[0].url)
+                    
+                    if (!trackToPlay.artwork && results[0].thumbnail) {
+                        trackToPlay.artwork = results[0].thumbnail
+                    }
+                    if (!trackToPlay.duration && results[0].duration) {
+                        trackToPlay.duration = results[0].duration
+                    }
+                    
+                    // Update state again to show fetched thumbnail/duration
+                    setCurrentTrack({ ...trackToPlay })
+
                     if (streamInfo && streamInfo.url) {
                         finalUrl = streamInfo.url
+                        
+                        // We must set crossOrigin=anonymous to use 8D/Spatial Effects with <audio>
+                        // In Electron with webSecurity: false, Chromium won't throw CORS errors for this.
+                        audioRef.current.crossOrigin = "anonymous"
                     } else throw new Error("No stream URL")
                 } else throw new Error("Not found on YouTube")
             } catch (e) {
@@ -131,39 +172,21 @@ export function useAudioPlayer() {
                 return
             }
         } else {
+            // Restore crossOrigin for local files so 8D Audio and EQ work
+            audioRef.current.crossOrigin = "anonymous"
             const encodedPath = trackToPlay.path.split(/[\\/]/).map(encodeURIComponent).join('/')
             finalUrl = `file:///${encodedPath}`
         }
 
-        // If switching tracks
-        if (currentTrack?.path !== trackToPlay.path) {
-
-            // Force pause before switching
-            if (!audio.paused) {
-                try { audio.pause() } catch (e) { }
-            }
-            audio.currentTime = 0
-
-            // Add to history if it's different and we have a current track
-            if (currentTrack) {
-                setHistory(prev => {
-                    // Optimized: Strip artwork from history to save memory
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    const { artwork, ...lightweightTrack } = currentTrack
-                    const newHistory = [...prev, lightweightTrack]
-                    if (newHistory.length > 50) return newHistory.slice(-50)
-                    return newHistory
-                })
-            }
-
+        // Apply Final URL for new track
+        if (audio.src !== finalUrl) {
             audio.src = finalUrl
-            setCurrentTrack(trackToPlay)
             audio.load()
-        } else {
-            // Same track: If we just loaded artwork (and it wasn't there before), update state
-            if (trackToPlay.artwork && !currentTrack?.artwork) {
-                setCurrentTrack(prev => prev ? ({ ...prev, artwork: trackToPlay.artwork }) : trackToPlay)
-            }
+        }
+
+        // Same track: If we just loaded artwork (and it wasn't there before), update state
+        if (currentTrack?.path === trackToPlay.path && trackToPlay.artwork && !currentTrack?.artwork) {
+            setCurrentTrack(prev => prev ? ({ ...prev, artwork: trackToPlay.artwork }) : trackToPlay)
         }
 
         try {
