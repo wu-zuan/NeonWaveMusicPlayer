@@ -351,7 +351,18 @@ export function useLibrary() {
         } catch (e) {}
         
         const tracksToDownload = data.tracks
-            .map((t: Track, index: number) => ({ t, index }))
+            .map((t: Track, index: number) => {
+                // Fix for old imported tracks: remove extensions from title
+                let cleanTitle = (t.title || '').replace(/\.(mp3|wav|wma|m4a|flac|ogg|mp4|mov|wmv|avi)$/i, '').trim()
+                
+                // Remove dummy artists that ruin YouTube searches
+                let cleanArtist = t.artist || ''
+                if (['未知演出者', '未知專輯', 'Unknown', 'Unknown Artist'].includes(cleanArtist)) {
+                    cleanArtist = ''
+                }
+                
+                return { t: { ...t, title: cleanTitle, artist: cleanArtist }, index }
+            })
             .filter(({ t }: { t: Track }) => {
                 const safeTitle = (t.title || '').replace(/[\\/:*?"<>|]/g, '_').trim()
                 const expectedFilename = `${safeTitle}.m4a`.toLowerCase()
