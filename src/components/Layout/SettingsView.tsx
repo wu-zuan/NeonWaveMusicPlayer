@@ -149,13 +149,13 @@ export function SettingsView() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: 'var(--text-muted)' }}>並行下載數量 (最多幾首歌同時下載)</span>
                             <select 
+                                className="settings-select"
                                 defaultValue={localStorage.getItem('neonwave_download_concurrency') || '2'}
                                 onChange={(e) => localStorage.setItem('neonwave_download_concurrency', e.target.value)}
-                                style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--glass-border)', padding: '8px', borderRadius: '8px' }}
                             >
-                                <option value="1">1 首 (較省效能)</option>
-                                <option value="2">2 首</option>
-                                <option value="3">3 首</option>
+                                <option value="1">1 首 (低配電腦/筆電)</option>
+                                <option value="2">2 首 (建議預設)</option>
+                                <option value="3">3 首 (進階多工)</option>
                                 <option value="5">5 首 (不建議配置普通網路)</option>
                             </select>
                         </div>
@@ -163,15 +163,18 @@ export function SettingsView() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: 'var(--text-muted)' }}>網路速度限制 (單首歌最高速度)</span>
                             <select 
+                                className="settings-select"
                                 defaultValue={localStorage.getItem('neonwave_download_speed') || '0'}
                                 onChange={(e) => localStorage.setItem('neonwave_download_speed', e.target.value)}
-                                style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--glass-border)', padding: '8px', borderRadius: '8px' }}
                             >
-                                <option value="0">無限制 (極速下載)</option>
-                                <option value="1M">1 MB/s</option>
-                                <option value="3M">3 MB/s</option>
-                                <option value="5M">5 MB/s</option>
-                                <option value="500K">500 KB/s</option>
+                                <option value="0">無限制 (自動適應極速)</option>
+                                <option value="125M">1 Gbps (光世代 1G)</option>
+                                <option value="62M">500 Mbps (光世代 500M)</option>
+                                <option value="37M">300 Mbps (光世代 300M)</option>
+                                <option value="12M">100 Mbps (光世代 100M)</option>
+                                <option value="7M">60 Mbps (光世代 60M)</option>
+                                <option value="2M">一般家庭 Wi-Fi 分享</option>
+                                <option value="500K">省頻寬 (背景低速下載)</option>
                             </select>
                         </div>
                     </div>
@@ -180,6 +183,37 @@ export function SettingsView() {
 
             <style>{`
         @keyframes spin { 100% { transform: rotate(360deg); } }
+        .settings-select {
+            appearance: none;
+            background-color: rgba(0, 0, 0, 0.4);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 10px 36px 10px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'16'%20height%3D'16'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'%23a1a1aa'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpolyline%20points%3D'6%209%2012%2015%2018%209'%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            outline: none;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .settings-select:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+        .settings-select:focus {
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        .settings-select option {
+            background-color: #1a1b1e;
+            color: #fff;
+            font-size: 14px;
+            padding: 12px;
+        }
       `}</style>
         </div>
     )
