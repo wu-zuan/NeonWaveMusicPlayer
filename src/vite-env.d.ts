@@ -16,7 +16,7 @@ interface Window {
         searchYouTube(query: string): Promise<any[]>
         getYouTubePreview(url: string, title?: string, artist?: string): Promise<{ url: string, startTime: number } | null>
         downloadYouTube(url: string, title: string, artist?: string): Promise<string | null>
-        downloadYouTubeToDir(url: string, title: string, artist: string, dir: string, limitRate?: string): Promise<string | null>
+        downloadYouTubeToDir(url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number): Promise<string | null>
         getArtistImage(name: string): Promise<string | null>
         getLyrics(title: string, artist: string, filePath?: string, duration?: number): Promise<string | null>
 

@@ -305,6 +305,7 @@ export function useLibrary() {
         downloadControlRef.current = { isPaused: false, isCancelled: false }
 
         let successCount = 0
+        let completedCount = 0
         const total = data.tracks.length
         
         const concurrency = parseInt(localStorage.getItem('neonwave_download_concurrency') || '2')
@@ -316,6 +317,9 @@ export function useLibrary() {
         const stepMs = total > 1 ? (nowMs - start2022Ms) / (total - 1) : 0
 
         let currentIndex = 0
+        
+        // Initial state
+        setDownloadProgress({ current: 0, total, currentTrack: '準備中...', isPaused: false })
         
         const worker = async () => {
             while (true) {
@@ -348,7 +352,7 @@ export function useLibrary() {
                 // 由新到舊分配時間 (Task 0 = 最新時間 = 排在最頂端)
                 const trackMs = nowMs - taskIndex * stepMs
                 
-                setDownloadProgress(prev => prev ? { ...prev, current: taskIndex, currentTrack: t.title || '處理中...' } : { current: taskIndex, total, currentTrack: t.title || '處理中...', isPaused: false })
+                setDownloadProgress(prev => prev ? { ...prev, currentTrack: t.title || '處理中...' } : null)
                 
                 try {
                     const query = `${t.title} ${t.artist || ''}`.trim()
@@ -359,6 +363,11 @@ export function useLibrary() {
                     }
                 } catch(err) {
                     console.error("Failed to download track", t, err)
+                }
+                
+                if (!downloadControlRef.current.isCancelled) {
+                    completedCount++
+                    setDownloadProgress(prev => prev ? { ...prev, current: completedCount } : null)
                 }
             }
         }
@@ -371,27 +380,30 @@ export function useLibrary() {
         
         await Promise.all(workers)
 
-        if (downloadControlRef.current.isCancelled) {
-            alert(`已取消下載。排程已終止 (已完成 ${successCount} 首)。\n正在將資料夾加入音樂庫...`)
-            setIsLoading(false)
-            // Still add folder up to now
-        } else {
-            setDownloadProgress({ current: total, total, currentTrack: '即將完成...', isPaused: false })
-            alert(`下載完成！成功 ${successCount}/${total} 首歌。\n正在將資料夾加入音樂庫...`)
-            setDownloadProgress(null)
-        }
-        
-        
-        const currentFolders: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
-        if (!currentFolders.some(f => f.path === targetDir)) {
-            const defaultName = data.name || targetDir.split(/[\\/]/).pop() || '新歌單'
-            const newItem: FolderData = { path: targetDir, name: defaultName }
-            localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify([...currentFolders, newItem]))
-        }
-        
-        // Refresh library to pickup new files
-        await loadSavedData()
+        const finalSuccessCount = successCount
+        const isCancelled = downloadControlRef.current.isCancelled
+
+        // Clear UI states instantly
+        setDownloadProgress(null)
         setIsLoading(false)
+
+        setTimeout(async () => {
+            if (isCancelled) {
+                alert(`已取消下載。排程已終止 (已完成 ${finalSuccessCount} 首)。\n即使取消，已成功下載的歌曲仍會為您加入音樂庫中！`)
+            } else {
+                alert(`下載任務完全結束！在 ${total} 首中成功下載了 ${finalSuccessCount} 首。\n正在將資料夾加入音樂庫...`)
+            }
+            
+            const currentFolders: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
+            if (!currentFolders.some(f => f.path === targetDir)) {
+                const defaultName = data.name || targetDir.split(/[\\/]/).pop() || '新歌單'
+                const newItem: FolderData = { path: targetDir, name: defaultName }
+                localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify([...currentFolders, newItem]))
+            }
+            
+            // Refresh library to pickup new files
+            await loadSavedData()
+        }, 300)
     }
 
     // Flatten all tracks for "All Songs" view
