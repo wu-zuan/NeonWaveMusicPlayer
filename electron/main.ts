@@ -257,6 +257,16 @@ app.whenReady().then(() => {
     discordBot.writeAudioChunk(new Uint8Array(buffer))
   })
 
+  // Update
+  ipcMain.handle('update:check', () => {
+    autoUpdater.checkForUpdatesAndNotify()
+  })
+
+  ipcMain.handle('update:install', () => {
+    // This is the key: It will kill the app and start the installer immediately
+    autoUpdater.quitAndInstall(false, true)
+  })
+
   // IPC Handlers
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
