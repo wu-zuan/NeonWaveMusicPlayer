@@ -342,13 +342,12 @@ export function useAudioPlayer() {
 
     // Discord RPC Sync
     useEffect(() => {
-        if (!currentTrack) {
+        if (!currentTrack || !isPlaying) {
             window.ipcRenderer.invoke('discord:clearPresence').catch(() => {});
             return;
         }
 
         const updatePresence = () => {
-             // Avoid spamming updates (Discord RPC rate limit) though useEffect deps handle most of it
             window.ipcRenderer.invoke('discord:updatePresence', {
                 title: currentTrack.title,
                 artist: currentTrack.artist,
@@ -356,7 +355,7 @@ export function useAudioPlayer() {
                 duration: duration,
                 elapsed: currentTime,
                 artworkUrl: currentTrack.artwork,
-                isPaused: !isPlaying
+                isPaused: false // Since we only show when playing
             }).catch(() => {});
         }
 
