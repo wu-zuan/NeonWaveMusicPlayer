@@ -155,6 +155,7 @@ app.whenReady().then(() => {
 
   async function uploadToCloud(artworkUrl: string): Promise<string | null> {
     try {
+      const { nativeImage } = require('electron');
       let buffer: Buffer;
 
       // 1. Resolve Local Path or Data URI
@@ -175,12 +176,23 @@ app.whenReady().then(() => {
         return null;
       }
 
-      // 2. Upload to Telegra.ph (more stable/anonymous for these tasks)
+      // 2. Smart Resizing & Compression (Fixing the 19MB issue)
+      // Resize to 512px max to keep it light and compatible
+      const image = nativeImage.createFromBuffer(buffer);
+      if (image.isEmpty()) return null;
+      
+      const resizedBuffer = image.resize({
+        width: 512,
+        height: 512,
+        quality: 'better'
+      }).toJPEG(80); // Compress to 80% quality JPEG
+
+      // 3. Upload to Telegra.ph (more stable/anonymous for these tasks)
       const { FormData } = require('formdata-node');
       const { Blob } = require('fetch-blob');
       
       const form = new FormData();
-      const blob = new Blob([buffer], { type: 'image/jpeg' });
+      const blob = new Blob([resizedBuffer], { type: 'image/jpeg' });
       form.append('file', blob, 'cover.jpg');
 
       const response = await fetch('https://telegra.ph/upload', {

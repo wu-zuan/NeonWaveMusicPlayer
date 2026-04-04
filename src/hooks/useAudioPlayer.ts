@@ -363,7 +363,21 @@ export function useAudioPlayer() {
     }, [currentTrack?.path, isPlaying]);
 
 
-    const togglePlay = () => isPlaying ? audioRef.current.pause() : audioRef.current.play()
+    const togglePlay = async () => {
+        if (!audioRef.current) return;
+        try {
+            if (isPlaying) {
+                audioRef.current.pause();
+                setIsPlaying(false);
+            } else {
+                // Ensure we wait for the play promise to avoid interruptions
+                await audioRef.current.play();
+                setIsPlaying(true);
+            }
+        } catch (e) {
+            console.warn("[Audio] Playback was slightly interrupted or blocked:", e);
+        }
+    }
     const seek = (time: number) => { audioRef.current.currentTime = time; setCurrentTime(time) }
 
     return {
