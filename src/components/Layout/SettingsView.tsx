@@ -157,11 +157,60 @@ export function SettingsView() {
                                 padding: '10px 20px', borderRadius: '10px',
                                 background: 'rgba(255,255,255,0.05)',
                                 border: '1px solid var(--glass-border)',
-                                fontSize: '14px', transition: 'all 0.2s'
+                                fontSize: '14px', transition: 'all 0.2s',
+                                marginRight: '10px'
                             }}
                         >
                             一鍵更新圖片動態（清除上傳快取）
                         </button>
+
+                        <button
+                            onClick={async () => {
+                                try {
+                                    // Start scan
+                                    window.ipcRenderer.invoke('discord:scanAndUpload');
+                                } catch (e) {}
+                            }}
+                            style={{
+                                padding: '10px 20px', borderRadius: '10px',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid var(--glass-border)',
+                                fontSize: '14px', transition: 'all 0.2s',
+                                color: 'var(--accent)'
+                            }}
+                        >
+                            批量預載資料夾封面圖
+                        </button>
+
+                        {/* Progress UI */}
+                        <div id="scan-progress-box" style={{ display: 'none', marginTop: '16px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
+                            <div style={{ fontSize: '14px', marginBottom: '8px', color: 'var(--text-main)' }}>
+                                正在掃描並上傳封面... <span id="scan-count">0/0</span>
+                            </div>
+                            <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                                <div id="scan-bar" style={{ width: '0%', height: '100%', background: 'var(--accent)', transition: 'width 0.2s' }}></div>
+                            </div>
+                            <div id="scan-success" style={{ fontSize: '12px', marginTop: '8px', color: '#4ade80' }}>
+                                成功上傳: 0
+                            </div>
+                        </div>
+
+                        <script dangerouslySetInnerHTML={{ __html: `
+                            window.ipcRenderer.on('discord:scanProgress', (event, data) => {
+                                const box = document.getElementById('scan-progress-box');
+                                const count = document.getElementById('scan-count');
+                                const bar = document.getElementById('scan-bar');
+                                const success = document.getElementById('scan-success');
+                                if (box) box.style.display = 'block';
+                                if (count) count.innerText = data.current + " / " + data.total;
+                                if (bar) bar.style.width = (data.current / data.total * 100) + "%";
+                                if (success) success.innerText = "成功上傳: " + data.success;
+                                
+                                if (data.current === data.total) {
+                                    setTimeout(() => { if(box) box.style.display = 'none'; }, 3000);
+                                }
+                            });
+                        `}} />
                     </div>
                 </div>
 

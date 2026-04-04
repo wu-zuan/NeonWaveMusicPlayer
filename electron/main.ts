@@ -151,31 +151,49 @@ app.whenReady().then(() => {
   const discordRPC = new DiscordRPCManager()
 
   // --- MEMORY CACHE FOR UPLOADED IMAGES ---
-  const imageCache = new Map<string, string>(); // Key: track unique identifier, Value: Imgur URL
+  const imageCache = new Map<string, string>();
 
-  async function uploadToCloud(base64Data: string): Promise<string | null> {
+  async function uploadToCloud(artworkUrl: string): Promise<string | null> {
     try {
-      // Stripping data:image/xxx;base64, if present
-      const base64 = base64Data.includes('base64,') ? base64Data.split('base64,')[1] : base64Data;
+      let buffer: Buffer;
 
-      const formData = new URLSearchParams();
-      formData.append('image', base64);
-      formData.append('type', 'base64');
+      // 1. Resolve Local Path or Data URI
+      if (artworkUrl.startsWith('data:')) {
+        const base64Data = artworkUrl.split('base64,')[1];
+        buffer = Buffer.from(base64Data, 'base64');
+      } else if (artworkUrl.startsWith('media://') || artworkUrl.startsWith('file://')) {
+        let realPath = artworkUrl.replace('media://', '').replace('file://', '');
+        realPath = decodeURIComponent(realPath);
+        if (realPath.startsWith('/') && process.platform === 'win32') realPath = realPath.substring(1);
+        
+        try {
+          buffer = await fs.readFile(realPath);
+        } catch(e) {
+          return null;
+        }
+      } else {
+        return null;
+      }
 
-      const response = await fetch('https://api.imgur.com/3/image', {
+      // 2. Upload to Telegra.ph (more stable/anonymous for these tasks)
+      const { FormData } = require('formdata-node');
+      const { Blob } = require('fetch-blob');
+      
+      const form = new FormData();
+      const blob = new Blob([buffer], { type: 'image/jpeg' });
+      form.append('file', blob, 'cover.jpg');
+
+      const response = await fetch('https://telegra.ph/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': 'Client-ID f2a7db680ef040b' // Correct Imgur Client-ID
-        },
-        body: formData
+        body: form
       });
 
       const res: any = await response.json();
-      if (res.success && res.data && res.data.link) {
-        return res.data.link;
+      if (Array.isArray(res) && res[0] && res[0].src) {
+        return `https://telegra.ph${res[0].src}`;
       }
     } catch (e) {
-      console.error('[CloudUpload] Error:', e);
+      console.error('[CloudUpload] Failed:', e);
     }
     return null;
   }
@@ -186,34 +204,20 @@ app.whenReady().then(() => {
 
     if (imageCache.has(cacheKey)) {
       artworkUrl = imageCache.get(cacheKey);
-    }
+    } 
     else if (artworkUrl && artworkUrl.startsWith('http') && !artworkUrl.includes('localhost')) {
-      // already a web URL
-    }
-    else if (artworkUrl && (artworkUrl.startsWith('data:') || artworkUrl.includes('localhost') || artworkUrl.startsWith('media://'))) {
+      // It's a public URL (like YouTube), use directly
+    } 
+    else if (artworkUrl) {
+      // It's a local thing (media:// or base64), UPLOAD IT!
       const uploadedUrl = await uploadToCloud(artworkUrl);
       if (uploadedUrl) {
         artworkUrl = uploadedUrl;
         imageCache.set(cacheKey, uploadedUrl);
+      } else {
+        // IF UPLOAD FAILED, DO NOT SEARCH ITUNES. USE LOGO.
+        artworkUrl = 'logo';
       }
-    }
-
-    // Final Fallback: If still no URL, use iTunes Search
-    if (!artworkUrl || !artworkUrl.startsWith('http')) {
-      try {
-        const cleanStr = (s: string) => (s || "").split(' - ')[0].replace(/[『』「」]/g, '').replace(/（[^）]*原唱[^）]*）/g, '').replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').replace(/official|music|video|mv|hd|hq|lyrics?|官方|完整版/gi, '').trim();
-        const qTitle = cleanStr(data.title);
-        const qArtist = cleanStr(data.artist);
-
-        const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(qTitle + ' ' + qArtist)}&media=music&entity=song&limit=1`;
-        const res = await fetch(itunesUrl);
-        if (res.ok) {
-          const json: any = await res.json();
-          if (json.results && json.results.length > 0) {
-            artworkUrl = json.results[0].artworkUrl100.replace('100x100bb', '600x600bb');
-          }
-        }
-      } catch (e) { }
     }
 
     return await discordRPC.setActivity({
@@ -228,6 +232,75 @@ app.whenReady().then(() => {
     imageCache.clear();
     return true;
   })
+
+  ipcMain.handle('discord:scanAndUpload', async (event) => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'multiSelections']
+    });
+
+    if (result.canceled || result.filePaths.length === 0) return { status: 'canceled' };
+
+    const folderPath = result.filePaths[0];
+    const mm = await import('music-metadata');
+    const walk = async (dir: string): Promise<string[]> => {
+      let files: string[] = [];
+      const list = await fs.readdir(dir);
+      for (const file of list) {
+        const fullPath = path.join(dir, file);
+        const stat = await fs.stat(fullPath);
+        if (stat.isDirectory()) files = files.concat(await walk(fullPath));
+        else if (/\.(mp3|m4a|flac|wav|ogg)$/i.test(file)) files.push(fullPath);
+      }
+      return files;
+    };
+
+    const files = await walk(folderPath);
+    let successCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const metadata = await mm.parseFile(file);
+        const title = metadata.common.title;
+        const artist = metadata.common.artist;
+        
+        if (title && artist) {
+          const cacheKey = `${title}-${artist}`;
+          if (!imageCache.has(cacheKey) && metadata.common.picture && metadata.common.picture.length > 0) {
+            // Found embedded picture!
+            const pic = metadata.common.picture[0];
+            const buffer = Buffer.from(pic.data);
+            
+            // Upload
+            const { FormData } = require('formdata-node');
+            const { Blob } = require('fetch-blob');
+            const form = new FormData();
+            const blob = new Blob([buffer], { type: pic.format || 'image/jpeg' });
+            form.append('file', blob, 'cover.jpg');
+
+            const res = await fetch('https://telegra.ph/upload', { method: 'POST', body: form });
+            const json: any = await res.json();
+            if (Array.isArray(json) && json[0] && json[0].src) {
+              imageCache.set(cacheKey, `https://telegra.ph${json[0].src}`);
+              successCount++;
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[PreUpload] Error parsing ${file}:`, e);
+      }
+
+      // Update UI progress
+      win?.webContents.send('discord:scanProgress', {
+        current: i + 1,
+        total: files.length,
+        success: successCount
+      });
+    }
+
+    return { status: 'completed', total: files.length, success: successCount };
+  });
 
   ipcMain.handle('discord:clearPresence', () => {
     return discordRPC.clearActivity()
