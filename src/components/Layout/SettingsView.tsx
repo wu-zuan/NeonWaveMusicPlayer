@@ -140,6 +140,29 @@ export function SettingsView() {
                             <button onClick={checkForUpdates} style={{ marginLeft: '16px', textDecoration: 'underline' }}>重試</button>
                         </div>
                     )}
+
+                    <div style={{ marginTop: '24px', borderTop: '1px solid var(--glass-border)', paddingTop: '24px' }}>
+                        <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>Discord 狀態優化</h4>
+                        <button
+                            onClick={async (e) => {
+                                const btn = e.currentTarget;
+                                const originalText = btn.innerHTML;
+                                try {
+                                    await window.ipcRenderer.invoke('discord:clearCache');
+                                    btn.innerHTML = '<span style="color:#4ade80">✓ 快取已清理，重新播放即可更新</span>';
+                                    setTimeout(() => btn.innerHTML = originalText, 3000);
+                                } catch (e) {}
+                            }}
+                            style={{
+                                padding: '10px 20px', borderRadius: '10px',
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid var(--glass-border)',
+                                fontSize: '14px', transition: 'all 0.2s'
+                            }}
+                        >
+                            一鍵更新圖片動態（清除上傳快取）
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '24px', marginTop: '24px' }}>

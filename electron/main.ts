@@ -165,7 +165,7 @@ app.whenReady().then(() => {
       const response = await fetch('https://api.imgur.com/3/image', {
         method: 'POST',
         headers: {
-          'Authorization': 'Client-ID 1464451133346021512' // A shared client ID
+          'Authorization': 'Client-ID f2a7db680ef040b' // Correct Imgur Client-ID
         },
         body: formData
       });
@@ -190,7 +190,7 @@ app.whenReady().then(() => {
     else if (artworkUrl && artworkUrl.startsWith('http') && !artworkUrl.includes('localhost')) {
       // already a web URL
     }
-    else if (artworkUrl && (artworkUrl.startsWith('data:') || artworkUrl.includes('localhost'))) {
+    else if (artworkUrl && (artworkUrl.startsWith('data:') || artworkUrl.includes('localhost') || artworkUrl.startsWith('media://'))) {
       const uploadedUrl = await uploadToCloud(artworkUrl);
       if (uploadedUrl) {
         artworkUrl = uploadedUrl;
@@ -222,6 +222,11 @@ app.whenReady().then(() => {
       artist: data.artist,
       artworkUrl: (artworkUrl && artworkUrl.startsWith('http')) ? artworkUrl : 'logo'
     })
+  })
+
+  ipcMain.handle('discord:clearCache', () => {
+    imageCache.clear();
+    return true;
   })
 
   ipcMain.handle('discord:clearPresence', () => {
