@@ -47,12 +47,12 @@ export class DiscordRPCManager {
             if (!this.isReady) return;
         }
 
-        const { title, artist, album, duration, elapsed, artworkUrl, isPaused } = data;
+        const { title, artist, duration, elapsed, artworkUrl, isPaused } = data;
 
         const activity: RPC.Presence = {
             details: title,
-            state: artist ? `${artist}${album ? ` - ${album}` : ''}` : 'Listening...',
-            largeImageKey: artworkUrl || 'logo', // Use 'logo' as fallback (must be uploaded to Discord dev portal or a URL)
+            state: artist || 'Listening...',
+            largeImageKey: artworkUrl || 'logo',
             largeImageText: title,
             instance: false,
         };

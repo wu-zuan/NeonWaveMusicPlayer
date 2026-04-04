@@ -153,12 +153,26 @@ app.whenReady().then(() => {
   ipcMain.handle('discord:updatePresence', async (_, data) => {
     let artworkUrl = data.artworkUrl;
 
-    // If art is base64 or missing, we search for a public URL
-    if (!artworkUrl || artworkUrl.startsWith('data:')) {
+    // Use existing public URL if available (e.g. from YouTube)
+    if (artworkUrl && artworkUrl.startsWith('http')) {
+      // already a web URL, use it directly
+    } else if (!artworkUrl || artworkUrl.startsWith('data:')) {
+      // If art is base64 or missing, we search for a public URL
       if (data.title && data.artist) {
         try {
-          // 1. Search for specific song on iTunes
-          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(data.title + ' ' + data.artist)}&media=music&entity=song&limit=1`
+          // Clean title and artist to remove junk (MV, Official, etc.)
+          const clean = (s: string) => s
+            .replace(/\[.*?\]/g, '')
+            .replace(/\(.*?\)/g, '')
+            .replace(/official|music|video|mv|hd|hq|lyrics?|官方|完整版/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          const qTitle = clean(data.title);
+          const qArtist = clean(data.artist);
+
+          // 1. Search for specific song on iTunes with a CLEAN query
+          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(qTitle + ' ' + qArtist)}&media=music&entity=song&limit=1`
           const resItunes = await fetch(itunesUrl)
           if (resItunes.ok) {
             const dataItunes: any = await resItunes.json()
@@ -170,9 +184,9 @@ app.whenReady().then(() => {
             }
           }
 
-          // 2. Fallback to Artist search if song search failed/didn't have art
+          // 2. Fallback to Artist search if song search failed
           if (!artworkUrl || artworkUrl.startsWith('data:')) {
-            const artistPic = await discordRPC.searchArtistImage(data.artist)
+            const artistPic = await discordRPC.searchArtistImage(qArtist)
             if (artistPic) artworkUrl = artistPic
           }
         } catch (e) {
