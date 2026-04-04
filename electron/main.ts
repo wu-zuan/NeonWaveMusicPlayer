@@ -233,7 +233,7 @@ app.whenReady().then(() => {
     return true;
   })
 
-  ipcMain.handle('discord:scanAndUpload', async (event) => {
+  ipcMain.handle('discord:scanAndUpload', async () => {
     const { dialog } = require('electron');
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'multiSelections']

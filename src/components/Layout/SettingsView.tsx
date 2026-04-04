@@ -1,6 +1,40 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, Download, CheckCircle, AlertCircle } from 'lucide-react'
 
+// Sub-component for scanning progress
+const ScanProgress = () => {
+    const [scanData, setScanData] = useState<{current: number, total: number, success: number} | null>(null);
+
+    useEffect(() => {
+        const remove = (window as any).ipcRenderer.on('discord:scanProgress', (_: any, data: any) => {
+            setScanData(data);
+            if (data.current === data.total) {
+                setTimeout(() => setScanData(null), 5000);
+            }
+        });
+        return () => { if (remove) remove(); };
+    }, []);
+
+    if (!scanData) return null;
+
+    const percentage = Math.round((scanData.current / scanData.total) * 100);
+
+    return (
+        <div style={{ marginTop: '16px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
+            <div style={{ fontSize: '14px', marginBottom: '8px', color: 'var(--text-main)', display: 'flex', justifyContent: 'space-between' }}>
+                <span>正在預載封面圖...</span>
+                <span>{scanData.current} / {scanData.total} ({percentage}%)</span>
+            </div>
+            <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: `${percentage}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.3s ease' }}></div>
+            </div>
+            <div style={{ fontSize: '12px', marginTop: '8px', color: '#4ade80' }}>
+                成功上傳: {scanData.success}
+            </div>
+        </div>
+    );
+};
+
 export function useUpdater() {
     const [status, setStatus] = useState<string>('idle') // idle, checking, available, not-available, downloading, downloaded, error
     const [progress, setProgress] = useState<any>(null)
@@ -143,74 +177,43 @@ export function SettingsView() {
 
                     <div style={{ marginTop: '24px', borderTop: '1px solid var(--glass-border)', paddingTop: '24px' }}>
                         <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>Discord 狀態優化</h4>
-                        <button
-                            onClick={async (e) => {
-                                const btn = e.currentTarget;
-                                const originalText = btn.innerHTML;
-                                try {
-                                    await window.ipcRenderer.invoke('discord:clearCache');
-                                    btn.innerHTML = '<span style="color:#4ade80">✓ 快取已清理，重新播放即可更新</span>';
-                                    setTimeout(() => btn.innerHTML = originalText, 3000);
-                                } catch (e) {}
-                            }}
-                            style={{
-                                padding: '10px 20px', borderRadius: '10px',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid var(--glass-border)',
-                                fontSize: '14px', transition: 'all 0.2s',
-                                marginRight: '10px'
-                            }}
-                        >
-                            一鍵更新圖片動態（清除上傳快取）
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+                            <button
+                                onClick={async (e) => {
+                                    const btn = e.currentTarget;
+                                    const originalText = btn.innerHTML;
+                                    try {
+                                        await window.ipcRenderer.invoke('discord:clearCache');
+                                        btn.innerHTML = '<span style="color:#4ade80">✓ 快取已清理，重新播放即可更新</span>';
+                                        setTimeout(() => btn.innerHTML = originalText, 3000);
+                                    } catch (e) {}
+                                }}
+                                style={{
+                                    padding: '10px 20px', borderRadius: '10px',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid var(--glass-border)',
+                                    fontSize: '14px', transition: 'all 0.2s',
+                                }}
+                            >
+                                清除圖片快取
+                            </button>
 
-                        <button
-                            onClick={async () => {
-                                try {
-                                    // Start scan
-                                    window.ipcRenderer.invoke('discord:scanAndUpload');
-                                } catch (e) {}
-                            }}
-                            style={{
-                                padding: '10px 20px', borderRadius: '10px',
-                                background: 'rgba(255,255,255,0.1)',
-                                border: '1px solid var(--glass-border)',
-                                fontSize: '14px', transition: 'all 0.2s',
-                                color: 'var(--accent)'
-                            }}
-                        >
-                            批量預載資料夾封面圖
-                        </button>
-
-                        {/* Progress UI */}
-                        <div id="scan-progress-box" style={{ display: 'none', marginTop: '16px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
-                            <div style={{ fontSize: '14px', marginBottom: '8px', color: 'var(--text-main)' }}>
-                                正在掃描並上傳封面... <span id="scan-count">0/0</span>
-                            </div>
-                            <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
-                                <div id="scan-bar" style={{ width: '0%', height: '100%', background: 'var(--accent)', transition: 'width 0.2s' }}></div>
-                            </div>
-                            <div id="scan-success" style={{ fontSize: '12px', marginTop: '8px', color: '#4ade80' }}>
-                                成功上傳: 0
-                            </div>
+                            <button
+                                onClick={() => window.ipcRenderer.invoke('discord:scanAndUpload')}
+                                style={{
+                                    padding: '10px 20px', borderRadius: '10px',
+                                    background: 'rgba(255,255,255,0.1)',
+                                    border: '1px solid var(--glass-border)',
+                                    fontSize: '14px', transition: 'all 0.2s',
+                                    color: 'var(--accent)'
+                                }}
+                            >
+                                批量預載資料夾封面圖
+                            </button>
                         </div>
 
-                        <script dangerouslySetInnerHTML={{ __html: `
-                            window.ipcRenderer.on('discord:scanProgress', (event, data) => {
-                                const box = document.getElementById('scan-progress-box');
-                                const count = document.getElementById('scan-count');
-                                const bar = document.getElementById('scan-bar');
-                                const success = document.getElementById('scan-success');
-                                if (box) box.style.display = 'block';
-                                if (count) count.innerText = data.current + " / " + data.total;
-                                if (bar) bar.style.width = (data.current / data.total * 100) + "%";
-                                if (success) success.innerText = "成功上傳: " + data.success;
-                                
-                                if (data.current === data.total) {
-                                    setTimeout(() => { if(box) box.style.display = 'none'; }, 3000);
-                                }
-                            });
-                        `}} />
+                        {/* Progress UI managed by React state */}
+                        <ScanProgress />
                     </div>
                 </div>
 
