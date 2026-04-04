@@ -1,11 +1,11 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Notification, nativeImage } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
 import { exec } from 'node:child_process'
-import { parseFile } from 'music-metadata'
+import * as mm from 'music-metadata'
 import { DiscordBotManager } from './discordBot'
 import { DiscordRPCManager } from './discordRPC'
 
@@ -155,7 +155,6 @@ app.whenReady().then(() => {
 
   async function uploadToCloud(artworkUrl: string): Promise<string | null> {
     try {
-      const { nativeImage } = require('electron');
       let buffer: Buffer;
 
       // 1. Resolve Local Path or Data URI
@@ -177,7 +176,6 @@ app.whenReady().then(() => {
       }
 
       // 2. Smart Resizing & Compression (Fixing the 19MB issue)
-      // Resize to 512px max to keep it light and compatible
       const image = nativeImage.createFromBuffer(buffer);
       if (image.isEmpty()) return null;
       
@@ -185,14 +183,13 @@ app.whenReady().then(() => {
         width: 512,
         height: 512,
         quality: 'better'
-      }).toJPEG(80); // Compress to 80% quality JPEG
+      }).toJPEG(80);
 
       // 3. Upload to Telegra.ph (more stable/anonymous for these tasks)
-      const { FormData } = require('formdata-node');
-      const { Blob } = require('fetch-blob');
+      // Note: FormData and Blob are already imported at top
       
       const form = new FormData();
-      const blob = new Blob([resizedBuffer], { type: 'image/jpeg' });
+      const blob = new Blob([new Uint8Array(resizedBuffer)], { type: 'image/jpeg' });
       form.append('file', blob, 'cover.jpg');
 
       const response = await fetch('https://telegra.ph/upload', {
@@ -246,7 +243,6 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('discord:scanAndUpload', async () => {
-    const { dialog } = require('electron');
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'multiSelections']
     });
@@ -254,7 +250,7 @@ app.whenReady().then(() => {
     if (result.canceled || result.filePaths.length === 0) return { status: 'canceled' };
 
     const folderPath = result.filePaths[0];
-    const mm = await import('music-metadata');
+    // mm is already imported at top
     const walk = async (dir: string): Promise<string[]> => {
       let files: string[] = [];
       const list = await fs.readdir(dir);
@@ -449,7 +445,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('files:getArtwork', async (_, filePath) => {
     try {
-      const metadata = await parseFile(filePath, { skipCovers: false }) // ensure covers are parsed
+      const metadata = await mm.parseFile(filePath, { skipCovers: false }) // ensure covers are parsed
       if (metadata.common.picture && metadata.common.picture.length > 0) {
         const pic = metadata.common.picture[0]
         return `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
@@ -463,7 +459,7 @@ app.whenReady().then(() => {
   ipcMain.handle('files:getMetadata', async (_, filePath, options = { loadArtwork: true }) => {
     try {
       const parseOptions = options.loadArtwork ? {} : { skipCovers: true }
-      const metadata = await parseFile(filePath, parseOptions)
+      const metadata = await mm.parseFile(filePath, parseOptions)
 
       let artwork = null
       if (options.loadArtwork && metadata.common.picture && metadata.common.picture.length > 0) {
