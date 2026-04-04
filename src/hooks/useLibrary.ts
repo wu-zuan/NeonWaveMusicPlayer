@@ -233,20 +233,33 @@ export function useLibrary() {
         setPlaylists(prev => prev.filter(p => p.id !== idToRemove))
     }
 
-    const renameFolder = (folderPath: string, newName: string) => {
-        // Update persistent storage
-        const currentData: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
-        const newData = currentData.map(item => {
-            if (item.path === folderPath) {
-                return { ...item, name: newName }
-            }
-            return item
-        })
-        localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
+    const renameFolder = (idToRename: string, newName: string) => {
+        // Find if it's a folder or custom
+        const isCustom = playlists.find(p => p.id === idToRename)?.type === 'custom'
+        
+        if (isCustom) {
+            const currentData: Playlist[] = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_PLAYLISTS) || '[]')
+            const newData = currentData.map(item => {
+                if (item.id === idToRename) {
+                    return { ...item, name: newName }
+                }
+                return item
+            })
+            localStorage.setItem(STORAGE_KEY_CUSTOM_PLAYLISTS, JSON.stringify(newData))
+        } else {
+            const currentData: FolderData[] = JSON.parse(localStorage.getItem(STORAGE_KEY_FOLDERS_V2) || '[]')
+            const newData = currentData.map(item => {
+                if (item.path === idToRename) {
+                    return { ...item, name: newName }
+                }
+                return item
+            })
+            localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
+        }
 
         // Update state
         setPlaylists(prev => prev.map(pl => {
-            if (pl.path === folderPath) {
+            if (pl.id === idToRename || pl.path === idToRename) {
                 return { ...pl, name: newName }
             }
             return pl

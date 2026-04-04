@@ -7,6 +7,7 @@ import { autoUpdater } from 'electron-updater'
 import { exec } from 'node:child_process'
 import { parseFile } from 'music-metadata'
 import { DiscordBotManager } from './discordBot'
+import { DiscordRPCManager } from './discordRPC'
 
 const require = createRequire(import.meta.url)
 let ffmpegPath = require('ffmpeg-static')
@@ -145,6 +146,50 @@ app.whenReady().then(() => {
 
   // Register 'media' protocol to bypass some security if needed, or rely on webSecurity: false for now
   createWindow()
+
+  // --- Discord RPC Integration ---
+  const discordRPC = new DiscordRPCManager()
+
+  ipcMain.handle('discord:updatePresence', async (_, data) => {
+    let artworkUrl = data.artworkUrl;
+
+    // If art is base64 or missing, we search for a public URL
+    if (!artworkUrl || artworkUrl.startsWith('data:')) {
+      if (data.title && data.artist) {
+        try {
+          // 1. Search for specific song on iTunes
+          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(data.title + ' ' + data.artist)}&media=music&entity=song&limit=1`
+          const resItunes = await fetch(itunesUrl)
+          if (resItunes.ok) {
+            const dataItunes: any = await resItunes.json()
+            if (dataItunes && dataItunes.results && dataItunes.results.length > 0) {
+              const artwork = dataItunes.results[0].artworkUrl100
+              if (artwork) {
+                artworkUrl = artwork.replace('100x100bb', '600x600bb')
+              }
+            }
+          }
+
+          // 2. Fallback to Artist search if song search failed/didn't have art
+          if (!artworkUrl || artworkUrl.startsWith('data:')) {
+            const artistPic = await discordRPC.searchArtistImage(data.artist)
+            if (artistPic) artworkUrl = artistPic
+          }
+        } catch (e) {
+          // ignore search error
+        }
+      }
+    }
+
+    return await discordRPC.setActivity({
+      ...data,
+      artworkUrl
+    })
+  })
+
+  ipcMain.handle('discord:clearPresence', () => {
+    return discordRPC.clearActivity()
+  })
 
   // --- Discord Bot Integration ---
   const discordBot = new DiscordBotManager()

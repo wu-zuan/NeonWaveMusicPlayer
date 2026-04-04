@@ -340,6 +340,29 @@ export function useAudioPlayer() {
 
     }, [currentTrack, handlePrev, handleNext, duration, defaultArtwork]) // dependencies ensure handlers use latest state wrappers
 
+    // Discord RPC Sync
+    useEffect(() => {
+        if (!currentTrack) {
+            window.ipcRenderer.invoke('discord:clearPresence').catch(() => {});
+            return;
+        }
+
+        const updatePresence = () => {
+             // Avoid spamming updates (Discord RPC rate limit) though useEffect deps handle most of it
+            window.ipcRenderer.invoke('discord:updatePresence', {
+                title: currentTrack.title,
+                artist: currentTrack.artist,
+                album: currentTrack.album,
+                duration: duration,
+                elapsed: currentTime,
+                artworkUrl: currentTrack.artwork,
+                isPaused: !isPlaying
+            }).catch(() => {});
+        }
+
+        updatePresence();
+    }, [currentTrack?.path, isPlaying]);
+
 
     const togglePlay = () => isPlaying ? audioRef.current.pause() : audioRef.current.play()
     const seek = (time: number) => { audioRef.current.currentTime = time; setCurrentTime(time) }

@@ -45,5 +45,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   },
   offDownloadProgress: () => {
     ipcRenderer.removeAllListeners('download:progress')
-  }
+  },
+  updateDiscordPresence: (data: any) => ipcRenderer.invoke('discord:updatePresence', data),
+  clearDiscordPresence: () => ipcRenderer.invoke('discord:clearPresence')
 })
