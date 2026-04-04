@@ -150,54 +150,77 @@ app.whenReady().then(() => {
   // --- Discord RPC Integration ---
   const discordRPC = new DiscordRPCManager()
 
+  // --- MEMORY CACHE FOR UPLOADED IMAGES ---
+  const imageCache = new Map<string, string>(); // Key: track unique identifier, Value: Imgur URL
+
+  async function uploadToCloud(base64Data: string): Promise<string | null> {
+    try {
+      // Stripping data:image/xxx;base64, if present
+      const base64 = base64Data.includes('base64,') ? base64Data.split('base64,')[1] : base64Data;
+
+      const formData = new URLSearchParams();
+      formData.append('image', base64);
+      formData.append('type', 'base64');
+
+      const response = await fetch('https://api.imgur.com/3/image', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Client-ID 1464451133346021512' // A shared client ID
+        },
+        body: formData
+      });
+
+      const res: any = await response.json();
+      if (res.success && res.data && res.data.link) {
+        return res.data.link;
+      }
+    } catch (e) {
+      console.error('[CloudUpload] Error:', e);
+    }
+    return null;
+  }
+
   ipcMain.handle('discord:updatePresence', async (_, data) => {
+    const cacheKey = `${data.title}-${data.artist}`;
     let artworkUrl = data.artworkUrl;
 
-    // Use existing public URL if available (e.g. from YouTube)
-    if (artworkUrl && artworkUrl.startsWith('http')) {
-      // already a web URL, use it directly
-    } else if (!artworkUrl || artworkUrl.startsWith('data:')) {
-      // If art is base64 or missing, we search for a public URL
-      if (data.title && data.artist) {
-        try {
-          // Clean title and artist to remove junk (MV, Official, etc.)
-          const clean = (s: string) => s
-            .replace(/\[.*?\]/g, '')
-            .replace(/\(.*?\)/g, '')
-            .replace(/official|music|video|mv|hd|hq|lyrics?|官方|完整版/gi, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-          const qTitle = clean(data.title);
-          const qArtist = clean(data.artist);
-
-          // 1. Search for specific song on iTunes with a CLEAN query
-          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(qTitle + ' ' + qArtist)}&media=music&entity=song&limit=1`
-          const resItunes = await fetch(itunesUrl)
-          if (resItunes.ok) {
-            const dataItunes: any = await resItunes.json()
-            if (dataItunes && dataItunes.results && dataItunes.results.length > 0) {
-              const artwork = dataItunes.results[0].artworkUrl100
-              if (artwork) {
-                artworkUrl = artwork.replace('100x100bb', '600x600bb')
-              }
-            }
-          }
-
-          // 2. Fallback to Artist search if song search failed
-          if (!artworkUrl || artworkUrl.startsWith('data:')) {
-            const artistPic = await discordRPC.searchArtistImage(qArtist)
-            if (artistPic) artworkUrl = artistPic
-          }
-        } catch (e) {
-          // ignore search error
-        }
+    if (imageCache.has(cacheKey)) {
+      artworkUrl = imageCache.get(cacheKey);
+    }
+    else if (artworkUrl && artworkUrl.startsWith('http') && !artworkUrl.includes('localhost')) {
+      // already a web URL
+    }
+    else if (artworkUrl && (artworkUrl.startsWith('data:') || artworkUrl.includes('localhost'))) {
+      const uploadedUrl = await uploadToCloud(artworkUrl);
+      if (uploadedUrl) {
+        artworkUrl = uploadedUrl;
+        imageCache.set(cacheKey, uploadedUrl);
       }
+    }
+
+    // Final Fallback: If still no URL, use iTunes Search
+    if (!artworkUrl || !artworkUrl.startsWith('http')) {
+      try {
+        const cleanStr = (s: string) => (s || "").split(' - ')[0].replace(/[『』「」]/g, '').replace(/（[^）]*原唱[^）]*）/g, '').replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').replace(/official|music|video|mv|hd|hq|lyrics?|官方|完整版/gi, '').trim();
+        const qTitle = cleanStr(data.title);
+        const qArtist = cleanStr(data.artist);
+
+        const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(qTitle + ' ' + qArtist)}&media=music&entity=song&limit=1`;
+        const res = await fetch(itunesUrl);
+        if (res.ok) {
+          const json: any = await res.json();
+          if (json.results && json.results.length > 0) {
+            artworkUrl = json.results[0].artworkUrl100.replace('100x100bb', '600x600bb');
+          }
+        }
+      } catch (e) { }
     }
 
     return await discordRPC.setActivity({
       ...data,
-      artworkUrl
+      title: data.title,
+      artist: data.artist,
+      artworkUrl: (artworkUrl && artworkUrl.startsWith('http')) ? artworkUrl : 'logo'
     })
   })
 
@@ -467,7 +490,7 @@ app.whenReady().then(() => {
       const dat = JSON.parse(stdout)
       let bestStart = 0
       let hasHeatmap = false
-      
+
       if (dat.heatmap && dat.heatmap.length > 0) {
         // Filter out first 15 seconds as it's often the default highest for UI reasons
         const duration = dat.duration || 0
@@ -477,68 +500,68 @@ app.whenReady().then(() => {
         const best = [...pool].sort((a: any, b: any) => b.value - a.value)[0]
         bestStart = best.start_time
         hasHeatmap = true
-      } 
-      
+      }
+
       // Secondary Strategy: LRCLib Chorus Detection
       // If we don't have a heatmap, OR if we want to be more accurate with vocals, try dynamic lyrics.
       // Many MVs have long intros where the heatmap spikes before the actual singing.
       // We will try lyrics analysis if title/artist is provided, as a fallback or enhancement.
       if (!hasHeatmap && title) {
         try {
-            const query = artist ? `${title} ${artist}` : title
-            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`)
-            if (res.ok) {
-                const data: any[] = await res.json()
-                if (data && data.length > 0 && data[0].syncedLyrics) {
-                    const lyrics = data[0].syncedLyrics
-                    const lines = lyrics.split('\n')
-                    const parsed: {time: number, text: string}[] = []
-                    const regex = /\[(\d{2}):(\d{2}\.\d{2})\]\s*(.*)/
-                    
-                    for(const line of lines) {
-                        const match = line.match(regex)
-                        if(match) {
-                            const m = parseInt(match[1])
-                            const s = parseFloat(match[2])
-                            const text = match[3].trim()
-                            if(text.length > 2) parsed.push({ time: m * 60 + s, text })
-                        }
-                    }
-                    
-                    if(parsed.length > 0) {
-                        const lineFreq = new Map<string, number>()
-                        for(const p of parsed) {
-                            const t = p.text.toLowerCase()
-                            lineFreq.set(t, (lineFreq.get(t) || 0) + 1)
-                        }
-                        
-                        let maxScore = 0
-                        let bestIdx = -1
-                        const WINDOW = 4
-                        for(let i=0; i <= parsed.length - WINDOW; i++) {
-                            let score = 0
-                            for(let j=0; j<WINDOW; j++) {
-                                const t = parsed[i+j].text.toLowerCase()
-                                const count = lineFreq.get(t) || 0
-                                if(count > 1) score += count
-                            }
-                            if(score > maxScore) {
-                                maxScore = score
-                                bestIdx = i
-                            }
-                        }
-                        
-                        // If we found a repeating block (a chorus), use it!
-                        if(bestIdx !== -1 && maxScore >= 4) {
-                            bestStart = parsed[bestIdx].time
-                        } else {
-                            // If no chorus found, jump to 1/3 of the song
-                            if(dat.duration) bestStart = Math.floor(dat.duration / 3)
-                        }
-                    }
+          const query = artist ? `${title} ${artist}` : title
+          const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`)
+          if (res.ok) {
+            const data: any[] = await res.json()
+            if (data && data.length > 0 && data[0].syncedLyrics) {
+              const lyrics = data[0].syncedLyrics
+              const lines = lyrics.split('\n')
+              const parsed: { time: number, text: string }[] = []
+              const regex = /\[(\d{2}):(\d{2}\.\d{2})\]\s*(.*)/
+
+              for (const line of lines) {
+                const match = line.match(regex)
+                if (match) {
+                  const m = parseInt(match[1])
+                  const s = parseFloat(match[2])
+                  const text = match[3].trim()
+                  if (text.length > 2) parsed.push({ time: m * 60 + s, text })
                 }
+              }
+
+              if (parsed.length > 0) {
+                const lineFreq = new Map<string, number>()
+                for (const p of parsed) {
+                  const t = p.text.toLowerCase()
+                  lineFreq.set(t, (lineFreq.get(t) || 0) + 1)
+                }
+
+                let maxScore = 0
+                let bestIdx = -1
+                const WINDOW = 4
+                for (let i = 0; i <= parsed.length - WINDOW; i++) {
+                  let score = 0
+                  for (let j = 0; j < WINDOW; j++) {
+                    const t = parsed[i + j].text.toLowerCase()
+                    const count = lineFreq.get(t) || 0
+                    if (count > 1) score += count
+                  }
+                  if (score > maxScore) {
+                    maxScore = score
+                    bestIdx = i
+                  }
+                }
+
+                // If we found a repeating block (a chorus), use it!
+                if (bestIdx !== -1 && maxScore >= 4) {
+                  bestStart = parsed[bestIdx].time
+                } else {
+                  // If no chorus found, jump to 1/3 of the song
+                  if (dat.duration) bestStart = Math.floor(dat.duration / 3)
+                }
+              }
             }
-        } catch(e) { /* ignore lyric fetch error */ }
+          }
+        } catch (e) { /* ignore lyric fetch error */ }
       }
 
       // If absolutely no strategy worked, fallback
@@ -550,7 +573,7 @@ app.whenReady().then(() => {
       const formats = dat.formats || []
       let audioFormats = formats.filter((f: any) => f.acodec !== 'none' && f.vcodec === 'none')
       let streamUrl = ''
-      
+
       if (audioFormats.length > 0) {
         // Prefer m4a for highest compatibility with HTML Audio elements natively
         const m4aFormats = audioFormats.filter((f: any) => f.ext === 'm4a')
@@ -561,7 +584,7 @@ app.whenReady().then(() => {
       } else {
         // Fallback to highest quality overall if no audio-only format
         formats.sort((a: any, b: any) => (b.tbr || 0) - (a.tbr || 0))
-        if(formats.length > 0) streamUrl = formats[0].url
+        if (formats.length > 0) streamUrl = formats[0].url
       }
 
       return {
@@ -657,11 +680,11 @@ app.whenReady().then(() => {
           url,
           '-f', 'bestaudio[ext=m4a]'
         ]
-        
+
         if (limitRate && limitRate !== '0') {
-           args.push('--limit-rate', limitRate)
+          args.push('--limit-rate', limitRate)
         }
-        
+
         args.push(
           '--js-runtimes', 'node',
           '--ffmpeg-location', ffmpegPath,
@@ -683,14 +706,14 @@ app.whenReady().then(() => {
         eventEmitter.on('progress', (progress: any) => {
           // Send progress updates to renderer
           if (win && progress && progress.currentSpeed) {
-            win.webContents.send('download:progress', { 
-              url: url, 
-              speed: progress.currentSpeed, 
-              percent: progress.percent 
+            win.webContents.send('download:progress', {
+              url: url,
+              speed: progress.currentSpeed,
+              percent: progress.percent
             })
           }
         })
-        
+
         // Fallback for manual parsing just in case
         eventEmitter.on('ytDlpEvent', (eventType: string, eventData: string) => {
           if (eventType === 'download' && eventData.includes('at')) {
@@ -711,7 +734,7 @@ app.whenReady().then(() => {
             try {
               const timeDate = new Date(fileTimestamp);
               await fs.utimes(filePath, timeDate, timeDate);
-            } catch(e) {
+            } catch (e) {
               console.error("Failed to set file timestamp:", e)
             }
           }
@@ -1108,6 +1131,16 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('app:version', () => {
-    return app.getVersion()
+    try {
+      const version = app.getVersion()
+      if (version) return version
+
+      // Fallback for development if version is missing
+      const pkg = require('../package.json')
+      return pkg.version
+    } catch (e) {
+      // Final fallback
+      return '5.9.5'
+    }
   })
 })
