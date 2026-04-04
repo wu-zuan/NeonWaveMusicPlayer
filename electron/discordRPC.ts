@@ -2,7 +2,7 @@ import RPC from 'discord-rpc';
 
 export class DiscordRPCManager {
     private client: RPC.Client | null = null;
-    private clientId: string = '1226071477732245584'; // Default client ID for NeonWave or similar.
+    private clientId: string = '1464451133346021512'; // 請將此處改為你為 NeonWave 申請的專屬 Client ID
     private isReady: boolean = false;
     private currentActivity: any = null;
 
