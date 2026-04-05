@@ -209,32 +209,36 @@ app.whenReady().then(() => {
 
   ipcMain.handle('discord:updatePresence', async (_, data) => {
     const cacheKey = `${data.title}-${data.artist}`;
-    let artworkUrl = data.artworkUrl;
+    let artworkUrl = 'logo'; // Default to logo initially
 
+    // 1. Initial Instant Update (with cached URL or logo)
     if (imageCache.has(cacheKey)) {
-      artworkUrl = imageCache.get(cacheKey);
-    } 
-    else if (artworkUrl && artworkUrl.startsWith('http') && !artworkUrl.includes('localhost')) {
-      // It's a public URL (like YouTube), use directly
-    } 
-    else if (artworkUrl) {
-      // It's a local thing (media:// or base64), UPLOAD IT!
-      const uploadedUrl = await uploadToCloud(artworkUrl);
-      if (uploadedUrl) {
-        artworkUrl = uploadedUrl;
-        imageCache.set(cacheKey, uploadedUrl);
-      } else {
-        // IF UPLOAD FAILED, DO NOT SEARCH ITUNES. USE LOGO.
-        artworkUrl = 'logo';
-      }
+        artworkUrl = imageCache.get(cacheKey)!;
+    } else if (data.artworkUrl && data.artworkUrl.startsWith('http') && !data.artworkUrl.includes('localhost')) {
+        artworkUrl = data.artworkUrl;
     }
 
-    return await discordRPC.setActivity({
-      ...data,
-      title: data.title,
-      artist: data.artist,
-      artworkUrl: (artworkUrl && artworkUrl.startsWith('http')) ? artworkUrl : 'logo'
-    })
+    // Update with what we have (for instant feedback)
+    discordRPC.setActivity({ ...data, artworkUrl }).catch(() => {});
+
+    // 2. Background Upload (if it's a local/base64 image not already cached)
+    if (artworkUrl === 'logo' && data.artworkUrl) {
+        // Run this in background, don't wait for IPC to return
+        (async () => {
+             try {
+                const uploadedUrl = await uploadToCloud(data.artworkUrl);
+                if (uploadedUrl) {
+                    imageCache.set(cacheKey, uploadedUrl);
+                    // Second Update with the real picture!
+                    discordRPC.setActivity({ ...data, artworkUrl: uploadedUrl }).catch(() => {});
+                }
+             } catch (e) {
+                 console.error('[DiscordRPC] Background upload failed:', e);
+             }
+        })();
+    }
+
+    return true;
   })
 
   ipcMain.handle('discord:clearCache', () => {
