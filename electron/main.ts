@@ -546,9 +546,7 @@ app.whenReady().then(() => {
       const stdout = await yt.execPromise([
         `ytsearch12:${query}`,
         '--dump-json',
-        '--flat-playlist',
-        '--js-runtimes', 'node',
-        '--no-interactive'
+        '--flat-playlist'
       ])
 
       const results = stdout
@@ -577,7 +575,7 @@ app.whenReady().then(() => {
   ipcMain.handle('search:youtubePreview', async (_, url, title?: string, artist?: string) => {
     try {
       const yt = await getYtDlp()
-      const stdout = await yt.execPromise([url, '-J', '--js-runtimes', 'node', '--no-interactive'])
+      const stdout = await yt.execPromise([url, '-J'])
       const dat = JSON.parse(stdout)
       let bestStart = 0
       let hasHeatmap = false
@@ -722,10 +720,8 @@ app.whenReady().then(() => {
         const args = [
           url,
           '--no-playlist',
-          '--no-interactive',
           '--force-overwrites',
           '-f', fArg,
-          '--js-runtimes', 'node',
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
           '--embed-thumbnail',
@@ -781,7 +777,6 @@ app.whenReady().then(() => {
         const args = [
           url,
           '--no-playlist',
-          '--no-interactive',
           '--force-overwrites',
           '-f', fArg
         ]
@@ -791,7 +786,6 @@ app.whenReady().then(() => {
         }
 
         args.push(
-          '--js-runtimes', 'node',
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
           '--embed-thumbnail',

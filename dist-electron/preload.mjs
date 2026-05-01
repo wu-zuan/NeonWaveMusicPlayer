@@ -34,8 +34,8 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
   getArtistImage: (name) => electron.ipcRenderer.invoke("search:artistImage", name),
   searchYouTube: (query) => electron.ipcRenderer.invoke("search:youtube", query),
   getYouTubePreview: (url, title, artist) => electron.ipcRenderer.invoke("search:youtubePreview", url, title, artist),
-  downloadYouTube: (url, title) => electron.ipcRenderer.invoke("download:youtube", url, title),
-  downloadYouTubeToDir: (url, title, artist, dir, limitRate, fileTimestamp) => electron.ipcRenderer.invoke("download:youtubeToDir", url, title, artist, dir, limitRate, fileTimestamp),
+  downloadYouTube: (url, title, artist, format) => electron.ipcRenderer.invoke("download:youtube", url, title, artist, format),
+  downloadYouTubeToDir: (url, title, artist, dir, limitRate, fileTimestamp, format) => electron.ipcRenderer.invoke("download:youtubeToDir", url, title, artist, dir, limitRate, fileTimestamp, format),
   getLyrics: (title, artist, filePath, duration) => electron.ipcRenderer.invoke("search:lyrics", title, artist, filePath, duration),
   onDownloadProgress: (callback) => {
     electron.ipcRenderer.on("download:progress", (_, data) => callback(data));
