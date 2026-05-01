@@ -72,11 +72,60 @@ function createWindow() {
       symbolColor: '#ffffff',
       height: 30
     },
+    show: false, // Don't show the window until it's ready
+    backgroundColor: '#020617', // Match the app's dark theme to prevent gray/white flash
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       webSecurity: false, // simplified for local file access in dev
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      devTools: true
     },
+  })
+
+  // Prevent "gray box" by showing window only when content is ready
+  win.once('ready-to-show', () => {
+    win?.show()
+    win?.focus()
+  })
+
+  // Handle renderer becoming unresponsive
+  win.on('unresponsive', () => {
+    console.warn('Renderer unresponsive')
+    dialog.showMessageBox(win!, {
+      type: 'warning',
+      title: 'NeonWave 無回應',
+      message: '應用程式似乎沒有回應，是否重新載入？',
+      buttons: ['重新載入', '稍候'],
+      defaultId: 0
+    }).then(({ response }) => {
+      if (response === 0) win?.reload()
+    })
+  })
+
+  // Handle potential renderer crashes or hangs
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer process gone:', details.reason)
+    if (details.reason !== 'clean-exit') {
+      dialog.showMessageBox(win!, {
+        type: 'error',
+        title: 'NeonWave 錯誤',
+        message: '渲染進程意外終止，應用程式將嘗試重新載入。',
+        detail: `原因: ${details.reason}`
+      }).then(() => {
+        win?.reload()
+      })
+    }
+  })
+
+  // Handle load failure (e.g. Vite server not ready yet)
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.warn(`Page failed to load: ${errorCode} ${errorDescription}`)
+    // If it's a transient error (like connection refused), try to reload after a short delay
+    if (VITE_DEV_SERVER_URL) {
+      setTimeout(() => {
+        win?.loadURL(VITE_DEV_SERVER_URL)
+      }, 1000)
+    }
   })
 
   // Test active push message to Renderer-process.
