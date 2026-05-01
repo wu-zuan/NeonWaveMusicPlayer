@@ -218,7 +218,8 @@ export const SearchView = () => {
         if (!confirm) return
 
         try {
-            const savedPath = await window.ipcRenderer.downloadYouTube(track.url, track.title, track.artist)
+            const format = localStorage.getItem('neonwave_download_format') || 'm4a'
+            const savedPath = await window.ipcRenderer.downloadYouTube(track.url, track.title, track.artist, format)
             if (savedPath) {
                 alert(`✅ 下載完成！\n已儲存至：\n${savedPath}`)
             }

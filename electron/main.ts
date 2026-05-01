@@ -547,7 +547,8 @@ app.whenReady().then(() => {
         `ytsearch12:${query}`,
         '--dump-json',
         '--flat-playlist',
-        '--js-runtimes', 'node'
+        '--js-runtimes', 'node',
+        '--no-interactive'
       ])
 
       const results = stdout
@@ -576,7 +577,7 @@ app.whenReady().then(() => {
   ipcMain.handle('search:youtubePreview', async (_, url, title?: string, artist?: string) => {
     try {
       const yt = await getYtDlp()
-      const stdout = await yt.execPromise([url, '-J', '--js-runtimes', 'node'])
+      const stdout = await yt.execPromise([url, '-J', '--js-runtimes', 'node', '--no-interactive'])
       const dat = JSON.parse(stdout)
       let bestStart = 0
       let hasHeatmap = false
@@ -687,7 +688,7 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('download:youtube', async (_, url, inputTitle, inputArtist) => {
+  ipcMain.handle('download:youtube', async (_, url, inputTitle, inputArtist, format = 'm4a') => {
     try {
       const yt = await getYtDlp()
 
@@ -700,10 +701,16 @@ app.whenReady().then(() => {
       let safeTitle = inputTitle.replace(/[\\/:*?"<>|]/g, '_').trim()
 
       // 2. Pick path
+      const defaultExt = format === 'mp4' ? 'mp4' : 'm4a'
       const { filePath } = await dialog.showSaveDialog(win!, {
         title: '下載歌曲',
-        defaultPath: `${safeTitle}.m4a`, // Force m4a for best playback
-        filters: [{ name: 'Audio (m4a)', extensions: ['m4a'] }]
+        defaultPath: `${safeTitle}.${defaultExt}`,
+        filters: format === 'mp4' ? [
+           { name: 'Media (mp4)', extensions: ['mp4'] },
+           { name: 'Audio (m4a)', extensions: ['m4a'] }
+        ] : [
+           { name: 'Audio (m4a)', extensions: ['m4a'] }
+        ]
       })
 
       if (!filePath) return null
@@ -711,9 +718,13 @@ app.whenReady().then(() => {
       // 3. Download
       return new Promise((resolve, reject) => {
         // Prepare args
+        const fArg = format === 'mp4' ? 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestaudio[ext=m4a]/best' : 'bestaudio[ext=m4a]'
         const args = [
           url,
-          '-f', 'bestaudio[ext=m4a]',
+          '--no-playlist',
+          '--no-interactive',
+          '--force-overwrites',
+          '-f', fArg,
           '--js-runtimes', 'node',
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
@@ -754,7 +765,7 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('download:youtubeToDir', async (_, url, inputTitle, inputArtist, outputDir, limitRate, fileTimestamp) => {
+  ipcMain.handle('download:youtubeToDir', async (_, url, inputTitle, inputArtist, outputDir, limitRate, fileTimestamp, format = 'm4a') => {
     try {
       const yt = await getYtDlp()
 
@@ -763,12 +774,16 @@ app.whenReady().then(() => {
         .replace('app.asar', 'app.asar.unpacked') // Fix for production builds
 
       let safeTitle = inputTitle.replace(/[\\/:*?"<>|]/g, '_').trim()
-      const filePath = path.join(outputDir, `${safeTitle}.m4a`)
+      const basePath = path.join(outputDir, safeTitle)
 
       return new Promise((resolve, reject) => {
+        const fArg = format === 'mp4' ? 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestaudio[ext=m4a]/best' : 'bestaudio[ext=m4a]'
         const args = [
           url,
-          '-f', 'bestaudio[ext=m4a]'
+          '--no-playlist',
+          '--no-interactive',
+          '--force-overwrites',
+          '-f', fArg
         ]
 
         if (limitRate && limitRate !== '0') {
@@ -780,7 +795,7 @@ app.whenReady().then(() => {
           '--ffmpeg-location', ffmpegPath,
           '--add-metadata',
           '--embed-thumbnail',
-          '-o', filePath
+          '-o', `${basePath}.%(ext)s`
         )
 
         if (inputArtist) {
@@ -820,15 +835,30 @@ app.whenReady().then(() => {
         })
 
         eventEmitter.on('close', async () => {
+          let finalPath = path.join(outputDir, `${safeTitle}.mp4`)
+          try {
+            await fs.access(finalPath)
+          } catch {
+            finalPath = path.join(outputDir, `${safeTitle}.m4a`)
+            try {
+              await fs.access(finalPath)
+            } catch {
+              finalPath = path.join(outputDir, `${safeTitle}.webm`)
+              try { await fs.access(finalPath) } catch {
+                finalPath = path.join(outputDir, `${safeTitle}.mp3`) // Just in case
+              }
+            }
+          }
+
           if (fileTimestamp) {
             try {
               const timeDate = new Date(fileTimestamp);
-              await fs.utimes(filePath, timeDate, timeDate);
+              await fs.utimes(finalPath, timeDate, timeDate);
             } catch (e) {
               console.error("Failed to set file timestamp:", e)
             }
           }
-          resolve(filePath)
+          resolve(finalPath)
         })
       })
 

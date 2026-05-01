@@ -342,7 +342,9 @@ export function useAudioPlayer() {
 
     // Discord RPC Sync
     useEffect(() => {
-        if (!currentTrack || !isPlaying) {
+        const isRpcEnabled = localStorage.getItem('neonwave_enable_discord_rpc') !== 'false';
+        
+        if (!currentTrack || !isPlaying || !isRpcEnabled) {
             window.ipcRenderer.invoke('discord:clearPresence').catch(() => {});
             return;
         }

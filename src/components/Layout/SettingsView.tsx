@@ -176,7 +176,28 @@ export function SettingsView() {
                     )}
 
                     <div style={{ marginTop: '24px', borderTop: '1px solid var(--glass-border)', paddingTop: '24px' }}>
-                        <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>Discord 狀態優化</h4>
+                        <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>Discord RPC</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>啟用 Discord 狀態顯示</span>
+                                <label className="switch">
+                                    <input 
+                                        type="checkbox" 
+                                        defaultChecked={localStorage.getItem('neonwave_enable_discord_rpc') !== 'false'}
+                                        onChange={(e) => {
+                                            const enabled = e.target.checked;
+                                            localStorage.setItem('neonwave_enable_discord_rpc', enabled.toString());
+                                            if (!enabled) {
+                                                window.ipcRenderer.invoke('discord:clearPresence');
+                                            }
+                                        }}
+                                    />
+                                    <span className="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <h4 style={{ marginBottom: '16px', marginTop: '24px', color: 'var(--text-main)' }}>Discord 狀態優化</h4>
                         <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
                             <button
                                 onClick={async (e) => {
@@ -243,6 +264,19 @@ export function SettingsView() {
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '-8px' }}>
                             * 註：不提供人為限速，系統將直接根據您的網路頻寬發揮最大效益。請注意並行數量越高，越吃重電腦的 CPU 處理能力 (因需同步執行轉碼)。
                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>預設下載格式</span>
+                            <select 
+                                className="settings-select"
+                                defaultValue={localStorage.getItem('neonwave_download_format') || 'm4a'}
+                                onChange={(e) => {
+                                    localStorage.setItem('neonwave_download_format', e.target.value);
+                                }}
+                            >
+                                <option value="m4a">m4a (最高相容性與音質)</option>
+                                <option value="mp4">mp4 (若無mp4則自動使用m4a)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -279,6 +313,55 @@ export function SettingsView() {
             color: #fff;
             font-size: 14px;
             padding: 12px;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+        }
+        input:checked + .slider {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--accent);
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        .slider.round {
+            border-radius: 34px;
+        }
+        .slider.round:before {
+            border-radius: 50%;
         }
       `}</style>
         </div>

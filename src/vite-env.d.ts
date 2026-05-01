@@ -15,8 +15,8 @@ interface Window {
         onUpdateStatus(callback: (status: any) => void): () => void
         searchYouTube(query: string): Promise<any[]>
         getYouTubePreview(url: string, title?: string, artist?: string): Promise<{ url: string, startTime: number } | null>
-        downloadYouTube(url: string, title: string, artist?: string): Promise<string | null>
-        downloadYouTubeToDir(url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number): Promise<string | null>
+        downloadYouTube(url: string, title: string, artist?: string, format?: string): Promise<string | null>
+        downloadYouTubeToDir(url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number, format?: string): Promise<string | null>
         getArtistImage(name: string): Promise<string | null>
         getLyrics(title: string, artist: string, filePath?: string, duration?: number): Promise<string | null>
         onDownloadProgress(callback: (data: { url: string, speed: string, percent?: number }) => void): void

@@ -378,10 +378,11 @@ export function useLibrary() {
             })
             .filter(({ t }: { t: Track }) => {
                 const safeTitle = (t.title || '').replace(/[\\/:*?"<>|]/g, '_').trim()
-                const expectedFilename = `${safeTitle}.m4a`.toLowerCase()
+                const expectedM4a = `${safeTitle}.m4a`.toLowerCase()
+                const expectedMp4 = `${safeTitle}.mp4`.toLowerCase()
                 
-                // Only skip if the EXACT safe filename we are about to generate already exists
-                return !existingFiles.has(expectedFilename)
+                // Only skip if the EXACT safe filename already exists (check both formats)
+                return !existingFiles.has(expectedM4a) && !existingFiles.has(expectedMp4)
             })
             
         const totalToDownload = tracksToDownload.length
@@ -450,7 +451,8 @@ export function useLibrary() {
                     const query = `${t.title} ${t.artist || ''}`.trim()
                     const results = await window.ipcRenderer.searchYouTube(query)
                     if (results && results.length > 0) {
-                        await (window as any).ipcRenderer.downloadYouTubeToDir(results[0].url, t.title, t.artist || '', targetDir, speedLimit, trackMs)
+                        const format = localStorage.getItem('neonwave_download_format') || 'm4a'
+                        await window.ipcRenderer.downloadYouTubeToDir(results[0].url, t.title, t.artist || '', targetDir, speedLimit, trackMs, format)
                         if (!downloadControlRef.current.isCancelled) successCount++
                     }
                 } catch(err) {
