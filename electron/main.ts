@@ -444,6 +444,17 @@ app.whenReady().then(() => {
         autoUpdater.quitAndInstall(false, true)
     })
 
+    ipcMain.handle('app:version', () => {
+        try {
+            const version = app.getVersion()
+            if (version && version !== '0.0.0') return version
+            const pkg = require('../package.json')
+            return pkg.version || '6.1.3'
+        } catch (e) {
+            return '6.1.3'
+        }
+    })
+
     // --- Mini Player Window Management ---
     ipcMain.on('player:sync', (_, data) => {
         if (miniWin && !miniWin.isDestroyed()) {
@@ -1332,31 +1343,6 @@ app.whenReady().then(() => {
     } catch (e) {
       console.error('Error fetching lyrics:', e)
       return null
-    }
-  })
-
-  // Update IPC
-  ipcMain.handle('update:check', () => {
-    autoUpdater.checkForUpdates()
-  })
-
-  ipcMain.handle('update:install', () => {
-    // Silent install, force run after
-    autoUpdater.quitAndInstall(true, true)
-  })
-
-  ipcMain.handle('app:version', () => {
-    try {
-      const version = app.getVersion()
-      if (version && version !== '0.0.0') return version
-
-      // Fallback for development: use the version from package.json
-      // We use the already defined 'require' (createRequire)
-      const pkg = require('../package.json')
-      return pkg.version || '6.1.3'
-    } catch (e) {
-      console.error('Failed to get app version:', e)
-      return '6.1.3'
     }
   })
 })
