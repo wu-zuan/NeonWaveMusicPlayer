@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Notification, nativeImage, screen } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -58,6 +58,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let miniWin: BrowserWindow | null = null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -438,10 +439,58 @@ app.whenReady().then(() => {
     autoUpdater.checkForUpdatesAndNotify()
   })
 
-  ipcMain.handle('update:install', () => {
-    // This is the key: It will kill the app and start the installer immediately
-    autoUpdater.quitAndInstall(false, true)
-  })
+    ipcMain.handle('update:install', () => {
+        // This is the key: It will kill the app and start the installer immediately
+        autoUpdater.quitAndInstall(false, true)
+    })
+
+    // --- Mini Player Window Management ---
+    ipcMain.on('player:sync', (_, data) => {
+        if (miniWin && !miniWin.isDestroyed()) {
+            miniWin.webContents.send('player:sync', data)
+        }
+    })
+
+    ipcMain.handle('window:toggleMiniPlayer', () => {
+        if (miniWin && !miniWin.isDestroyed()) {
+            miniWin.close()
+            miniWin = null
+            return false
+        }
+
+        const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize
+        const miniWidth = 180
+        const miniHeight = 180
+        const margin = 20
+
+        miniWin = new BrowserWindow({
+            width: miniWidth,
+            height: miniHeight,
+            x: screenWidth - miniWidth - margin,
+            y: margin,
+            frame: false,
+            transparent: true,
+            alwaysOnTop: true,
+            resizable: false,
+            skipTaskbar: true,
+            webPreferences: {
+                preload: path.join(__dirname, 'preload.mjs'),
+                webSecurity: false,
+            }
+        })
+
+        if (VITE_DEV_SERVER_URL) {
+            miniWin.loadURL(`${VITE_DEV_SERVER_URL}?mini=true`)
+        } else {
+            miniWin.loadFile(path.join(RENDERER_DIST, 'index.html'), { query: { mini: 'true' } })
+        }
+
+        miniWin.on('closed', () => {
+            miniWin = null
+        })
+
+        return true
+    })
 
   // IPC Handlers
   ipcMain.handle('dialog:openDirectory', async () => {

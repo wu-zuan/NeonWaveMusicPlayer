@@ -236,6 +236,28 @@ export function SettingsView() {
                         {/* Progress UI managed by React state */}
                         <ScanProgress />
                     </div>
+
+                    <div style={{ marginTop: '24px', borderTop: '1px solid var(--glass-border)', paddingTop: '24px' }}>
+                        <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>介面設定</h4>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <div style={{ color: 'var(--text-main)' }}>啟用 迷你播放器 (PIP)</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>在螢幕右上角顯示懸浮圓形播放器</div>
+                            </div>
+                            <label className="switch">
+                                <input 
+                                    type="checkbox" 
+                                    defaultChecked={localStorage.getItem('neonwave_mini_player') === 'true'}
+                                    onChange={async (e) => {
+                                        const enabled = e.target.checked;
+                                        localStorage.setItem('neonwave_mini_player', enabled.toString());
+                                        await window.ipcRenderer.invoke('window:toggleMiniPlayer');
+                                    }}
+                                />
+                                <span className="slider round"></span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '24px', marginTop: '24px' }}>

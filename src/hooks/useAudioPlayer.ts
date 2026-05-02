@@ -364,6 +364,28 @@ export function useAudioPlayer() {
         updatePresence();
     }, [currentTrack?.path, isPlaying]);
 
+    // Mini Player Sync
+    useEffect(() => {
+        if (!currentTrack) return;
+
+        const sync = () => {
+            window.ipcRenderer.send('player:sync', {
+                title: currentTrack.title,
+                artist: currentTrack.artist,
+                artwork: currentTrack.artwork,
+                currentTime,
+                duration,
+                isPlaying
+            });
+        };
+
+        sync(); // Immediate sync
+
+        // Throttle progress updates to avoid IPC overhead
+        const interval = setInterval(sync, 1000);
+        return () => clearInterval(interval);
+    }, [currentTrack, isPlaying, currentTime, duration]);
+
 
     const togglePlay = async () => {
         if (!audioRef.current) return;

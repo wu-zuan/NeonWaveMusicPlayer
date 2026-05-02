@@ -14,8 +14,15 @@ import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
 import { DiscordControlPanel } from './components/DiscordBot/DiscordControlPanel'
 import { ImportChoiceModal } from './components/UI/ImportChoiceModal'
 import { DownloadProgressModal } from './components/UI/DownloadProgressModal'
+import { MiniPlayer } from './components/Player/MiniPlayer'
 
 function App() {
+  const isMini = new URLSearchParams(window.location.search).get('mini') === 'true'
+
+  if (isMini) {
+    return <MiniPlayer />
+  }
+
   const {
     playlists, favorites, allTracks,
     addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
