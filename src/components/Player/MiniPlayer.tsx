@@ -23,26 +23,37 @@ export function MiniPlayer() {
         <div style={{
             width: '100vw',
             height: '100vh',
-            borderRadius: '50%',
-            background: 'rgba(15, 23, 42, 0.9)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'white',
-            fontSize: '14px',
-            fontWeight: 600,
-            border: '2px solid rgba(255, 255, 255, 0.1)',
-            WebkitAppRegion: 'drag',
-            boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-            fontFamily: 'system-ui, sans-serif'
+            WebkitAppRegion: 'drag'
         } as any}>
-            NeonWave
+            <div style={{
+                width: '120px',
+                height: '120px',
+                borderRadius: '50%',
+                background: 'rgba(15, 23, 42, 0.8)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '12px',
+                fontWeight: 600,
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                fontFamily: "'Outfit', sans-serif"
+            }}>
+                NeonWave
+            </div>
         </div>
     )
 
     const progress = track.duration > 0 ? (track.currentTime / track.duration) * 100 : 0
-    const size = 160 // Circle size
-    const circumference = 2 * Math.PI * (size / 2 - 2) 
+    const size = 150
+    const strokeWidth = 3
+    const radius = size / 2 - strokeWidth
+    const circumference = 2 * Math.PI * radius
     const offset = circumference - (progress / 100) * circumference
 
     return (
@@ -55,33 +66,57 @@ export function MiniPlayer() {
             background: 'transparent',
             WebkitAppRegion: 'drag',
             userSelect: 'none',
-            fontFamily: 'system-ui, sans-serif'
+            fontFamily: "'Outfit', 'Inter', sans-serif"
         } as any}>
             <div style={{
                 width: `${size}px`,
                 height: `${size}px`,
                 position: 'relative',
                 borderRadius: '50%',
-                overflow: 'hidden',
-                background: '#0f172a',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.6), 0 0 15px var(--accent-glow, rgba(139, 92, 246, 0.3))',
-                border: '1px solid rgba(255,255,255,0.1)'
+                background: '#020617',
+                boxShadow: '0 15px 45px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 242, 0.2)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
             }}>
-                {/* Album Art Background */}
+                {/* Rotating Album Art (Vinyl Style) */}
                 <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundImage: `url(${track.artwork || 'logo.png'})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    filter: 'brightness(0.6) blur(1px)',
-                    transition: 'background-image 0.8s ease'
-                }} />
+                    width: `${size - 10}px`,
+                    height: `${size - 10}px`,
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    animation: track.isPlaying ? 'spin 12s linear infinite' : 'none',
+                    transition: 'all 0.5s ease',
+                    boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
+                }}>
+                    <img 
+                        src={track.artwork || 'logo.png'} 
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            filter: 'brightness(0.5) contrast(1.1)'
+                        }}
+                    />
+                    
+                    {/* Vinyl Center Hole Decor */}
+                    <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        background: '#020617',
+                        border: '2px solid rgba(255,255,255,0.2)',
+                        zIndex: 10
+                    }} />
+                </div>
 
-                {/* Progress Ring */}
+                {/* Progress Ring Overlay */}
                 <svg style={{
                     position: 'absolute',
                     top: 0,
@@ -89,59 +124,71 @@ export function MiniPlayer() {
                     width: `${size}px`,
                     height: `${size}px`,
                     transform: 'rotate(-90deg)',
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    zIndex: 20
                 }}>
                     <circle
                         cx={size/2}
                         cy={size/2}
-                        r={size/2 - 2}
+                        r={radius}
                         stroke="rgba(255, 255, 255, 0.05)"
-                        strokeWidth="4"
+                        strokeWidth={strokeWidth}
                         fill="transparent"
                     />
                     <circle
                         cx={size/2}
                         cy={size/2}
-                        r={size/2 - 2}
-                        stroke="var(--accent, #8b5cf6)"
-                        strokeWidth="4"
+                        r={radius}
+                        stroke="var(--accent-primary, #00fff2)"
+                        strokeWidth={strokeWidth}
                         fill="transparent"
                         strokeDasharray={circumference}
                         strokeDashoffset={offset}
                         strokeLinecap="round"
-                        style={{ transition: 'stroke-dashoffset 0.3s linear' }}
+                        style={{ 
+                            transition: 'stroke-dashoffset 0.5s linear',
+                            filter: 'drop-shadow(0 0 3px var(--accent-primary, #00fff2))'
+                        }}
                     />
                 </svg>
 
-                {/* Info Overlay */}
+                {/* Text Overlay (Bottom Arc) */}
                 <div style={{
                     position: 'absolute',
-                    inset: 0,
+                    bottom: '25px',
+                    width: '110px',
+                    height: '40px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '20px',
-                    textAlign: 'center',
-                    color: 'white',
-                    textShadow: '0 2px 8px rgba(0,0,0,0.9)',
+                    zIndex: 30,
                     pointerEvents: 'none'
                 }}>
                     <div style={{
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        width: '120px',
-                        whiteSpace: 'nowrap',
+                        width: '100%',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        marginBottom: '2px'
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center'
                     }}>
-                        {track.title}
+                        <div style={{
+                            display: 'inline-block',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            color: 'white',
+                            textShadow: '0 2px 4px rgba(0,0,0,0.8)',
+                            padding: '0 5px',
+                            animation: track.title.length > 12 ? 'scrollText 8s linear infinite' : 'none'
+                        }}>
+                            {track.title}
+                        </div>
                     </div>
                     <div style={{
-                        fontSize: '10px',
-                        color: 'rgba(255,255,255,0.8)',
-                        width: '100px',
+                        fontSize: '9px',
+                        color: 'rgba(255,255,255,0.6)',
+                        fontWeight: 500,
+                        textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                        maxWidth: '90px',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
@@ -150,17 +197,32 @@ export function MiniPlayer() {
                     </div>
                 </div>
 
-                {!track.isPlaying && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '15px',
-                        right: '15px',
-                        opacity: 0.6
-                    }}>
-                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 5px #ef4444' }} />
-                    </div>
-                )}
+                {/* Decorative Elements */}
+                <div style={{
+                    position: 'absolute',
+                    top: '15px',
+                    right: '15px',
+                    zIndex: 30
+                }}>
+                     <div style={{ 
+                        width: '6px', 
+                        height: '6px', 
+                        borderRadius: '50%', 
+                        background: track.isPlaying ? '#00fff2' : '#ff00ff',
+                        boxShadow: `0 0 8px ${track.isPlaying ? '#00fff2' : '#ff00ff'}`,
+                        animation: track.isPlaying ? 'pulse 2s infinite' : 'none'
+                     }} />
+                </div>
             </div>
+
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+                @keyframes scrollText {
+                    0% { transform: translateX(10%); }
+                    100% { transform: translateX(-100%); }
+                }
+            `}</style>
         </div>
     )
 }

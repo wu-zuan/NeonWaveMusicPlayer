@@ -19,6 +19,14 @@ import { MiniPlayer } from './components/Player/MiniPlayer'
 function App() {
   const isMini = new URLSearchParams(window.location.search).get('mini') === 'true'
 
+  useEffect(() => {
+    if (isMini) {
+      document.body.classList.add('mini-mode')
+    } else {
+      document.body.classList.remove('mini-mode')
+    }
+  }, [isMini])
+
   if (isMini) {
     return <MiniPlayer />
   }

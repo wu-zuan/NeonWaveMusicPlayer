@@ -37,6 +37,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body.mini-mode {
+  background: transparent !important;
+  animation: none !important;
+}
+
 @keyframes aurora {
   0% {
     background-position: 0% 50%;

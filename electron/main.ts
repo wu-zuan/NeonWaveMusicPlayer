@@ -473,6 +473,7 @@ app.whenReady().then(() => {
             alwaysOnTop: true,
             resizable: false,
             skipTaskbar: true,
+            backgroundColor: '#00000000', // Explicitly transparent for Windows
             webPreferences: {
                 preload: path.join(__dirname, 'preload.mjs'),
                 webSecurity: false,
