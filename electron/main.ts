@@ -473,7 +473,9 @@ app.whenReady().then(() => {
             alwaysOnTop: true,
             resizable: false,
             skipTaskbar: true,
-            backgroundColor: '#00000000', // Explicitly transparent for Windows
+            thickFrame: false, // Disable native window border/frame shadows
+            hasShadow: false, // Prevent square shadow on Windows
+            backgroundColor: '#00000000',
             webPreferences: {
                 preload: path.join(__dirname, 'preload.mjs'),
                 webSecurity: false,
@@ -1346,14 +1348,15 @@ app.whenReady().then(() => {
   ipcMain.handle('app:version', () => {
     try {
       const version = app.getVersion()
-      if (version) return version
+      if (version && version !== '0.0.0') return version
 
-      // Fallback for development if version is missing
+      // Fallback for development: use the version from package.json
+      // We use the already defined 'require' (createRequire)
       const pkg = require('../package.json')
-      return pkg.version
+      return pkg.version || '6.1.3'
     } catch (e) {
-      // Final fallback
-      return '5.9.5'
+      console.error('Failed to get app version:', e)
+      return '6.1.3'
     }
   })
 })

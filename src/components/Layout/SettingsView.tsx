@@ -38,7 +38,7 @@ const ScanProgress = () => {
 export function useUpdater() {
     const [status, setStatus] = useState<string>('idle') // idle, checking, available, not-available, downloading, downloaded, error
     const [progress, setProgress] = useState<any>(null)
-    const [version, setVersion] = useState<string>('')
+    const [version, setVersion] = useState<string>('...')
     const [error, setError] = useState<string>('')
 
     useEffect(() => {

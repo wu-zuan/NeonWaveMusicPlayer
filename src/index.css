@@ -37,9 +37,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body.mini-mode {
+body.mini-mode, 
+body.mini-mode #root,
+html:has(body.mini-mode) {
   background: transparent !important;
+  background-color: transparent !important;
   animation: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: none !important;
 }
 
 @keyframes aurora {

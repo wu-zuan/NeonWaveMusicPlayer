@@ -22,8 +22,10 @@ function App() {
   useEffect(() => {
     if (isMini) {
       document.body.classList.add('mini-mode')
+      document.documentElement.classList.add('mini-mode')
     } else {
       document.body.classList.remove('mini-mode')
+      document.documentElement.classList.remove('mini-mode')
     }
   }, [isMini])
 
