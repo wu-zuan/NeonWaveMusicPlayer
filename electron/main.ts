@@ -454,7 +454,7 @@ app.whenReady().then(() => {
             
             
             const shouldIgnore = !!(data && data.isGameModeActive)
-            miniWin.setIgnoreMouseEvents(shouldIgnore, { forward: true })
+            miniWin.setIgnoreMouseEvents(shouldIgnore)
         }
     })
 

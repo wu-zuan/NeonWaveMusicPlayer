@@ -249,6 +249,7 @@ export function SettingsView() {
                                         const enabled = e.target.checked;
                                         localStorage.setItem('neonwave_mini_player', enabled.toString());
                                         await window.ipcRenderer.invoke('window:toggleMiniPlayer');
+                                        window.dispatchEvent(new Event('neonwave:settings-changed'));
                                     }}
                                 />
                                 <span className="slider round"></span>

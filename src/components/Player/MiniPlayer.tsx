@@ -20,30 +20,40 @@ export function MiniPlayer() {
         return () => { if (cleanup) cleanup() }
     }, [])
 
-    if (!track) return (
+    const isGameModeActive = !!(track && track.isGameModeActive)
+
+    if (!track || !track.title) return (
         <div style={{
             width: '100vw',
             height: '100vh',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            WebkitAppRegion: 'drag'
+            background: 'transparent',
+            WebkitAppRegion: isGameModeActive ? 'none' : 'drag',
+            userSelect: 'none',
+            fontFamily: "'Outfit', 'Inter', sans-serif",
+            opacity: isGameModeActive ? 0.35 : 1,
+            transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
+            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
         } as any}>
             <div style={{
                 width: '120px',
                 height: '120px',
                 borderRadius: '50%',
-                background: 'rgba(15, 23, 42, 0.8)',
-                backdropFilter: 'blur(10px)',
+                background: '#020617',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
                 fontSize: '12px',
                 fontWeight: 600,
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                fontFamily: "'Outfit', sans-serif"
+                border: isGameModeActive ? '1px solid rgba(255, 85, 0, 0.25)' : '1px solid rgba(255, 255, 255, 0.2)',
+                boxShadow: isGameModeActive 
+                    ? '0 10px 30px rgba(0,0,0,0.9), 0 0 15px rgba(255, 85, 0, 0.15)' 
+                    : '0 8px 32px rgba(0,0,0,0.5)',
+                fontFamily: "'Outfit', sans-serif",
+                transition: 'all 0.5s ease'
             }}>
                 NeonWave
             </div>
@@ -65,11 +75,11 @@ export function MiniPlayer() {
             alignItems: 'center',
             justifyContent: 'center',
             background: 'transparent',
-            WebkitAppRegion: track.isGameModeActive ? 'none' : 'drag',
+            WebkitAppRegion: isGameModeActive ? 'none' : 'drag',
             userSelect: 'none',
             fontFamily: "'Outfit', 'Inter', sans-serif",
-            opacity: track.isGameModeActive ? 0.35 : 1,
-            transform: track.isGameModeActive ? 'scale(0.92)' : 'scale(1)',
+            opacity: isGameModeActive ? 0.35 : 1,
+            transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
             transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
         } as any}>
             <div style={{
@@ -78,10 +88,10 @@ export function MiniPlayer() {
                 position: 'relative',
                 borderRadius: '50%',
                 background: '#020617',
-                boxShadow: track.isGameModeActive 
+                boxShadow: isGameModeActive 
                     ? '0 10px 30px rgba(0,0,0,0.9), 0 0 15px rgba(255, 85, 0, 0.15)' 
                     : '0 15px 45px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 242, 0.2)',
-                border: track.isGameModeActive 
+                border: isGameModeActive 
                     ? '1px solid rgba(255, 85, 0, 0.25)' 
                     : '1px solid rgba(255,255,255,0.1)',
                 display: 'flex',
@@ -162,7 +172,7 @@ export function MiniPlayer() {
                 </svg>
 
                 { }
-                {track.isGameModeActive && (
+                {isGameModeActive && (
                     <div style={{
                         position: 'absolute',
                         top: '12px',

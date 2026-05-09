@@ -363,16 +363,14 @@ export function useAudioPlayer(contextMode?: string) {
 
     
     useEffect(() => {
-        if (!currentTrack) return;
-
         const sync = () => {
             const gameModeSetting = localStorage.getItem('neonwave_mini_game_mode') || 'auto';
             const isGameModeActive = (gameModeSetting === 'always') || (gameModeSetting === 'auto' && contextMode === 'game');
 
             window.ipcRenderer.send('player:sync', {
-                title: currentTrack.title,
-                artist: currentTrack.artist,
-                artwork: currentTrack.artwork,
+                title: currentTrack ? currentTrack.title : '',
+                artist: currentTrack ? currentTrack.artist : '',
+                artwork: currentTrack ? currentTrack.artwork : undefined,
                 currentTime,
                 duration,
                 isPlaying,
@@ -385,7 +383,6 @@ export function useAudioPlayer(contextMode?: string) {
         const handleSettingsChange = () => sync();
         window.addEventListener('neonwave:settings-changed', handleSettingsChange);
 
-        
         const interval = setInterval(sync, 1000);
         return () => {
             clearInterval(interval);
