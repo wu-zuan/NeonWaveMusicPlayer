@@ -21,7 +21,7 @@ interface PlayerBarProps {
     onToggleRepeat: () => void
     onNext?: () => void
     onPrev?: () => void
-    // Advanced
+    
     onSetDistance?: (d: number) => void
     onSetSpace?: (s: string) => void
     onSetPosition?: (x: number, y: number, z: number) => void
@@ -60,24 +60,24 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             onSetFocusMode?.(false)
         }
 
-        // Automation: Auto-set distance and position based on venue
+        
         let newDist = 0
         let newPos = { x: 0, z: 0 }
 
         if (val === 'concert') {
             newDist = 7.5
-            newPos = { x: 0, z: 0 } // Immerse inside center
+            newPos = { x: 0, z: 0 } 
         } else if (val === 'hall') {
             newDist = 5.0
-            newPos = { x: 0, z: -3.5 } // Wide open lobby
+            newPos = { x: 0, z: -3.5 } 
         } else if (val === 'room') {
             newDist = 2.5
-            newPos = { x: 0, z: -2 } // Desk speakers relative to head
+            newPos = { x: 0, z: -2 } 
         } else if (val === 'driver') {
-            newDist = 0.5               // Very close cabin
-            newPos = { x: 0, z: -0.8 }  // Dashboard speakers (close front)
+            newDist = 0.5               
+            newPos = { x: 0, z: -0.8 }  
         } else {
-            // none
+            
             newDist = 0
             newPos = { x: 0, z: 0 }
         }
@@ -124,7 +124,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
 
     return (
         <div className={styles.bar}>
-            {/* Spatial Control Popup */}
+            { }
             {showSpatial && (
                 <div style={{
                     position: 'absolute',
@@ -175,10 +175,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                         </button>
                     </div>
 
-                    {/* Tab Content: Effects */}
+                    { }
                     {activeTab === 'effects' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '4px' }}>
-                            {/* Focus Mode */}
+                            { }
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                 <div>
                                     <div style={{ color: 'var(--text-main)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -228,7 +228,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                 </button>
                             </div>
 
-                            {/* Space Mode */}
+                            { }
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: isFocus ? 0.5 : 1, pointerEvents: isFocus ? 'none' : 'auto', transition: 'all 0.3s' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>真實空間模擬</label>
@@ -289,7 +289,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                 />
                             </div>
 
-                            {/* Position */}
+                            { }
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                                 <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>3D 音源定位</label>
                                 <div style={{ flex: 1, minHeight: '180px', display: 'flex', flexDirection: 'column' }}>
@@ -309,7 +309,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 </div>
             )}
 
-            {/* Track Info */}
+            { }
             <div className={styles.nowPlaying}>
                 <div className={styles.art}>
                     {currentTrack?.artwork ? (
@@ -348,7 +348,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 </div>
             </div>
 
-            {/* Main Controls */}
+            { }
             <div className={styles.controls}>
                 <div className={styles.buttons}>
                     <button
@@ -395,7 +395,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 </div>
             </div>
 
-            {/* Extras */}
+            { }
             <div className={styles.extra}>
                 <button
                     className={`${styles.actionBtn} ${showSpatial ? styles.activeControl : ''}`}

@@ -23,23 +23,23 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     const [activeIndex, setActiveIndex] = useState(-1)
     const [statusMsg, setStatusMsg] = useState<string | null>(null)
 
-    // Status Toast Helper
+    
     const showStatus = (msg: string) => {
         setStatusMsg(msg)
         setTimeout(() => setStatusMsg(null), 3000)
     }
 
-    // "Lyrics: ON" indicator when toggled visible
+    
     useEffect(() => {
         if (visible) {
             showStatus("歌詞模式: 開啟")
         }
     }, [visible])
 
-    // Check if we have valid synced timestamps (at least some lines > 0s)
+    
     const isSynced = React.useMemo(() => lyrics.some(l => l.time > 0), [lyrics])
 
-    // Sync Active Line
+    
     useEffect(() => {
         if (!isSynced) return
 
@@ -49,7 +49,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         }
     }, [currentTime, lyrics, isSynced])
 
-    // Reset active index when lyrics change
+    
     useEffect(() => {
         if (!isSynced) {
             setActiveIndex(-1)
@@ -85,13 +85,13 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         }
     }
 
-    // Initial Fetch
+    
     useEffect(() => {
         if (!visible || !trackTitle) return
         fetchLyrics(trackTitle, trackArtist, trackPath, trackDuration)
     }, [trackTitle, trackArtist, trackPath, visible, trackDuration])
 
-    // Close on Escape key
+    
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && visible) {
@@ -102,12 +102,12 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [visible, onClose])
 
-    // --- Rendering ---
-    // --- Danmaku Logic ---
+    
+    
     interface DanmakuItem {
         id: string
         text: string
-        top: number // percentage 0-100
+        top: number 
         duration: number
         color: string
         size: number
@@ -115,25 +115,25 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
 
     const [danmakuItems, setDanmakuItems] = useState<DanmakuItem[]>([])
 
-    // Clear danmaku when track changes or visibility toggles
+    
     useEffect(() => {
         setDanmakuItems([])
     }, [trackTitle, visible, isSynced])
 
-    // Add new danmaku when active line changes
+    
     useEffect(() => {
         if (!visible || activeIndex === -1 || !lyrics[activeIndex]) return
 
         const currentLine = lyrics[activeIndex]
 
-        // Prevent duplicate items if the logic runs multiple times for same index
-        // But activeIndex change is stable enough.
+        
+        
 
         const colors = ['#ffffff', '#00fff2', '#ff00ff', '#f8fafc']
         const randomColor = colors[Math.floor(Math.random() * colors.length)]
-        const randomTop = Math.floor(Math.random() * 80) + 10 // 10% to 90%
-        const randomDuration = Math.random() * 5 + 8 // 8s to 13s
-        const randomSize = Math.random() * 1.5 + 2 // 2rem to 3.5rem
+        const randomTop = Math.floor(Math.random() * 80) + 10 
+        const randomDuration = Math.random() * 5 + 8 
+        const randomSize = Math.random() * 1.5 + 2 
 
         const newItem: DanmakuItem = {
             id: `${currentLine.time}-${Date.now()}`,
@@ -166,12 +166,12 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     zIndex: 9999,
                     pointerEvents: 'none',
                     overflow: 'hidden',
-                    background: 'rgba(0,0,0,0.2)', // Slight dim
-                    backdropFilter: 'blur(2px)', // Subtle focus
+                    background: 'rgba(0,0,0,0.2)', 
+                    backdropFilter: 'blur(2px)', 
                     fontFamily: '"Outfit", sans-serif',
                 }}
             >
-                {/* Status / Feedback Toast (Top Center) */}
+                { }
                 <AnimatePresence>
                     {(statusMsg || loading) && (
                         <motion.div
@@ -226,8 +226,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     </motion.div>
                 ))}
 
-                {/* Empty State / Error visual hint if desired, 
-                    but Danmaku usually just stays quiet if no lyrics */}
+                { }
                 {error && danmakuItems.length === 0 && (
                     <div style={{ position: 'absolute', bottom: '10%', width: '100%', textAlign: 'center', opacity: 0.5 }}>
                         未找到歌詞

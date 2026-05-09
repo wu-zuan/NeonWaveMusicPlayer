@@ -19,7 +19,7 @@ function runPowerShell(scriptPath: string): Promise<string> {
   return new Promise((resolve) => {
     exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, (error, stdout) => {
       if (error) {
-        // reject(error) // Don't reject, just return unknown
+        
         resolve("unknown")
         return
       }
@@ -28,16 +28,14 @@ function runPowerShell(scriptPath: string): Promise<string> {
   })
 }
 
-// Allow updating to pre-releases if needed
 autoUpdater.allowPrerelease = true
 
-// Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    // Someone tried to run a second instance, we should focus our window.
+    
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
@@ -47,10 +45,8 @@ if (!gotTheLock) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// The built directory structure
 process.env.APP_ROOT = path.join(__dirname, '..')
 
-// 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
@@ -67,29 +63,29 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     icon: path.join(process.env.VITE_PUBLIC!, 'logo.png'),
-    titleBarStyle: 'hidden', // Custom title bar for premium look
+    titleBarStyle: 'hidden', 
     titleBarOverlay: {
       color: '#00000000',
       symbolColor: '#ffffff',
       height: 30
     },
-    show: false, // Don't show the window until it's ready
-    backgroundColor: '#020617', // Match the app's dark theme to prevent gray/white flash
+    show: false, 
+    backgroundColor: '#020617', 
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
-      webSecurity: false, // simplified for local file access in dev
+      webSecurity: false, 
       backgroundThrottling: false,
       devTools: true
     },
   })
 
-  // Prevent "gray box" by showing window only when content is ready
+  
   win.once('ready-to-show', () => {
     win?.show()
     win?.focus()
   })
 
-  // Handle renderer becoming unresponsive
+  
   win.on('unresponsive', () => {
     console.warn('Renderer unresponsive')
     dialog.showMessageBox(win!, {
@@ -103,7 +99,7 @@ function createWindow() {
     })
   })
 
-  // Handle potential renderer crashes or hangs
+  
   win.webContents.on('render-process-gone', (_event, details) => {
     console.error('Renderer process gone:', details.reason)
     if (details.reason !== 'clean-exit') {
@@ -118,10 +114,10 @@ function createWindow() {
     }
   })
 
-  // Handle load failure (e.g. Vite server not ready yet)
+  
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
     console.warn(`Page failed to load: ${errorCode} ${errorDescription}`)
-    // If it's a transient error (like connection refused), try to reload after a short delay
+    
     if (VITE_DEV_SERVER_URL) {
       setTimeout(() => {
         win?.loadURL(VITE_DEV_SERVER_URL)
@@ -129,7 +125,7 @@ function createWindow() {
     }
   })
 
-  // Test active push message to Renderer-process.
+  
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })
@@ -137,14 +133,11 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    // win.loadFile('dist/index.html')
+    
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -153,14 +146,13 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
+  
+  
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
 })
 
-// Auto Updater Listeners
 autoUpdater.on('checking-for-update', () => {
   win?.webContents.send('update-status', { status: 'checking' })
 })
@@ -179,7 +171,7 @@ autoUpdater.on('download-progress', (progressObj) => {
 autoUpdater.on('update-downloaded', (info) => {
   win?.webContents.send('update-status', { status: 'downloaded', info })
 
-  // Custom Notification with App Icon and Simple Chinese
+  
   const notification = new Notification({
     title: 'NeonWave 更新',
     body: '新版本已下載完成，將於重啟後自動安裝。',
@@ -189,25 +181,25 @@ autoUpdater.on('update-downloaded', (info) => {
 })
 
 app.whenReady().then(() => {
-  // Set App ID for Windows Notifications
+  
   if (process.platform === 'win32') {
     app.setAppUserModelId('NeonWave')
   }
 
-  // Register 'media' protocol to bypass some security if needed, or rely on webSecurity: false for now
+  
   createWindow()
 
-  // --- Discord RPC Integration ---
+  
   const discordRPC = new DiscordRPCManager()
 
-  // --- MEMORY CACHE FOR UPLOADED IMAGES ---
+  
   const imageCache = new Map<string, string>();
 
   async function uploadToCloud(artworkUrl: string): Promise<string | null> {
     try {
       let buffer: Buffer;
 
-      // 1. Resolve Local Path or Data URI
+      
       if (artworkUrl.startsWith('data:')) {
         const base64Data = artworkUrl.split('base64,')[1];
         buffer = Buffer.from(base64Data, 'base64');
@@ -225,7 +217,7 @@ app.whenReady().then(() => {
         return null;
       }
 
-      // 2. Smart Resizing & Compression (Fixing the 19MB issue)
+      
       const image = nativeImage.createFromBuffer(buffer);
       if (image.isEmpty()) return null;
       
@@ -235,8 +227,8 @@ app.whenReady().then(() => {
         quality: 'better'
       }).toJPEG(80);
 
-      // 3. Upload to Telegra.ph (more stable/anonymous for these tasks)
-      // Note: FormData and Blob are already imported at top
+      
+      
       
       const form = new FormData();
       const blob = new Blob([new Uint8Array(resizedBuffer)], { type: 'image/jpeg' });
@@ -259,27 +251,27 @@ app.whenReady().then(() => {
 
   ipcMain.handle('discord:updatePresence', async (_, data) => {
     const cacheKey = `${data.title}-${data.artist}`;
-    let artworkUrl = 'logo'; // Default to logo initially
+    let artworkUrl = 'logo'; 
 
-    // 1. Initial Instant Update (with cached URL or logo)
+    
     if (imageCache.has(cacheKey)) {
         artworkUrl = imageCache.get(cacheKey)!;
     } else if (data.artworkUrl && data.artworkUrl.startsWith('http') && !data.artworkUrl.includes('localhost')) {
         artworkUrl = data.artworkUrl;
     }
 
-    // Update with what we have (for instant feedback)
+    
     discordRPC.setActivity({ ...data, artworkUrl }).catch(() => {});
 
-    // 2. Background Upload (if it's a local/base64 image not already cached)
+    
     if (artworkUrl === 'logo' && data.artworkUrl) {
-        // Run this in background, don't wait for IPC to return
+        
         (async () => {
              try {
                 const uploadedUrl = await uploadToCloud(data.artworkUrl);
                 if (uploadedUrl) {
                     imageCache.set(cacheKey, uploadedUrl);
-                    // Second Update with the real picture!
+                    
                     discordRPC.setActivity({ ...data, artworkUrl: uploadedUrl }).catch(() => {});
                 }
              } catch (e) {
@@ -304,7 +296,7 @@ app.whenReady().then(() => {
     if (result.canceled || result.filePaths.length === 0) return { status: 'canceled' };
 
     const folderPath = result.filePaths[0];
-    // mm is already imported at top
+    
     const walk = async (dir: string): Promise<string[]> => {
       let files: string[] = [];
       const list = await fs.readdir(dir);
@@ -330,11 +322,11 @@ app.whenReady().then(() => {
         if (title && artist) {
           const cacheKey = `${title}-${artist}`;
           if (!imageCache.has(cacheKey) && metadata.common.picture && metadata.common.picture.length > 0) {
-            // Found embedded picture!
+            
             const pic = metadata.common.picture[0];
             const buffer = Buffer.from(pic.data);
             
-            // Upload
+            
             const { FormData } = require('formdata-node');
             const { Blob } = require('fetch-blob');
             const form = new FormData();
@@ -353,7 +345,7 @@ app.whenReady().then(() => {
         console.error(`[PreUpload] Error parsing ${file}:`, e);
       }
 
-      // Update UI progress
+      
       win?.webContents.send('discord:scanProgress', {
         current: i + 1,
         total: files.length,
@@ -368,7 +360,7 @@ app.whenReady().then(() => {
     return discordRPC.clearActivity()
   })
 
-  // --- Discord Bot Integration ---
+  
   const discordBot = new DiscordBotManager()
 
   ipcMain.handle('discord:login', async (_, token) => {
@@ -396,8 +388,8 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('discord:play', async (_, filePath) => {
-    // If we receive a specialized URL (like youtube stream), we might need different handling
-    // For now, assume filePath is absolute local path which createAudioResource can handle
+    
+    
     return await discordBot.playFile(filePath, ffmpegPath)
   })
 
@@ -421,26 +413,26 @@ app.whenReady().then(() => {
     return discordBot.getStatus()
   })
 
-  // Streaming IPC
+  
   ipcMain.handle('discord:startStreamMode', async () => {
     return await discordBot.playReceiverStream(ffmpegPath)
   })
 
-  // Note: For high frequency data, 'on' is better than 'handle' but 'handle' is easier to typed in my wrapper.
-  // Actually, for chunks, we use `ipcMain.on` usually?
-  // But App.tsx uses `window.ipcRenderer.invoke` or `send`.
-  // Let's use `ipcMain.on` for 'discord:audio-chunk' (fire and forget)
+  
+  
+  
+  
   ipcMain.on('discord:audio-chunk', (_, buffer) => {
     discordBot.writeAudioChunk(new Uint8Array(buffer))
   })
 
-  // Update
+  
   ipcMain.handle('update:check', () => {
     autoUpdater.checkForUpdatesAndNotify()
   })
 
     ipcMain.handle('update:install', () => {
-        // This is the key: It will kill the app and start the installer immediately
+        
         autoUpdater.quitAndInstall(false, true)
     })
 
@@ -455,10 +447,14 @@ app.whenReady().then(() => {
         }
     })
 
-    // --- Mini Player Window Management ---
+    
     ipcMain.on('player:sync', (_, data) => {
         if (miniWin && !miniWin.isDestroyed()) {
             miniWin.webContents.send('player:sync', data)
+            
+            
+            const shouldIgnore = !!(data && data.isGameModeActive)
+            miniWin.setIgnoreMouseEvents(shouldIgnore, { forward: true })
         }
     })
 
@@ -484,8 +480,8 @@ app.whenReady().then(() => {
             alwaysOnTop: true,
             resizable: false,
             skipTaskbar: true,
-            thickFrame: false, // Disable native window border/frame shadows
-            hasShadow: false, // Prevent square shadow on Windows
+            thickFrame: false, 
+            hasShadow: false, 
             backgroundColor: '#00000000',
             webPreferences: {
                 preload: path.join(__dirname, 'preload.mjs'),
@@ -506,7 +502,7 @@ app.whenReady().then(() => {
         return true
     })
 
-  // IPC Handlers
+  
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
       properties: ['openDirectory']
@@ -561,7 +557,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('files:getArtwork', async (_, filePath) => {
     try {
-      const metadata = await mm.parseFile(filePath, { skipCovers: false }) // ensure covers are parsed
+      const metadata = await mm.parseFile(filePath, { skipCovers: false }) 
       if (metadata.common.picture && metadata.common.picture.length > 0) {
         const pic = metadata.common.picture[0]
         return `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
@@ -594,22 +590,22 @@ app.whenReady().then(() => {
         sampleRate: metadata.format.sampleRate
       }
     } catch (e) {
-      // console.warn('Failed to parse metadata:', filePath, e)
+      
       return null
     }
   })
 
   ipcMain.handle('app:active-window', async () => {
-    // Logic for path: in Prod, we assume scripts are in resources or similar.
-    // For now, stick to dev path relative to APP_ROOT.
+    
+    
     const scriptPath = path.join(process.env.APP_ROOT, 'scripts/get-active-window.ps1')
     return await runPowerShell(scriptPath)
   })
 
-  // yt-dlp-wrap integration
+  
   const YtDlpWrap = createRequire(import.meta.url)('yt-dlp-wrap').default
 
-  // Helper: Update yt-dlp in background (fire & forget)
+  
   const updateYtDlpInBackground = async () => {
     const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
     const binaryPath = path.join(app.getPath('userData'), binaryName)
@@ -623,17 +619,17 @@ app.whenReady().then(() => {
     }
   }
 
-  // Ensure we have a binary (lazy load helper)
-  // Modified: No longer blocks for update check on every call
+  
+  
   const getYtDlp = async () => {
     const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
     const binaryPath = path.join(app.getPath('userData'), binaryName)
 
-    // Check existence
+    
     try {
       await fs.access(binaryPath)
     } catch {
-      // If missing, we MUST wait for download
+      
       console.log('Downloading yt-dlp binary...')
       await YtDlpWrap.downloadFromGithub(binaryPath)
       console.log('Downloaded yt-dlp to', binaryPath)
@@ -642,19 +638,19 @@ app.whenReady().then(() => {
     return new YtDlpWrap(binaryPath)
   }
 
-  // Start background update check for yt-dlp
+  
   updateYtDlpInBackground()
 
-  // --- Youtube Search & Lyrics (merged) ---
+  
   ipcMain.handle('search:youtube', async (_, query) => {
     try {
-      // Use helper that no longer blocks
+      
       const yt = await getYtDlp()
 
-      // ytsearch12:query triggers yt-dlp to search and return first 12 results (Optimized from 20)
-      // --dump-json outputs JSON for each result
-      // --flat-playlist ensures we get fast results without full extraction
-      // --default-search ytsearch12
+      
+      
+      
+      
       const stdout = await yt.execPromise([
         `ytsearch12:${query}`,
         '--dump-json',
@@ -673,7 +669,7 @@ app.whenReady().then(() => {
           title: v.title,
           artist: v.channel || v.uploader || 'Unknown',
           duration: v.duration,
-          thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`, // yt-dlp flat-playlist sometimes misses thumbs
+          thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`, 
           url: v.url || `https://www.youtube.com/watch?v=${v.id}`
         }))
 
@@ -693,20 +689,20 @@ app.whenReady().then(() => {
       let hasHeatmap = false
 
       if (dat.heatmap && dat.heatmap.length > 0) {
-        // Filter out first 15 seconds as it's often the default highest for UI reasons
+        
         const duration = dat.duration || 0
         const validHeatmap = dat.heatmap.filter((h: any) => h.start_time >= 15 && (duration === 0 || h.start_time <= duration - 15))
         const pool = validHeatmap.length > 0 ? validHeatmap : dat.heatmap
-        // Sort heatmap segments by value descending to find the most played part
+        
         const best = [...pool].sort((a: any, b: any) => b.value - a.value)[0]
         bestStart = best.start_time
         hasHeatmap = true
       }
 
-      // Secondary Strategy: LRCLib Chorus Detection
-      // If we don't have a heatmap, OR if we want to be more accurate with vocals, try dynamic lyrics.
-      // Many MVs have long intros where the heatmap spikes before the actual singing.
-      // We will try lyrics analysis if title/artist is provided, as a fallback or enhancement.
+      
+      
+      
+      
       if (!hasHeatmap && title) {
         try {
           const query = artist ? `${title} ${artist}` : title
@@ -752,38 +748,38 @@ app.whenReady().then(() => {
                   }
                 }
 
-                // If we found a repeating block (a chorus), use it!
+                
                 if (bestIdx !== -1 && maxScore >= 4) {
                   bestStart = parsed[bestIdx].time
                 } else {
-                  // If no chorus found, jump to 1/3 of the song
+                  
                   if (dat.duration) bestStart = Math.floor(dat.duration / 3)
                 }
               }
             }
           }
-        } catch (e) { /* ignore lyric fetch error */ }
+        } catch (e) {   }
       }
 
-      // If absolutely no strategy worked, fallback
+      
       if (bestStart === 0 && dat.duration) {
         bestStart = Math.floor(dat.duration / 3)
       }
 
-      // Filter for audio-only formats, sort by bitrate (tbr)
+      
       const formats = dat.formats || []
       let audioFormats = formats.filter((f: any) => f.acodec !== 'none' && f.vcodec === 'none')
       let streamUrl = ''
 
       if (audioFormats.length > 0) {
-        // Prefer m4a for highest compatibility with HTML Audio elements natively
+        
         const m4aFormats = audioFormats.filter((f: any) => f.ext === 'm4a')
         if (m4aFormats.length > 0) audioFormats = m4aFormats
 
         audioFormats.sort((a: any, b: any) => (b.tbr || 0) - (a.tbr || 0))
         streamUrl = audioFormats[0].url
       } else {
-        // Fallback to highest quality overall if no audio-only format
+        
         formats.sort((a: any, b: any) => (b.tbr || 0) - (a.tbr || 0))
         if (formats.length > 0) streamUrl = formats[0].url
       }
@@ -802,12 +798,12 @@ app.whenReady().then(() => {
     try {
       const yt = await getYtDlp()
 
-      // Get ffmpeg path
+      
       const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
-        .replace('app.asar', 'app.asar.unpacked') // Fix for production builds
+        .replace('app.asar', 'app.asar.unpacked') 
 
-      // 1. Get Info to sanitize title properly (optional, but good)
-      // Actually yt-dlp will handle most, but we need a save path.
+      
+      
       let safeTitle = inputTitle.replace(/[\\/:*?"<>|]/g, '_').trim()
 
       // 2. Pick path
@@ -1110,13 +1106,13 @@ app.whenReady().then(() => {
         return s.replace(/\s+/g, ' ').trim()
       }
 
-      // --- Helper: Duration Similarity (Score: 0 is perfect) ---
+      
       const getDurationDiff = (candDur: number, targetDur?: number) => {
-        if (!targetDur) return 0 // Ignore if no target
+        if (!targetDur) return 0 
         return Math.abs(candDur - targetDur)
       }
 
-      // --- Helper: LRCLib Search ---
+      
       const searchLrcLib = async (q: string, targetDur?: number) => {
         try {
           const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
@@ -1126,7 +1122,7 @@ app.whenReady().then(() => {
 
           if (!Array.isArray(list)) return []
 
-          // Map to standard format
+          
           return list
             .filter(t => t.syncedLyrics && t.syncedLyrics.length > 0)
             .map(t => ({
@@ -1134,7 +1130,7 @@ app.whenReady().then(() => {
               id: t.id,
               track: t.trackName,
               artist: t.artistName,
-              duration: t.duration, // in seconds
+              duration: t.duration, 
               lyrics: t.syncedLyrics,
               diff: targetDur ? getDurationDiff(t.duration, targetDur) : 0
             }))
@@ -1144,10 +1140,10 @@ app.whenReady().then(() => {
         }
       }
 
-      // --- Helper: Netease Search & Fetch ---
+      
       const searchNetease = async (q: string, targetDur?: number) => {
         try {
-          // 1. Search
+          
           const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(q)}&type=1&offset=0&total=true&limit=5`
           const res = await fetch(searchUrl, {
             headers: { 'Referer': 'https://music.163.com/', 'Cookie': 'appver=2.0.2' }
@@ -1157,16 +1153,16 @@ app.whenReady().then(() => {
 
           if (!data.result || !data.result.songs) return []
 
-          // 2. Filter Candidates (Optimistic: check metadata first)
+          
           let candidates = data.result.songs.map((s: any) => ({
             id: s.id,
             track: s.name,
             artist: s.artists?.[0]?.name || 'Unknown',
-            duration: s.duration / 1000, // ms to s
+            duration: s.duration / 1000, 
             diff: targetDur ? getDurationDiff(s.duration / 1000, targetDur) : 0
           }))
 
-          // Filter by duration strictness if targetDur exists (save API calls)
+          
           if (targetDur) {
             candidates = candidates.filter((c: any) => c.diff <= 5)
             candidates.sort((a: any, b: any) => a.diff - b.diff)
@@ -1174,7 +1170,7 @@ app.whenReady().then(() => {
 
           if (candidates.length === 0) return []
 
-          // 3. Fetch Lyric for Top Candidate
+          
           const best = candidates[0]
           const lyricUrl = `https://music.163.com/api/song/lyric?id=${best.id}&lv=1&kv=1&tv=-1`
           const lrcRes = await fetch(lyricUrl, {
@@ -1199,7 +1195,7 @@ app.whenReady().then(() => {
         return []
       }
 
-      // --- Converter ---
+      
       const convertToTraditional = (text: string | null) => {
         if (!text) return null
         try {
@@ -1209,17 +1205,17 @@ app.whenReady().then(() => {
         } catch { return text }
       }
 
-      // --- Main Execution Flow ---
-      // We will gather candidates from multiple strategies and pick the best one.
+      
+      
 
       let candidates: any[] = []
 
-      // Strategy A: Strict Metadata Search (Title + Artist)
+      
       if (title && artist) {
         const query = `${title} ${artist}`
         console.log(`[Lyrics] Strategy A: ${query}`)
 
-        // Parallel Search
+        
         const [lrcLibRes, neteaseRes] = await Promise.all([
           searchLrcLib(query, duration),
           searchNetease(query, duration)
@@ -1227,8 +1223,8 @@ app.whenReady().then(() => {
         candidates.push(...lrcLibRes, ...neteaseRes)
       }
 
-      // Strategy B: Cleaned Metadata Search
-      // Only do this if cleaning changes something
+      
+      
       const cTitle = cleanString(title)
       const cArtist = cleanString(artist)
       if (cTitle && (cTitle !== title || cArtist !== artist)) {
@@ -1241,18 +1237,18 @@ app.whenReady().then(() => {
         candidates.push(...lrcLibRes, ...neteaseRes)
       }
 
-      // Strategy C: Filename Based (The most robust for local files)
+      
       if (filePath) {
         let filename = path.basename(filePath, path.extname(filePath))
 
-        // C-0: Chinese Variety Show Pattern heuristic (Strict Artist《Title》...Trash)
-        // Regex: Catch everything before 《 as Artist, inside 《》 as Title, ignore everything after 》
+        
+        
         const varietyMatch = filename.match(/(.+?)《(.+?)》(.*)/)
         if (varietyMatch) {
-          const rawArtist = varietyMatch[1] // before bracket
-          const rawTitle = varietyMatch[2]  // inside bracket
+          const rawArtist = varietyMatch[1] 
+          const rawTitle = varietyMatch[2]  
 
-          // Clean artist (remove _ , 合唱, junk)
+          
           const cA = cleanString(rawArtist).replace(/合唱/g, '').trim()
           const cT = cleanString(rawTitle)
 
@@ -1262,7 +1258,7 @@ app.whenReady().then(() => {
             candidates.push(...await searchLrcLib(query, duration))
             candidates.push(...await searchNetease(query, duration))
 
-            // Also try Title Only if artist is complex (often variety shows have long artist lists)
+            
             if (cA.length > 0) {
               console.log(`[Lyrics] Strategy C-0 (Title + Duration): ${cT}`)
               candidates.push(...await searchLrcLib(cT, duration))
@@ -1271,7 +1267,7 @@ app.whenReady().then(() => {
           }
         }
 
-        // C-1: get-artist-title parsing (Standard western format)
+        
         const parsed = getArtistTitle(filename.replace(/_/g, ' '))
         if (parsed && parsed.length === 2) {
           const [a, t] = parsed
@@ -1281,21 +1277,21 @@ app.whenReady().then(() => {
           candidates.push(...await searchNetease(query, duration))
         }
 
-        // C-2: Cleaned Raw Filename (Fallback)
+        
         const cFilename = cleanString(filename)
         console.log(`[Lyrics] Strategy C-2 (Raw Cleaned): ${cFilename}`)
         candidates.push(...await searchLrcLib(cFilename, duration))
         candidates.push(...await searchNetease(cFilename, duration))
       }
 
-      // --- Selection Phase ---
+      
       if (candidates.length === 0) {
         console.log("[Lyrics] No candidates found.")
         return null
       }
 
-      // 1. Deduplication (by ID if source same, or just content?)
-      // Let's just filter by unique source+id
+      
+      
       const unique = new Map()
       candidates.forEach(c => {
         const key = `${c.source}-${c.id}`
@@ -1303,35 +1299,35 @@ app.whenReady().then(() => {
       })
       let finalPool = Array.from(unique.values())
 
-      // 2. Duration Calibration
-      // If duration is provided, filter out bad matches (Diff > 4s)
+      
+      
       if (duration && duration > 0) {
         const strictMatches = finalPool.filter(c => c.diff <= 4)
         if (strictMatches.length > 0) {
           console.log(`[Lyrics] Calibration: Found ${strictMatches.length} strict duration matches.`)
           finalPool = strictMatches
         } else {
-          // If NO strict matches, we might be dealing with a completely different version.
-          // Try "Lenient" matches (Diff <= 10s)
+          
+          
           const lenientMatches = finalPool.filter(c => c.diff <= 10)
           if (lenientMatches.length > 0) {
             console.log(`[Lyrics] Calibration: Found ${lenientMatches.length} lenient duration matches.`)
             finalPool = lenientMatches
           } else {
             console.log(`[Lyrics] Calibration: No duration matches found. Closest is ${Math.min(...finalPool.map(c => c.diff))}s off.`)
-            // If diff is huge (e.g. > 30s), it's probably wrong song. 
-            // But user wants SOMETHING rather than nothing? 
-            // Or improved accuracy?
-            // Let's sort by diff anyway.
+            
+            
+            
+            
           }
         }
       }
 
-      // 3. Sort by:
-      // - Diff (ASC)
-      // - Source preference? (LRCLib is usually better timed)
+      
+      
+      
       finalPool.sort((a, b) => {
-        if (Math.abs(a.diff - b.diff) > 0.5) return a.diff - b.diff // Duration is king
+        if (Math.abs(a.diff - b.diff) > 0.5) return a.diff - b.diff 
         return 0
       })
 

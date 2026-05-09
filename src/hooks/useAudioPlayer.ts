@@ -15,16 +15,16 @@ export interface Track {
 
 type RepeatMode = 'none' | 'all' | 'one'
 
-export function useAudioPlayer() {
-    // State
-    // State
-    // State - Initialized from localStorage where applicable
+export function useAudioPlayer(contextMode?: string) {
+    
+    
+    
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
 
-    // Settings Persistence
+    
     const [volume, setVolume] = useState(() => {
         const saved = localStorage.getItem('nw_volume')
         return saved ? parseFloat(saved) : 1
@@ -33,22 +33,20 @@ export function useAudioPlayer() {
     const [is8D, setIs8D] = useState(() => localStorage.getItem('nw_8d') === 'true')
     const [defaultArtwork, setDefaultArtwork] = useState('')
 
-    // Playlist & Ordering
+    
     const [playlist, setPlaylist] = useState<Track[]>([])
-    const [shuffledQueue, setShuffledQueue] = useState<Track[]>([]) // Internal shuffled list
+    const [shuffledQueue, setShuffledQueue] = useState<Track[]>([]) 
     const [isShuffle, setIsShuffle] = useState(() => localStorage.getItem('nw_shuffle') === 'true')
     const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
         return (localStorage.getItem('nw_repeat') as RepeatMode) || 'none'
     })
     const [history, setHistory] = useState<Track[]>([])
 
-    // Refs
+    
     const audioRef = useRef<HTMLAudioElement>(new Audio())
     const engineRef = useRef<AudioEngine | null>(null)
 
-
-
-    // Load Default Logo as Data URI (Workaround for ASAR/Windows SMTC)
+    
     useEffect(() => {
         fetch('logo.png')
             .then(res => res.blob())
@@ -60,9 +58,8 @@ export function useAudioPlayer() {
             .catch(err => console.error("Failed to load logo", err))
     }, [])
 
-
-    // Effects for Audio Engine
-    // Effects for Audio Engine
+    
+    
     useEffect(() => { engineRef.current?.toggle8D(is8D) }, [is8D])
     useEffect(() => {
         const effectiveVolume = isMuted ? 0 : volume
@@ -70,17 +67,17 @@ export function useAudioPlayer() {
         else audioRef.current.volume = effectiveVolume
     }, [volume, isMuted])
 
-    // Save Settings to LocalStorage
+    
     useEffect(() => { localStorage.setItem('nw_volume', volume.toString()) }, [volume])
     useEffect(() => { localStorage.setItem('nw_muted', String(isMuted)) }, [isMuted])
     useEffect(() => { localStorage.setItem('nw_8d', String(is8D)) }, [is8D])
     useEffect(() => { localStorage.setItem('nw_shuffle', String(isShuffle)) }, [isShuffle])
     useEffect(() => { localStorage.setItem('nw_repeat', repeatMode) }, [repeatMode])
 
-    // Generate Shuffle Queue
+    
     useEffect(() => {
         if (isShuffle && playlist.length > 0) {
-            // Fisher-Yates Shuffle
+            
             const sh = [...playlist]
             for (let i = sh.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -92,7 +89,7 @@ export function useAudioPlayer() {
         }
     }, [isShuffle, playlist])
 
-    // Main Play Logic
+    
     const playTrack = async (originalTrack: Track, newPlaylist?: Track[]) => {
         const audio = audioRef.current
 
@@ -100,17 +97,17 @@ export function useAudioPlayer() {
             setPlaylist(newPlaylist)
         }
 
-        // Clone track to avoid mutating the playlist object
+        
         const trackToPlay = { ...originalTrack }
         
-        // Optimistic UI update: Set the current track immediately so it shows up in PlayerBar
+        
         if (currentTrack?.path !== trackToPlay.path) {
             if (!audio.paused) {
                 try { audio.pause() } catch (e) { }
             }
             audio.currentTime = 0
             
-            // Add to history
+            
             if (currentTrack) {
                 setHistory(prev => {
                     const { artwork, ...lightweightTrack } = currentTrack
@@ -121,31 +118,31 @@ export function useAudioPlayer() {
             }
             
             setCurrentTrack(trackToPlay)
-            // Empty src while loading to stop previous audio
+            
             audio.src = ''
         }
 
-        // Always attempt to load artwork if missing, ensuring UI has it even on replay
+        
         if (!trackToPlay.artwork && !trackToPlay.path.startsWith('shared:')) {
             try {
                 const art = await window.ipcRenderer.getAudioArtwork(trackToPlay.path)
                 if (art) {
                     trackToPlay.artwork = art
-                    setCurrentTrack({ ...trackToPlay }) // Update UI with art
+                    setCurrentTrack({ ...trackToPlay }) 
                 }
             } catch (e) {
                 console.warn("Failed to load artwork lazily", e)
             }
         }
 
-        // Handle dynamic streaming for shared playlists
+        
         let finalUrl = ''
         if (trackToPlay.path.startsWith('shared:')) {
             try {
                 const query = trackToPlay.path.replace('shared:', '')
                 const results = await window.ipcRenderer.searchYouTube(query)
                 if (results && results.length > 0) {
-                    // Start preview loading
+                    
                     const streamInfo = await window.ipcRenderer.getYouTubePreview(results[0].url)
                     
                     if (!trackToPlay.artwork && results[0].thumbnail) {
@@ -155,24 +152,24 @@ export function useAudioPlayer() {
                         trackToPlay.duration = results[0].duration
                     }
                     
-                    // Update state again to show fetched thumbnail/duration
+                    
                     setCurrentTrack({ ...trackToPlay })
 
                     if (streamInfo && streamInfo.url) {
                         finalUrl = streamInfo.url
                         
-                        // We must set crossOrigin=anonymous to use 8D/Spatial Effects with <audio>
-                        // In Electron with webSecurity: false, Chromium won't throw CORS errors for this.
+                        
+                        
                         audioRef.current.crossOrigin = "anonymous"
                     } else throw new Error("No stream URL")
                 } else throw new Error("Not found on YouTube")
             } catch (e) {
                 console.error("Failed to resolve shared track:", e)
-                // Might want to automatically skip to next track here.
+                
                 return
             }
         } else {
-            // Restore crossOrigin for local files so 8D Audio and EQ work
+            
             audioRef.current.crossOrigin = "anonymous"
             const encodedPath = trackToPlay.path.split(/[\\/]/).map(encodeURIComponent).join('/')
             finalUrl = `file:///${encodedPath}`
@@ -197,76 +194,76 @@ export function useAudioPlayer() {
         }
     }
 
-    // Navigation Logic
+    
     const handleNext = useCallback((autoTrigger = false) => {
         if (!currentTrack || playlist.length === 0) return
 
         let nextTrack: Track
 
         if (repeatMode === 'one' && autoTrigger) {
-            // If repeating one and it ended naturally, replay same track
+            
             nextTrack = currentTrack
             audioRef.current.currentTime = 0
             audioRef.current.play()
             return
         }
 
-        // Determine active list (Shuffle Queue or Normal Playlist)
+        
         const activeList = isShuffle ? shuffledQueue : playlist
 
-        // Find current position in the active list
+        
         let currentIdx = activeList.findIndex(t => t.path === currentTrack.path)
 
-        // Fallback: If not found (shouldn't happen), start from 0
+        
         if (currentIdx === -1) currentIdx = -1
 
         let nextIdx = currentIdx + 1
 
         if (nextIdx >= activeList.length) {
-            // End of list reached
+            
             if (repeatMode === 'all') {
                 nextIdx = 0
-                // Note: If we wanted to re-shuffle on every loop, we'd do it here. 
-                // For now, looping the same shuffled order is standard behavior.
+                
+                
             } else {
-                // Stop playing if no repeat
+                
                 return
             }
         }
 
         nextTrack = activeList[nextIdx]
 
-        // Play without replacing the playlist (keep current playlist/context)
+        
         playTrack(nextTrack)
     }, [currentTrack, playlist, shuffledQueue, isShuffle, repeatMode])
 
     const handlePrev = useCallback(() => {
         if (audioRef.current.currentTime > 3) {
-            // Restart current song
+            
             audioRef.current.currentTime = 0
             return
         }
 
         if (history.length > 0) {
             const prev = history[history.length - 1]
-            setHistory(h => h.slice(0, -1)) // Pop
+            setHistory(h => h.slice(0, -1)) 
             playTrack(prev)
             return
         }
 
-        // If no history, navigate backwards in current list
+        
         if (!currentTrack || playlist.length === 0) return
 
         const activeList = isShuffle ? shuffledQueue : playlist
         const idx = activeList.findIndex(t => t.path === currentTrack.path)
 
-        // Wrap around logic
+        
         const prevIdx = (idx - 1 + activeList.length) % activeList.length
         playTrack(activeList[prevIdx])
 
     }, [currentTrack, playlist, shuffledQueue, isShuffle, history])
 
-    // Audio Engine Init
+    
     useEffect(() => {
         engineRef.current = new AudioEngine()
         const audio = audioRef.current
@@ -274,10 +271,10 @@ export function useAudioPlayer() {
         try { engineRef.current.connect(audio) } catch (e) {
             console.warn("Connection error", e)
         }
-        // Cleanup? AudioContext might need close, but usually fine for singleton app.
+        
     }, [])
 
-    // Event Listeners
+    
     useEffect(() => {
         const audio = audioRef.current
         const onTimeUpdate = () => setCurrentTime(audio.currentTime)
@@ -301,24 +298,24 @@ export function useAudioPlayer() {
         }
     }, [handleNext])
 
-    // Media Session API Integration (System Media Controls)
+    
     useEffect(() => {
         if (!('mediaSession' in navigator)) return
 
-        // 1. Update Metadata
+        
         if (currentTrack) {
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: currentTrack.title,
                 artist: currentTrack.artist,
                 album: currentTrack.album || 'NeonWave Music',
                 artwork: [
-                    // Use embedded artwork if available, otherwise placeholder
+                    
                     { src: currentTrack.artwork || defaultArtwork, sizes: '512x512', type: 'image/png' }
                 ]
             })
         }
 
-        // 2. Action Handlers
+        
         navigator.mediaSession.setActionHandler('play', () => {
             audioRef.current.play()
         })
@@ -326,7 +323,7 @@ export function useAudioPlayer() {
             audioRef.current.pause()
         })
         navigator.mediaSession.setActionHandler('previoustrack', () => {
-            handlePrev() // This needs to be stable or ref-based to avoid stale closures if effect re-runs rarely
+            handlePrev() 
         })
         navigator.mediaSession.setActionHandler('nexttrack', () => {
             handleNext()
@@ -338,9 +335,9 @@ export function useAudioPlayer() {
             }
         })
 
-    }, [currentTrack, handlePrev, handleNext, duration, defaultArtwork]) // dependencies ensure handlers use latest state wrappers
+    }, [currentTrack, handlePrev, handleNext, duration, defaultArtwork]) 
 
-    // Discord RPC Sync
+    
     useEffect(() => {
         const isRpcEnabled = localStorage.getItem('neonwave_enable_discord_rpc') !== 'false';
         
@@ -357,35 +354,44 @@ export function useAudioPlayer() {
                 duration: duration,
                 elapsed: currentTime,
                 artworkUrl: currentTrack.artwork,
-                isPaused: false // Since we only show when playing
+                isPaused: false 
             }).catch(() => {});
         }
 
         updatePresence();
     }, [currentTrack?.path, isPlaying]);
 
-    // Mini Player Sync
+    
     useEffect(() => {
         if (!currentTrack) return;
 
         const sync = () => {
+            const gameModeSetting = localStorage.getItem('neonwave_mini_game_mode') || 'auto';
+            const isGameModeActive = (gameModeSetting === 'always') || (gameModeSetting === 'auto' && contextMode === 'game');
+
             window.ipcRenderer.send('player:sync', {
                 title: currentTrack.title,
                 artist: currentTrack.artist,
                 artwork: currentTrack.artwork,
                 currentTime,
                 duration,
-                isPlaying
+                isPlaying,
+                isGameModeActive
             });
         };
 
-        sync(); // Immediate sync
+        sync(); 
 
-        // Throttle progress updates to avoid IPC overhead
+        const handleSettingsChange = () => sync();
+        window.addEventListener('neonwave:settings-changed', handleSettingsChange);
+
+        
         const interval = setInterval(sync, 1000);
-        return () => clearInterval(interval);
-    }, [currentTrack, isPlaying, currentTime, duration]);
-
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('neonwave:settings-changed', handleSettingsChange);
+        };
+    }, [currentTrack, isPlaying, currentTime, duration, contextMode]);
 
     const togglePlay = async () => {
         if (!audioRef.current) return;
@@ -394,7 +400,7 @@ export function useAudioPlayer() {
                 audioRef.current.pause();
                 setIsPlaying(false);
             } else {
-                // Ensure we wait for the play promise to avoid interruptions
+                
                 await audioRef.current.play();
                 setIsPlaying(true);
             }
@@ -423,7 +429,7 @@ export function useAudioPlayer() {
         seek,
         handleNext: () => handleNext(false),
         handlePrev: () => handlePrev(),
-        // Advanced Audio Controls
+        
         setDistance: (meters: number) => engineRef.current?.setDistance(meters),
         setSpaceMode: (mode: string) => engineRef.current?.setSpaceMode(mode),
         setPosition: (x: number, y: number, z: number) => {

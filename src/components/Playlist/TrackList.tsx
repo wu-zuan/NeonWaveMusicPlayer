@@ -46,7 +46,7 @@ export const TrackList: React.FC<TrackListProps> = ({
     const scrollToMatch = (index: number) => {
         const el = document.getElementById(`track-item-${index}`)
         if (el) {
-            // Use setTimeout to ensure DOM is ready if it was offscreen, though it's not virtualized so it should be there.
+            
             el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
     }

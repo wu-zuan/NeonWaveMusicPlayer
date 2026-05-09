@@ -27,7 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <nav className={styles.menu}>
-                {/* Core Views */}
+                { }
                 <div className={styles.topSection}>
                     <div className={styles.sectionTitle}>音樂庫</div>
 
@@ -49,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 <div className={styles.scrollArea}>
-                    {/* Local Folders */}
+                    { }
                     <div className={styles.sectionTitle} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         本機資料夾
                         <div style={{ display: 'flex', gap: '8px' }}>
@@ -177,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
 
-                {/* Online & Settings */}
+                { }
                 <div className={styles.bottomSection}>
                     <div className={styles.sectionTitle}>應用程式</div>
 

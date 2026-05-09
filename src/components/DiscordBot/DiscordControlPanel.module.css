@@ -33,7 +33,7 @@
     overflow-y: auto;
 }
 
-/* Card Styles */
+ 
 .card {
     width: 100%;
     max-width: 480px;
@@ -187,7 +187,7 @@
     text-decoration: underline;
 }
 
-/* Step 2 & 3: Grid Layouts */
+ 
 .fullPageContainer {
     height: 100%;
     width: 100%;
@@ -412,7 +412,7 @@
     color: #6b7280;
 }
 
-/* Channel List Item */
+ 
 .channelItem {
     display: flex;
     align-items: center;
@@ -452,7 +452,7 @@
     opacity: 1;
 }
 
-/* Step 4: Connected */
+ 
 .connectedContainer {
     display: flex;
     flex-direction: column;
@@ -585,7 +585,7 @@
     background-color: rgba(239, 68, 68, 0.2);
 }
 
-/* Control Sections */
+ 
 .controlSection {
     width: 100%;
     max-width: 500px;
@@ -607,7 +607,7 @@
     letter-spacing: 0.05em;
 }
 
-/* Playback Controls */
+ 
 .playbackControls {
     display: flex;
     justify-content: center;
@@ -638,7 +638,7 @@
     transform: scale(0.95);
 }
 
-/* Volume Control */
+ 
 .volumeControl {
     display: flex;
     align-items: center;
@@ -694,7 +694,7 @@
     text-align: right;
 }
 
-/* Audio Effects */
+ 
 .effectsGrid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -739,7 +739,7 @@
     text-align: center;
 }
 
-/* Account List Styles */
+ 
 .accountList {
     width: 100%;
     display: flex;
@@ -841,7 +841,7 @@
     color: #a855f7;
 }
 
-/* Scrollbar for account list */
+ 
 .accountList::-webkit-scrollbar {
     width: 6px;
 }

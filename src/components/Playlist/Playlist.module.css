@@ -4,12 +4,12 @@
     padding: 0 24px 24px 24px;
 }
 
-/* Header sticky */
+ 
 .header {
     position: sticky;
     top: 0;
     background: var(--bg-main);
-    /* Fallback */
+     
     backdrop-filter: blur(20px);
     z-index: 10;
     padding: 24px 0 16px 0;
@@ -80,7 +80,7 @@
 
 .active {
     background: rgba(0, 242, 254, 0.08);
-    /* slight tint */
+     
     border-color: rgba(0, 242, 254, 0.1);
 }
 
@@ -165,11 +165,9 @@
     border-radius: 50%;
 }
 
-/* Force opacity 1 if favorite (optional, or rely on internal logic) */
-/* Actually, let's keep it visible on hover OR if active logic handled by react state if desired, 
-   but simplistic: just hover for now, React will render fill if fav. 
-   Wait, if it's already a favorite, we might want to see it? */
-/* Better UX: always show if favorite, otherwise show on hover */
+ 
+ 
+ 
 
 .trackItem:hover .favBtn,
 .favBtn:hover {

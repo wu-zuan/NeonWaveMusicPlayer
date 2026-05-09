@@ -12,7 +12,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Neon Theme Colors */
+   
   --accent-primary: #00fff2;
   --accent-secondary: #ff00ff;
   --bg-dark: #020617;
@@ -25,7 +25,7 @@
 body {
   margin: 0;
   padding: 0;
-  /* Premium Deep Aurora */
+   
   background: linear-gradient(-45deg, #020617, #0f172a, #172554, #1e1b4b);
   background-size: 300% 300%;
   animation: aurora 20s ease infinite;
@@ -62,7 +62,7 @@ html:has(body.mini-mode) {
   }
 }
 
-/* Custom Scrollbar */
+ 
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -80,7 +80,7 @@ html:has(body.mini-mode) {
   background: var(--glass-highlight);
 }
 
-/* Utilities */
+ 
 .glass {
   background: var(--glass-bg);
   backdrop-filter: blur(12px);

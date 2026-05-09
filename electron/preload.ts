@@ -1,6 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
-// --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(channel: string, listener: (event: any, ...args: any[]) => void) {
     const wrappedListener = (event: any, ...args: any[]) => listener(event, ...args)
@@ -20,14 +19,14 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return ipcRenderer.invoke(channel, ...omit)
   },
 
-  // You can expose other APTs you need here.
+  
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   listMusicFiles: (path: string) => ipcRenderer.invoke('files:listMusic', path),
   getAudioMetadata: (path: string, options?: { loadArtwork: boolean }) => ipcRenderer.invoke('files:getMetadata', path, options),
   getAudioArtwork: (path: string) => ipcRenderer.invoke('files:getArtwork', path),
   readFileBuffer: (path: string) => ipcRenderer.invoke('files:readBuffer', path),
 
-  // Update
+  
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   getAppVersion: () => ipcRenderer.invoke('app:version'),

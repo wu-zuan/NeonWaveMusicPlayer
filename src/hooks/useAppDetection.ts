@@ -11,11 +11,11 @@ export function useAppDetection() {
     useEffect(() => {
         const checkApp = async () => {
             try {
-                // @ts-ignore
+                
                 const appName = await window.ipcRenderer.invoke('app:active-window')
                 const lowerName = appName.toLowerCase()
 
-                // Diff check to avoid spamming state
+                
                 if (lowerName !== currentApp) {
                     setCurrentApp(lowerName)
 
@@ -32,7 +32,7 @@ export function useAppDetection() {
             }
         }
 
-        const interval = setInterval(checkApp, 2000) // Check every 2 seconds
+        const interval = setInterval(checkApp, 2000) 
 
         return () => clearInterval(interval)
     }, [currentApp])

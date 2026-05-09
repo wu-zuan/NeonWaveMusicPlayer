@@ -7,6 +7,7 @@ interface TrackInfo {
     currentTime: number
     duration: number
     isPlaying: boolean
+    isGameModeActive?: boolean
 }
 
 export function MiniPlayer() {
@@ -64,9 +65,12 @@ export function MiniPlayer() {
             alignItems: 'center',
             justifyContent: 'center',
             background: 'transparent',
-            WebkitAppRegion: 'drag',
+            WebkitAppRegion: track.isGameModeActive ? 'none' : 'drag',
             userSelect: 'none',
-            fontFamily: "'Outfit', 'Inter', sans-serif"
+            fontFamily: "'Outfit', 'Inter', sans-serif",
+            opacity: track.isGameModeActive ? 0.35 : 1,
+            transform: track.isGameModeActive ? 'scale(0.92)' : 'scale(1)',
+            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
         } as any}>
             <div style={{
                 width: `${size}px`,
@@ -74,13 +78,18 @@ export function MiniPlayer() {
                 position: 'relative',
                 borderRadius: '50%',
                 background: '#020617',
-                boxShadow: '0 15px 45px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 242, 0.2)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: track.isGameModeActive 
+                    ? '0 10px 30px rgba(0,0,0,0.9), 0 0 15px rgba(255, 85, 0, 0.15)' 
+                    : '0 15px 45px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 242, 0.2)',
+                border: track.isGameModeActive 
+                    ? '1px solid rgba(255, 85, 0, 0.25)' 
+                    : '1px solid rgba(255,255,255,0.1)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                transition: 'all 0.5s ease'
             }}>
-                {/* Rotating Album Art (Vinyl Style) */}
+                { }
                 <div style={{
                     width: `${size - 10}px`,
                     height: `${size - 10}px`,
@@ -151,6 +160,33 @@ export function MiniPlayer() {
                         }}
                     />
                 </svg>
+
+                { }
+                {track.isGameModeActive && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: 'rgba(255, 85, 0, 0.2)',
+                        border: '1px solid rgba(255, 85, 0, 0.4)',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontSize: '9px',
+                        color: '#ff5500',
+                        fontWeight: 700,
+                        zIndex: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        boxShadow: '0 0 10px rgba(255, 85, 0, 0.3)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        🎮 遊戲模式
+                    </div>
+                )}
 
                 {/* Text Overlay (Bottom Arc) */}
                 <div style={{

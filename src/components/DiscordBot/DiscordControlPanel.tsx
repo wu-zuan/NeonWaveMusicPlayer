@@ -4,7 +4,6 @@ import { Disc, Server, Volume2, LogOut, Power, Radio, Plus, Trash2, User, Chevro
 import styles from './DiscordControlPanel.module.css'
 import { ConfirmationModal } from '../UI/ConfirmationModal'
 
-// Define IPC types for Renderer
 interface DiscordGuild {
     id: string
     name: string
@@ -27,7 +26,7 @@ interface SavedBot {
 
 export const DiscordControlPanel: React.FC = () => {
     const [token, setToken] = useState('')
-    const [step, setStep] = useState(1) // 1: Select Account / Input Token, 2: Select Server, 3: Select Channel, 4: Control
+    const [step, setStep] = useState(1) 
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -38,11 +37,11 @@ export const DiscordControlPanel: React.FC = () => {
     const [selectedGuild, setSelectedGuild] = useState<DiscordGuild | null>(null)
     const [activeChannel, setActiveChannel] = useState<DiscordChannel | null>(null)
 
-    // Account Management
+    
     const [savedBots, setSavedBots] = useState<SavedBot[]>([])
     const [isAddingNew, setIsAddingNew] = useState(false)
 
-    // Modal State
+    
     const [modal, setModal] = useState({
         isOpen: false,
         title: '',
@@ -60,10 +59,10 @@ export const DiscordControlPanel: React.FC = () => {
         setModal(prev => ({ ...prev, isOpen: false }))
     }
 
-    // -- User Menu Render Helper --
+    
     const [showUserMenu, setShowUserMenu] = useState(false)
 
-    // Close menu when clicking outside (simple handling)
+    
     useEffect(() => {
         const handleClickOutside = () => setShowUserMenu(false)
         if (showUserMenu) {
@@ -125,7 +124,7 @@ export const DiscordControlPanel: React.FC = () => {
                         <button
                             className={styles.dropdownItem}
                             onClick={() => {
-                                handleSwitchAccount() // This function actually resets state to Step 1
+                                handleSwitchAccount() 
                                 setShowUserMenu(false)
                             }}
                         >
@@ -340,7 +339,7 @@ export const DiscordControlPanel: React.FC = () => {
                         setSelectedGuild({
                             id: status.currentGuildId,
                             name: status.currentGuildName || 'Unknown Server',
-                            icon: null, // we can't get icon easily without re-fetching guilds, but that's ok
+                            icon: null, 
                             memberCount: 0
                         })
                     }
@@ -352,11 +351,11 @@ export const DiscordControlPanel: React.FC = () => {
                             userLimit: 0,
                             members: []
                         })
-                        // If we have a channel, we are in "Control" mode
+                        
                         setStep(4)
                     } else {
-                        // Connected but no channel? Should be Step 2 or 3. 
-                        // Let's go to Step 2 (Guild Selection) and fetch guilds really quick
+                        
+                        
                         const guildList = await window.ipcRenderer.invoke('discord:getGuilds')
                         setGuilds(guildList)
                         setStep(2)
@@ -369,12 +368,12 @@ export const DiscordControlPanel: React.FC = () => {
             }
         }
         checkStatus()
-        // Poll status every 5 seconds to keep UI in sync (e.g. if bot disconnects remotely)
+        
         const interval = setInterval(checkStatus, 5000)
         return () => clearInterval(interval)
     }, [])
 
-    // -- Render Helpers --
+    
 
     const renderStep1 = () => {
         if (savedBots.length > 0 && !isAddingNew) {
@@ -588,7 +587,7 @@ export const DiscordControlPanel: React.FC = () => {
                 </p>
             </div>
 
-            {/* Action Buttons */}
+            { }
             <div className={styles.actions}>
                 <button
                     onClick={handleSwitchAccount}

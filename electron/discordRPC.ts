@@ -2,12 +2,12 @@ import RPC from 'discord-rpc';
 
 export class DiscordRPCManager {
     private client: RPC.Client | null = null;
-    private clientId: string = '1464451133346021512'; // Reverted to correct NeonWave Client ID
+    private clientId: string = '1464451133346021512'; 
     private isReady: boolean = false;
     private currentActivity: any = null;
 
     constructor() {
-        // init on demand or now
+        
     }
 
     async connect() {
@@ -38,7 +38,7 @@ export class DiscordRPCManager {
         album?: string;
         duration?: number;
         elapsed?: number;
-        artworkUrl?: string; // Should be a public URL
+        artworkUrl?: string; 
         isPaused?: boolean;
     }) {
         this.currentActivity = data;
@@ -80,7 +80,7 @@ export class DiscordRPCManager {
 
     async searchArtistImage(artistName: string): Promise<string | null> {
         try {
-            // 1. Try Deezer
+            
             const deezerUrl = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}&limit=1`
             try {
                 const resDeezer = await fetch(deezerUrl)
@@ -92,7 +92,7 @@ export class DiscordRPCManager {
                 }
             } catch (err) { }
 
-            // 2. Fallback to iTunes
+            
             const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&media=music&entity=album&limit=1`
             const resItunes = await fetch(itunesUrl)
             if (resItunes.ok) {
@@ -103,7 +103,7 @@ export class DiscordRPCManager {
                 }
             }
 
-            // 3. Fallback to TheAudioDB
+            
             try {
                 const audioDbUrl = `https://www.theaudiodb.com/api/v1/json/2/search.php?s=${encodeURIComponent(artistName)}`
                 const resAudioDb = await fetch(audioDbUrl)

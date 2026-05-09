@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Track } from './useAudioPlayer'
 
-// Persist folders in localStorage
-const STORAGE_KEY_FOLDERS_V2 = 'neonwave_folders_v2' // Upgrade storage key for new format
+const STORAGE_KEY_FOLDERS_V2 = 'neonwave_folders_v2' 
 const STORAGE_KEY_FAVORITES = 'neonwave_favorites'
 const STORAGE_KEY_CUSTOM_PLAYLISTS = 'neonwave_custom_playlists'
 
@@ -16,7 +15,7 @@ export interface Playlist {
     name: string
     type: 'folder' | 'favorites' | 'custom'
     tracks: Track[]
-    path?: string // for folder type
+    path?: string 
 }
 
 export function useLibrary() {
@@ -67,19 +66,19 @@ export function useLibrary() {
     const loadSavedData = async () => {
         setIsLoading(true)
         try {
-            // 1. Load Favorites
+            
             const favJson = localStorage.getItem(STORAGE_KEY_FAVORITES)
             if (favJson) setFavorites(JSON.parse(favJson))
 
-            // 2. Load Saved Folders
-            // Try load V2 first
+            
+            
             let folderData: FolderData[] = []
             const v2Json = localStorage.getItem(STORAGE_KEY_FOLDERS_V2)
 
             if (v2Json) {
                 folderData = JSON.parse(v2Json)
             } else {
-                // Backward compatibility: load V1 (array of strings) and migrate
+                
                 const v1Json = localStorage.getItem('neonwave_folders')
                 if (v1Json) {
                     const paths: string[] = JSON.parse(v1Json)
@@ -130,7 +129,7 @@ export function useLibrary() {
                 Array.from({ length: Math.ceil(arr.length / size) }, (_: any, i: number) =>
                     arr.slice(i * size, i * size + size));
 
-            const chunks = chunk(files, 50); // Process 50 files at a time
+            const chunks = chunk(files, 50); 
             const allTracks: Track[] = []
 
             for (const batch of chunks) {
@@ -197,7 +196,7 @@ export function useLibrary() {
 
             localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
 
-            // Load tracks
+            
             const tracks = await scanFolder(folderPath)
             const newPlaylist: Playlist = {
                 id: folderPath,
@@ -217,7 +216,7 @@ export function useLibrary() {
     }
 
     const removeFolder = (idToRemove: string) => {
-        // Find if it's a folder or custom
+        
         const isCustom = playlists.find(p => p.id === idToRemove)?.type === 'custom'
         
         if (isCustom) {
@@ -234,7 +233,7 @@ export function useLibrary() {
     }
 
     const renameFolder = (idToRename: string, newName: string) => {
-        // Find if it's a folder or custom
+        
         const isCustom = playlists.find(p => p.id === idToRename)?.type === 'custom'
         
         if (isCustom) {
@@ -257,7 +256,7 @@ export function useLibrary() {
             localStorage.setItem(STORAGE_KEY_FOLDERS_V2, JSON.stringify(newData))
         }
 
-        // Update state
+        
         setPlaylists(prev => prev.map(pl => {
             if (pl.id === idToRename || pl.path === idToRename) {
                 return { ...pl, name: newName }
@@ -368,7 +367,7 @@ export function useLibrary() {
                 // Fix for old imported tracks: remove extensions from title
                 let cleanTitle = (t.title || '').replace(/\.(mp3|wav|wma|m4a|flac|ogg|mp4|mov|wmv|avi)$/i, '').trim()
                 
-                // Remove dummy artists that ruin YouTube searches
+                
                 let cleanArtist = t.artist || ''
                 if (['未知演出者', '未知專輯', 'Unknown', 'Unknown Artist'].includes(cleanArtist)) {
                     cleanArtist = ''

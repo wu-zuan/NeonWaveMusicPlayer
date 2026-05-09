@@ -12,7 +12,7 @@ async function test() {
     const dat = JSON.parse(stdout);
     let heatmap = dat.entries ? dat.entries[0].heatmap : dat.heatmap;
     if(heatmap) {
-      // Find the best part that is NOT the very beginning (e.g. skip first 15 seconds)
+      
       const validHeatmap = heatmap.filter(h => h.start_time > 15);
       const best = [...validHeatmap].sort((a,b)=>b.value-a.value)[0];
       console.log('Filtered Best:', best);

@@ -39,7 +39,7 @@ const ArtistCard = React.memo(({ name, onClick }: { name: string, onClick: () =>
         if (!isVisible || img) return
 
         const fetchImage = async () => {
-            // Hash-based delay to stagger requests
+            
             const delay = (name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 20) * 100
             await new Promise(r => setTimeout(r, delay))
 
@@ -49,15 +49,15 @@ const ArtistCard = React.memo(({ name, onClick }: { name: string, onClick: () =>
                     setImg(url)
                     localStorage.setItem(`artist_img_v5_${name}`, url)
                 } else {
-                    // Try Bing Images as a "Premium" fallback
-                    // Adding "歌手" to ensure we get an artist image, not a generic word result (e.g. for "同理")
+                    
+                    
                     const fallback = `https://tse2.mm.bing.net/th?q=${encodeURIComponent(name + ' 歌手')}&w=500&h=500&c=7&rs=1&p=0`
                     setImg(fallback)
                     localStorage.setItem(`artist_img_v5_${name}`, fallback)
                 }
             } catch (e) {
                 console.error(e)
-                // If IPC fails, also try fallback
+                
                 const fallback = `https://tse2.mm.bing.net/th?q=${encodeURIComponent(name + ' 歌手')}&w=500&h=500&c=7&rs=1&p=0`
                 setImg(fallback)
             }
@@ -74,11 +74,11 @@ const ArtistCard = React.memo(({ name, onClick }: { name: string, onClick: () =>
                     className={styles.artistImage}
                     loading="lazy"
                     onError={(e) => {
-                        // If Bing image fails (404), fallback to UI Avatars
-                        e.currentTarget.onerror = null // prevent loop
+                        
+                        e.currentTarget.onerror = null 
                         const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`
                         e.currentTarget.src = avatar
-                        // Optionally update cache, but simple fallback is enough for runtime
+                        
                     }}
                 />
             ) : (
@@ -229,37 +229,37 @@ export const SearchView = () => {
         }
     }
 
-    // Filter Logic: "Official / Lyrics Ready"
+    
     const [filterMode, setFilterMode] = useState<'all' | 'official'>('all')
     const [showFilterMenu, setShowFilterMenu] = useState(false)
 
-    // Apply filters
+    
     const filteredResults = results.filter(item => {
         if (filterMode === 'all') return true
 
         const t = item.title.toLowerCase()
         const a = item.artist.toLowerCase()
 
-        // 1. Reject obvious user-content / noise
+        
         const badKeywords = ['cover', '翻唱', 'remix', 'live', '現場', 'concert', 'karaoke', 'instrumental', '伴奏', 'nightcore', 'hour loop', '1 hour', 'reaction']
         if (badKeywords.some(w => t.includes(w))) return false
 
-        // 2. Must correspond to "Official" indicators
-        // - Keyword "Official" or "MV" in title
-        // - "Topic" or "VEVO" in artist/channel
-        // - Specific formatting like "Artist - Title" is harder to guarantee, so we rely on positive/negative signals.
+        
+        
+        
+        
 
         const goodKeywords = ['official', 'mv', 'music video', 'lyric', 'audio']
         if (goodKeywords.some(w => t.includes(w))) return true
         if (a.includes('topic') || a.includes('vevo')) return true
 
-        // If it passed bad keywords but has no good keywords, it might be ambiguous.
-        // For "Strict Official", we might reject it. But "Plainly Official" often just means "Not a cover".
-        // Let's fitler out *only* if we are sure it's good, to be safe for "Has Lyrics".
+        
+        
+        
         return false
     })
 
-    // Pagination Logic (use filtered results)
+    
     const totalPages = Math.ceil(filteredResults.length / PAGE_SIZE)
     const currentResults = filteredResults.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 

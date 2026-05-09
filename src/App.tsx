@@ -61,6 +61,9 @@ function App() {
     setImportModalData(null)
   }
 
+  
+  const { contextMode } = useAppDetection()
+
   const {
     isPlaying, currentTrack, currentTime, duration, volume, is8D,
     isShuffle, repeatMode,
@@ -68,12 +71,9 @@ function App() {
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
     setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
     getAudioStream, setLocalMute
-  } = useAudioPlayer()
+  } = useAudioPlayer(contextMode)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-
-  // Auto-Detect Context
-  const { contextMode } = useAppDetection()
 
   useEffect(() => {
     if (contextMode === 'work') {
@@ -81,95 +81,90 @@ function App() {
     } else if (contextMode === 'normal') {
       setFocusMode(false)
     }
-    // 'game' mode currently does nothing specific, maybe future: lower volume
+    
   }, [contextMode])
 
-  // --- Discord Sync ---
-  // --- Discord Sync (Streaming Mode) ---
+  
+  
   useEffect(() => {
     let active = true
     const handleSync = async () => {
-      // 1. Check Status
+      
       const status = await window.ipcRenderer.invoke('discord:status')
 
       if (!active) return
 
       if (status.isConnected && status.currentChannelId) {
-        // Connected
+        
         if (isPlaying) {
-          // If we are playing, ensure we are streaming
+          
           if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
             console.log('[App] Starting Discord Stream...')
 
-            // A. Tell backend to expect stream
+            
             await window.ipcRenderer.invoke('discord:startStreamMode')
 
-            // B. Start Recorder
+            
             const stream = getAudioStream()
             if (stream) {
-              // Optimization: 96kbps is Discord's standard high quality. 
-              // Reducing from 128k saves CPU encoding time and bandwidth without noticeable quality loss.
+              
+              
               const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 96000 })
 
               recorder.ondataavailable = async (e) => {
                 if (e.data.size > 0) {
                   const buffer = await e.data.arrayBuffer()
-                  // Use send for performance (fire and forget)
+                  
                   window.ipcRenderer.send('discord:audio-chunk', buffer)
                 }
               }
 
-              recorder.start(100) // 100ms chunks
+              recorder.start(100) 
               mediaRecorderRef.current = recorder
             }
 
-            // C. Mute Local (Speakers), Keep Stream
+            
             setLocalMute(true)
 
-            // D. Ensure Discord Volume is Max (since we control volume in the stream)
+            
             window.ipcRenderer.invoke('discord:setVolume', 100).catch(console.error)
           } else {
-            // Already recording, maybe ensure Resume
+            
             if (mediaRecorderRef.current.state === 'paused') mediaRecorderRef.current.resume()
             window.ipcRenderer.invoke('discord:resume').catch(console.error)
           }
         } else {
-          // Paused / Stopped
+          
           if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.pause() // Pause recorder? Or stop?
-            // If we stop, we need to restart logic. Pause is better for "Pause" button.
-            // backend pause
+            mediaRecorderRef.current.pause() 
+            
+            
             window.ipcRenderer.invoke('discord:pause').catch(console.error)
           }
         }
       } else {
-        // Not connected
+        
         if (mediaRecorderRef.current) {
           mediaRecorderRef.current.stop()
           mediaRecorderRef.current = null
         }
-        setLocalMute(false) // Unmute local
+        setLocalMute(false) 
       }
     }
 
     handleSync()
 
     return () => { active = false }
-  }, [isPlaying, currentTrack, getAudioStream, setLocalMute]) // Removed 'volume' dependency to avoid re-trigger
+  }, [isPlaying, currentTrack, getAudioStream, setLocalMute]) 
 
-  // Volume Sync: Logic changed. Since stream includes volume, we DON'T send volume to discord separately 
-  // IF we are streaming. But if we are playing valid local file (fallback), we might?
-  // Our new model is ALWAYS stream if connected. So we disable separate volume sync.
-  /*
-  useEffect(() => {
-    // Sync Volume to Discord Bot
-    window.ipcRenderer.invoke('discord:setVolume', volume * 100).catch(console.error)
-  }, [volume]) 
-  */
+  
+  
+  
+   
 
-  // Note: seek sync is harder, skipping for now unless requested
+  
 
-  // Determine which tracks to show based on view
+  
   let displayedTracks = allTracks
   let viewTitle = '所有歌曲'
 
@@ -180,7 +175,7 @@ function App() {
     displayedTracks = favorites
     viewTitle = '我的最愛'
   } else {
-    // Find playlist by ID/Path
+    
     const pl = playlists.find(p => p.id === view)
     if (pl) {
       displayedTracks = pl.tracks

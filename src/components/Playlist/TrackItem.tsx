@@ -17,12 +17,12 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFav
     const [artwork, setArtwork] = React.useState<string | undefined>(track.artwork)
     const itemRef = React.useRef<HTMLDivElement>(null)
 
-    // Sync with prop if it updates (e.g. from player or playlist update)
+    
     React.useEffect(() => {
         if (track.artwork) setArtwork(track.artwork)
     }, [track.artwork])
 
-    // Lazy load artwork when visible
+    
     React.useEffect(() => {
         if (artwork || !itemRef.current) return
 
@@ -35,7 +35,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFav
                             if (results[0].thumbnail) setArtwork(results[0].thumbnail)
                             if (results[0].duration) {
                                 track.duration = results[0].duration
-                                // Force re-render of this item to show duration
+                                
                                 setArtwork((prev) => prev);
                             }
                         }
@@ -46,12 +46,12 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFav
                             if (art) setArtwork(art)
                         })
                         .catch(() => {
-                            // ignore errors
+                            
                         })
                 }
                 observer.disconnect()
             }
-        }, { rootMargin: '50px' }) // Start loading slightly before it appears
+        }, { rootMargin: '50px' }) 
 
         observer.observe(itemRef.current)
 

@@ -7,7 +7,7 @@ export function parseLrc(lrc: string): LyricLine[] {
     const lines = lrc.split('\n')
     const result: LyricLine[] = []
 
-    // Time regex: [mm:ss.xx] or [mm:ss.xxx]
+    
     const timeRegex = /\[(\d{2}):(\d{2})(\.\d{2,3})?\]/
 
     for (const line of lines) {
@@ -30,10 +30,10 @@ export function parseLrc(lrc: string): LyricLine[] {
 }
 
 export function getCurrentLineIndex(lyrics: LyricLine[], currentTime: number): number {
-    // Find the last line that has started
+    
     let index = -1
     for (let i = 0; i < lyrics.length; i++) {
-        if (lyrics[i].time <= currentTime + 0.2) { // 0.2s offset for sync feel
+        if (lyrics[i].time <= currentTime + 0.2) { 
             index = i
         } else {
             break

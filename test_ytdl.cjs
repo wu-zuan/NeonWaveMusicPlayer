@@ -4,7 +4,7 @@ const path = require('path');
 
 async function test() {
     console.log('Starting test...');
-    const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; // Rick Astley (Reliable test)
+    const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; 
     try {
         console.log('Validating URL...');
         if (!ytdl.validateURL(url)) {
@@ -21,7 +21,7 @@ async function test() {
 
         stream.on('info', (info, format) => {
             console.log('Stream Info received:', format.mimeType);
-            stream.destroy(); // Stop download, we just want to see if it connects
+            stream.destroy(); 
             console.log('Test Success: Connection established.');
         });
 

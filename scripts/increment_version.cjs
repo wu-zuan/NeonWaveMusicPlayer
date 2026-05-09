@@ -20,17 +20,17 @@ try {
 
     let [major, minor, patch] = parts;
 
-    // Custom Increment Logic
-    // increment patch
+    
+    
     patch += 1;
 
-    // if patch reaches 10 (or user said "version=9" then +1 is 10), reset and carry
+    
     if (patch > 9) {
         patch = 0;
         minor += 1;
     }
 
-    // if minor reaches 10, reset and carry
+    
     if (minor > 9) {
         minor = 0;
         major += 1;

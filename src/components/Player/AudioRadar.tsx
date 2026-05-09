@@ -11,7 +11,7 @@ export const AudioRadar: React.FC<AudioRadarProps> = ({ onSetPosition, currentX 
     const containerRef = useRef<HTMLDivElement>(null)
     const [dragging, setDragging] = useState(false)
 
-    // Internal state for smooth visual updates, synced with props when not dragging
+    
     const [pos, setPos] = useState({ x: currentX, z: currentZ })
 
     useEffect(() => {
@@ -42,34 +42,34 @@ export const AudioRadar: React.FC<AudioRadarProps> = ({ onSetPosition, currentX 
         const clickX = e.clientX - rect.left
         const clickY = e.clientY - rect.top
 
-        // Map 0..width to -10..10
-        // Center is (width/2, height/2) -> (0, 0)
+        
+        
 
-        const range = 10 // Max distance in meters
+        const range = 10 
 
-        // X: 0 -> -range (Left), width -> +range (Right)
-        // Actually: Left is -X, Right is +X.
-        // CenterX = width/2
-        // valX = (clickX - CenterX) / (width/2) * range
+        
+        
+        
+        
         const centerX = rect.width / 2
         const rawX = (clickX - centerX) / (centerX) * range
 
-        // Y (Screen) -> Z (Audio)
-        // Top (0) -> Front (-Z)? Or Back?
-        // Usually visual map: Up is Forward. Forward in audio is -Z or +Z?
-        // WebAudio: -Z is forward (away from listener into screen).
-        // Let's map Screen Up (0) to -range (Forward).
-        // Screen Down (height) to +range (Back).
+        
+        
+        
+        
+        
+        
         const centerY = rect.height / 2
         const rawZ = (clickY - centerY) / (centerY) * range
 
-        // Clamp
+        
         const clamp = (v: number) => Math.max(-range, Math.min(range, v))
         const x = clamp(rawX)
         const z = clamp(rawZ)
 
         setPos({ x, z })
-        onSetPosition(x, 0, z) // Y is vertical height, we keep it 0 for now
+        onSetPosition(x, 0, z) 
     }
 
     useEffect(() => {
@@ -92,7 +92,7 @@ export const AudioRadar: React.FC<AudioRadarProps> = ({ onSetPosition, currentX 
         setPos({ x: 0, z: 0 })
     }
 
-    // Convert pos to % for css
+    
     const range = 10
     const leftPct = 50 + (pos.x / range) * 50
     const topPct = 50 + (pos.z / range) * 50

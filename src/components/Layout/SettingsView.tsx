@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, Download, CheckCircle, AlertCircle } from 'lucide-react'
 
-// Sub-component for scanning progress
 const ScanProgress = () => {
     const [scanData, setScanData] = useState<{current: number, total: number, success: number} | null>(null);
 
@@ -36,7 +35,7 @@ const ScanProgress = () => {
 };
 
 export function useUpdater() {
-    const [status, setStatus] = useState<string>('idle') // idle, checking, available, not-available, downloading, downloaded, error
+    const [status, setStatus] = useState<string>('idle') 
     const [progress, setProgress] = useState<any>(null)
     const [version, setVersion] = useState<string>('...')
     const [error, setError] = useState<string>('')
@@ -73,8 +72,6 @@ export function SettingsView() {
     return (
         <div style={{ padding: '40px', maxWidth: '800px' }}>
             <h2 style={{ fontSize: '28px', marginBottom: '32px', fontWeight: 700 }}>設定</h2>
-
-
 
             <div className="glass" style={{ padding: '32px', borderRadius: '24px' }}>
                 <h3 style={{ fontSize: '20px', marginBottom: '24px' }}>關於 NeonWave</h3>
@@ -256,6 +253,32 @@ export function SettingsView() {
                                 />
                                 <span className="slider round"></span>
                             </label>
+                        </div>
+
+                        {/* Mini Player Game Mode Option */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: '16px' }}>
+                            <div>
+                                <div style={{ color: 'var(--text-main)' }}>迷你播放器遊戲模式 (點擊穿透)</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '480px', marginTop: '4px', lineHeight: '1.5' }}>
+                                    當偵測到執行遊戲（如 <b>Valorant 瓦羅蘭</b>、<b>League of Legends 英雄聯盟</b> 等）時：
+                                    <br />
+                                    • <b>自動</b>：自動設定為點擊穿透，完全不影響滑鼠與瞄準，並降低不透明度與縮小以防干擾。切回桌面時自動恢復正常。
+                                    <br />
+                                    • <b>始終點擊穿透</b>：始終點擊穿透，不受遊戲狀態限制，適合當作純桌面小組件的玩家。
+                                </div>
+                            </div>
+                            <select 
+                                className="settings-select"
+                                defaultValue={localStorage.getItem('neonwave_mini_game_mode') || 'auto'}
+                                onChange={(e) => {
+                                    localStorage.setItem('neonwave_mini_game_mode', e.target.value);
+                                    window.dispatchEvent(new Event('neonwave:settings-changed'));
+                                }}
+                            >
+                                <option value="off">🚫 關閉 (正常點擊與移動)</option>
+                                <option value="auto">🎮 自動 (偵測到遊戲時點擊穿透)</option>
+                                <option value="always">🔒 始終啟用 (始終點擊穿透)</option>
+                            </select>
                         </div>
                     </div>
                 </div>
