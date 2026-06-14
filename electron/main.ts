@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { autoUpdater } from 'electron-updater'
-import { exec } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import * as mm from 'music-metadata'
 import { DiscordBotManager } from './discordBot'
 import { DiscordRPCManager } from './discordRPC'
@@ -15,18 +15,6 @@ if (app.isPackaged) {
   ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
 }
 
-function runPowerShell(scriptPath: string): Promise<string> {
-  return new Promise((resolve) => {
-    exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, (error, stdout) => {
-      if (error) {
-        
-        resolve("unknown")
-        return
-      }
-      resolve(stdout.trim())
-    })
-  })
-}
 
 autoUpdater.allowPrerelease = true
 
@@ -55,6 +43,9 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 
 let win: BrowserWindow | null
 let miniWin: BrowserWindow | null = null
+let activeWindowName = "unknown"
+let monitorProcess: any = null
+let discordBot: any = null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -186,6 +177,50 @@ app.whenReady().then(() => {
     app.setAppUserModelId('NeonWave')
   }
 
+  function startActiveWindowMonitor() {
+    if (process.platform !== 'win32') return
+    const scriptPath = path.join(process.env.APP_ROOT!, 'scripts/get-active-window.ps1')
+    
+    try {
+      monitorProcess = spawn('powershell.exe', [
+        '-ExecutionPolicy', 'Bypass',
+        '-NoProfile',
+        '-File', scriptPath
+      ], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: true
+      })
+
+      monitorProcess.stdout.on('data', (data: Buffer) => {
+        const name = data.toString().trim()
+        if (name) {
+          activeWindowName = name
+        }
+      })
+
+      monitorProcess.on('close', () => {
+        if ((app as any).isQuitting) return
+        setTimeout(startActiveWindowMonitor, 5000)
+      })
+    } catch (e) {
+      console.error('Failed to start active window monitor:', e)
+    }
+  }
+
+  startActiveWindowMonitor()
+
+  app.on('will-quit', async () => {
+    (app as any).isQuitting = true
+    if (monitorProcess) {
+      try { monitorProcess.kill() } catch (e) {}
+    }
+    if (discordBot) {
+      try { await discordBot.disconnect() } catch (e) {}
+    }
+    setTimeout(() => {
+      process.exit(0)
+    }, 800)
+  })
   
   createWindow()
 
@@ -361,7 +396,7 @@ app.whenReady().then(() => {
   })
 
   
-  const discordBot = new DiscordBotManager()
+  discordBot = new DiscordBotManager()
 
   ipcMain.handle('discord:login', async (_, token) => {
     return await discordBot.login(token)
@@ -448,13 +483,16 @@ app.whenReady().then(() => {
     })
 
     
+    let lastIgnoreMouseEvents: boolean | null = null
     ipcMain.on('player:sync', (_, data) => {
         if (miniWin && !miniWin.isDestroyed()) {
             miniWin.webContents.send('player:sync', data)
             
-            
             const shouldIgnore = !!(data && data.isGameModeActive)
-            miniWin.setIgnoreMouseEvents(shouldIgnore)
+            if (lastIgnoreMouseEvents !== shouldIgnore) {
+                lastIgnoreMouseEvents = shouldIgnore
+                miniWin.setIgnoreMouseEvents(shouldIgnore, { forward: true })
+            }
         }
     })
 
@@ -595,11 +633,20 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('app:active-window', async () => {
-    
-    
-    const scriptPath = path.join(process.env.APP_ROOT, 'scripts/get-active-window.ps1')
-    return await runPowerShell(scriptPath)
+  ipcMain.handle('app:active-window', () => {
+    return activeWindowName
+  })
+
+  ipcMain.handle('app:clear-memory', async () => {
+    try {
+      const { session } = require('electron')
+      await session.defaultSession.clearCache()
+      if (global.gc) {
+        global.gc()
+      }
+    } catch (e) {
+      console.warn("Memory clear failed:", e)
+    }
   })
 
   

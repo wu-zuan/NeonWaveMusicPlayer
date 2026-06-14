@@ -12,16 +12,31 @@ $code = @"
     }
 "@
 
-Add-Type $code
+try {
+    Add-Type $code -ErrorAction SilentlyContinue
+} catch {}
 
-$hwnd = [User32]::GetForegroundWindow()
-$pidOut = 0
-[User32]::GetWindowThreadProcessId($hwnd, [ref]$pidOut)
-$process = Get-Process -Id $pidOut -ErrorAction SilentlyContinue
+$lastProcessName = ""
 
-if ($process) {
-    Write-Output $process.ProcessName
-}
-else {
-    Write-Output "unknown"
+while ($true) {
+    try {
+        $hwnd = [User32]::GetForegroundWindow()
+        if ($hwnd -ne [System.IntPtr]::Zero) {
+            $pidOut = 0
+            [User32]::GetWindowThreadProcessId($hwnd, [ref]$pidOut)
+            if ($pidOut -gt 0) {
+                $process = Get-Process -Id $pidOut -ErrorAction SilentlyContinue
+                if ($process) {
+                    $name = $process.ProcessName
+                    if ($name -ne $lastProcessName) {
+                        $lastProcessName = $name
+                        Write-Output $name
+                    }
+                }
+            }
+        }
+    } catch {
+        # ignore
+    }
+    Start-Sleep -Seconds 2
 }

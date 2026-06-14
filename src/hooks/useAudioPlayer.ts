@@ -279,7 +279,10 @@ export function useAudioPlayer(contextMode?: string) {
         const audio = audioRef.current
         const onTimeUpdate = () => setCurrentTime(audio.currentTime)
         const onDurationChange = () => setDuration(audio.duration)
-        const onEnded = () => handleNext(true)
+        const onEnded = () => {
+            handleNext(true)
+            window.ipcRenderer.invoke('app:clear-memory').catch(() => {})
+        }
         const onPlay = () => setIsPlaying(true)
         const onPause = () => setIsPlaying(false)
 
