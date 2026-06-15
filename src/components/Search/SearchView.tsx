@@ -144,6 +144,8 @@ export const SearchView = () => {
     }, [])
 
     const handlePreview = async (item: SearchResult) => {
+        if (previewLoading) return
+
         if (previewSongId === item.id && audioRef.current) {
             if (audioRef.current.paused) {
                 audioRef.current.play()
@@ -210,6 +212,8 @@ export const SearchView = () => {
     }
 
     const handleSearch = async (overrideQuery?: string) => {
+        if (isLoading) return
+
         const q = overrideQuery ?? query
         if (!q.trim()) return
 

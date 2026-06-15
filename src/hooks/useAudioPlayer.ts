@@ -270,13 +270,18 @@ export function useAudioPlayer(contextMode?: string) {
 
     
     useEffect(() => {
-        engineRef.current = new AudioEngine()
+        const engine = new AudioEngine()
+        engineRef.current = engine
         const audio = audioRef.current
         audio.crossOrigin = "anonymous"
-        try { engineRef.current.connect(audio) } catch (e) {
+        try { 
+            engine.connect(audio) 
+            // Apply initial settings directly after connection to prevent startup sync issues
+            engine.toggle8D(is8D)
+            engine.setVolume(isMuted ? 0 : volume)
+        } catch (e) {
             console.warn("Connection error", e)
         }
-        
     }, [])
 
     
