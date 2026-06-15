@@ -769,14 +769,25 @@ app.whenReady().then(() => {
     }
   })
 
+  const fileArtworkCache = new Map<string, string | null>()
+
   ipcMain.handle('files:getArtwork', async (_, filePath) => {
+    if (fileArtworkCache.has(filePath)) {
+      return fileArtworkCache.get(filePath)
+    }
     try {
       const metadata = await mm.parseFile(filePath, { skipCovers: false }) 
+      let result: string | null = null
       if (metadata.common.picture && metadata.common.picture.length > 0) {
         const pic = metadata.common.picture[0]
-        return `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
+        result = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
       }
-      return null
+      if (fileArtworkCache.size >= 500) {
+        const firstKey = fileArtworkCache.keys().next().value
+        if (firstKey) fileArtworkCache.delete(firstKey)
+      }
+      fileArtworkCache.set(filePath, result)
+      return result
     } catch (e) {
       return null
     }
@@ -788,9 +799,20 @@ app.whenReady().then(() => {
       const metadata = await mm.parseFile(filePath, parseOptions)
 
       let artwork = null
-      if (options.loadArtwork && metadata.common.picture && metadata.common.picture.length > 0) {
-        const pic = metadata.common.picture[0]
-        artwork = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
+      if (options.loadArtwork) {
+        if (fileArtworkCache.has(filePath)) {
+          artwork = fileArtworkCache.get(filePath) || null
+        } else if (metadata.common.picture && metadata.common.picture.length > 0) {
+          const pic = metadata.common.picture[0]
+          artwork = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
+          if (fileArtworkCache.size >= 500) {
+            const firstKey = fileArtworkCache.keys().next().value
+            if (firstKey) fileArtworkCache.delete(firstKey)
+          }
+          fileArtworkCache.set(filePath, artwork)
+        } else {
+          fileArtworkCache.set(filePath, null)
+        }
       }
 
       return {
@@ -867,38 +889,22 @@ app.whenReady().then(() => {
   
   ipcMain.handle('search:youtube', async (_, query) => {
     try {
+      const ytSearch = createRequire(import.meta.url)('yt-search')
+      const r = await ytSearch(query)
+      if (!r || !r.videos) return []
       
-      const yt = await getYtDlp()
-
-      
-      
-      
-      
-      const stdout = await yt.execPromise([
-        `ytsearch12:${query}`,
-        '--dump-json',
-        '--flat-playlist'
-      ])
-
-      const results = stdout
-        .trim()
-        .split('\n')
-        .map((line: string) => {
-          try { return JSON.parse(line) } catch { return null }
-        })
-        .filter((v: any) => v && v.id)
-        .map((v: any) => ({
-          id: v.id,
-          title: v.title,
-          artist: v.channel || v.uploader || 'Unknown',
-          duration: v.duration,
-          thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`, 
-          url: v.url || `https://www.youtube.com/watch?v=${v.id}`
-        }))
+      const results = r.videos.slice(0, 12).map((v: any) => ({
+        id: v.videoId,
+        title: v.title,
+        artist: v.author?.name || 'Unknown',
+        duration: v.seconds,
+        thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
+        url: v.url
+      }))
 
       return results
     } catch (e) {
-      console.error("Yt-dlp search error:", e)
+      console.error("yt-search error:", e)
       return []
     }
   })

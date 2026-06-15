@@ -53,42 +53,51 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
         }
     }, [track.artwork, track.path])
 
-    // Lazy-load artwork when visible (via IntersectionObserver)
+    // Lazy-load artwork when visible (via IntersectionObserver) with a small debounce/delay
     React.useEffect(() => {
         if (artwork || !itemRef.current) return
 
+        let timeoutId: any = null
+
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
-                if (track.path.startsWith('shared:')) {
-                    const query = track.path.replace('shared:', '')
-                    window.ipcRenderer.searchYouTube(query).then(results => {
-                        if (results && results.length > 0) {
-                            if (results[0].thumbnail) {
-                                setArtwork(results[0].thumbnail)
-                                setCachedArtwork(track.path, results[0].thumbnail)
+                timeoutId = setTimeout(() => {
+                    if (track.path.startsWith('shared:')) {
+                        const query = track.path.replace('shared:', '')
+                        window.ipcRenderer.searchYouTube(query).then(results => {
+                            if (results && results.length > 0) {
+                                if (results[0].thumbnail) {
+                                    setArtwork(results[0].thumbnail)
+                                    setCachedArtwork(track.path, results[0].thumbnail)
+                                }
+                                if (results[0].duration) {
+                                    track.duration = results[0].duration
+                                }
                             }
-                            if (results[0].duration) {
-                                track.duration = results[0].duration
-                            }
-                        }
-                    }).catch(() => {})
-                } else {
-                    window.ipcRenderer.getAudioArtwork(track.path)
-                        .then((art: string | null) => {
-                            if (art) {
-                                setArtwork(art)
-                                setCachedArtwork(track.path, art)
-                            }
-                        })
-                        .catch(() => {})
-                }
+                        }).catch(() => {})
+                    } else {
+                        window.ipcRenderer.getAudioArtwork(track.path)
+                            .then((art: string | null) => {
+                                if (art) {
+                                    setArtwork(art)
+                                    setCachedArtwork(track.path, art)
+                                }
+                            })
+                            .catch(() => {})
+                    }
+                }, 200)
                 observer.disconnect()
             }
         }, { rootMargin: '100px' })
 
         observer.observe(itemRef.current)
 
-        return () => observer.disconnect()
+        return () => {
+            observer.disconnect()
+            if (timeoutId) {
+                clearTimeout(timeoutId)
+            }
+        }
     }, [artwork, track.path])
 
     return (
