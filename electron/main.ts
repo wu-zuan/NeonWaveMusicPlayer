@@ -349,7 +349,6 @@ app.whenReady().then(() => {
         try { discordBot.client.destroy() } catch (e) {}
       }
     }
-    process.exit(0)
   })
   
   createWindow()
