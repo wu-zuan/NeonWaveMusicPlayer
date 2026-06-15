@@ -51,13 +51,17 @@ function App() {
     } else {
       document.body.classList.remove('mini-mode')
       document.documentElement.classList.remove('mini-mode')
-      
-      // Auto-open mini player on startup if enabled in settings
-      if (localStorage.getItem('neonwave_mini_player') === 'true') {
-        window.ipcRenderer.invoke('window:toggleMiniPlayer').catch(console.error)
-      }
     }
   }, [isMini])
+
+  // Listen for playback toggle commands from the mini player (PIP)
+  useEffect(() => {
+    if (isMini) return
+    const cleanup = (window as any).ipcRenderer.on('player:togglePlay', () => {
+      togglePlay()
+    })
+    return () => { if (cleanup) cleanup() }
+  }, [isMini, togglePlay])
 
   useEffect(() => {
     if (contextMode === 'work') {

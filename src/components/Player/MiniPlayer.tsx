@@ -22,21 +22,39 @@ export function MiniPlayer() {
 
     const isGameModeActive = !!(track && track.isGameModeActive)
 
+    // Handle single/double clicks to control playback and restore main window
+    let clickTimeout: any = null
+    const handleClicks = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (e.detail === 1) {
+            clickTimeout = (setTimeout as any)(() => {
+                (window as any).ipcRenderer.invoke('window:togglePlay').catch(console.error)
+            }, 250)
+        } else if (e.detail === 2) {
+            if (clickTimeout) (clearTimeout as any)(clickTimeout)
+            (window as any).ipcRenderer.invoke('window:restoreMain').catch(console.error)
+        }
+    }
+
     if (!track || !track.title) return (
-        <div style={{
-            width: '100vw',
-            height: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            WebkitAppRegion: isGameModeActive ? 'none' : 'drag',
-            userSelect: 'none',
-            fontFamily: "'Outfit', 'Inter', sans-serif",
-            opacity: isGameModeActive ? 0.35 : 1,
-            transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
-            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-        } as any}>
+        <div 
+            onClick={handleClicks}
+            style={{
+                width: '100vw',
+                height: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'transparent',
+                WebkitAppRegion: isGameModeActive ? 'none' : 'drag',
+                cursor: 'pointer',
+                userSelect: 'none',
+                fontFamily: "'Outfit', 'Inter', sans-serif",
+                opacity: isGameModeActive ? 0.35 : 1,
+                transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
+                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+            } as any}
+        >
             <div style={{
                 width: '120px',
                 height: '120px',
@@ -68,20 +86,24 @@ export function MiniPlayer() {
     const offset = circumference - (progress / 100) * circumference
 
     return (
-        <div style={{
-            width: '100vw',
-            height: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            WebkitAppRegion: isGameModeActive ? 'none' : 'drag',
-            userSelect: 'none',
-            fontFamily: "'Outfit', 'Inter', sans-serif",
-            opacity: isGameModeActive ? 0.35 : 1,
-            transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
-            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-        } as any}>
+        <div 
+            onClick={handleClicks}
+            style={{
+                width: '100vw',
+                height: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'transparent',
+                WebkitAppRegion: isGameModeActive ? 'none' : 'drag',
+                cursor: 'pointer',
+                userSelect: 'none',
+                fontFamily: "'Outfit', 'Inter', sans-serif",
+                opacity: isGameModeActive ? 0.35 : 1,
+                transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
+                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+            } as any}
+        >
             <div style={{
                 width: `${size}px`,
                 height: `${size}px`,
