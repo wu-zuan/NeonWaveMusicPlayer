@@ -19,6 +19,31 @@ import { MiniPlayer } from './components/Player/MiniPlayer'
 function App() {
   const isMini = new URLSearchParams(window.location.search).get('mini') === 'true'
 
+  // === All hooks MUST be called before any conditional return (React rules of hooks) ===
+
+  const {
+    playlists, favorites, allTracks,
+    addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
+    exportPlaylist, readImportFile, processStreamImport, processDownloadImport,
+    downloadProgress, pauseDownload, resumeDownload, cancelDownload
+  } = useLibrary()
+
+  const { contextMode } = useAppDetection()
+
+  const {
+    isPlaying, currentTrack, currentTime, duration, volume, is8D,
+    isShuffle, repeatMode,
+    playTrack, togglePlay, setVolume, setIs8D, seek,
+    toggleShuffle, toggleRepeat, handleNext, handlePrev,
+    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
+    getAudioStream, setLocalMute
+  } = useAudioPlayer(contextMode)
+
+  const [view, setView] = useState('all_songs')
+  const [showLyrics, setShowLyrics] = useState(false)
+  const [importModalData, setImportModalData] = useState<any | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+
   useEffect(() => {
     if (isMini) {
       document.body.classList.add('mini-mode')
@@ -29,20 +54,83 @@ function App() {
     }
   }, [isMini])
 
+  useEffect(() => {
+    if (contextMode === 'work') {
+      setFocusMode(true)
+    } else if (contextMode === 'normal') {
+      setFocusMode(false)
+    }
+    
+  }, [contextMode])
+
+  // Discord stream sync with debounce to prevent rapid re-initialization on quick track changes
+  useEffect(() => {
+    let active = true
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const handleSync = async () => {
+      const status = await window.ipcRenderer.invoke('discord:status')
+
+      if (!active) return
+
+      if (status.isConnected && status.currentChannelId) {
+        if (isPlaying) {
+          if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+            console.log('[App] Starting Discord Stream...')
+
+            await window.ipcRenderer.invoke('discord:startStreamMode')
+
+            const stream = getAudioStream()
+            if (stream) {
+              const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 96000 })
+
+              recorder.ondataavailable = async (e) => {
+                if (e.data.size > 0) {
+                  const buffer = await e.data.arrayBuffer()
+                  window.ipcRenderer.send('discord:audio-chunk', buffer)
+                }
+              }
+
+              recorder.start(100)
+              mediaRecorderRef.current = recorder
+            }
+
+            setLocalMute(true)
+            window.ipcRenderer.invoke('discord:setVolume', 100).catch(console.error)
+          } else {
+            if (mediaRecorderRef.current.state === 'paused') mediaRecorderRef.current.resume()
+            window.ipcRenderer.invoke('discord:resume').catch(console.error)
+          }
+        } else {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.pause()
+            window.ipcRenderer.invoke('discord:pause').catch(console.error)
+          }
+        }
+      } else {
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.stop()
+          mediaRecorderRef.current = null
+        }
+        setLocalMute(false)
+      }
+    }
+
+    // Debounce: wait 300ms after the last change before executing
+    debounceTimer = setTimeout(() => {
+      if (active) handleSync()
+    }, 300)
+
+    return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
+    }
+  }, [isPlaying, currentTrack, getAudioStream, setLocalMute])
+
+  // Early return for mini player mode (AFTER all hooks)
   if (isMini) {
     return <MiniPlayer />
   }
-
-  const {
-    playlists, favorites, allTracks,
-    addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
-    exportPlaylist, readImportFile, processStreamImport, processDownloadImport,
-    downloadProgress, pauseDownload, resumeDownload, cancelDownload
-  } = useLibrary()
-
-  const [view, setView] = useState('all_songs')
-  const [showLyrics, setShowLyrics] = useState(false)
-  const [importModalData, setImportModalData] = useState<any | null>(null)
 
   const handleImportClick = async () => {
     const data = await readImportFile()
@@ -60,109 +148,6 @@ function App() {
     if (importModalData) processDownloadImport(importModalData)
     setImportModalData(null)
   }
-
-  
-  const { contextMode } = useAppDetection()
-
-  const {
-    isPlaying, currentTrack, currentTime, duration, volume, is8D,
-    isShuffle, repeatMode,
-    playTrack, togglePlay, setVolume, setIs8D, seek,
-    toggleShuffle, toggleRepeat, handleNext, handlePrev,
-    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
-    getAudioStream, setLocalMute
-  } = useAudioPlayer(contextMode)
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-
-  useEffect(() => {
-    if (contextMode === 'work') {
-      setFocusMode(true)
-    } else if (contextMode === 'normal') {
-      setFocusMode(false)
-    }
-    
-  }, [contextMode])
-
-  
-  
-  useEffect(() => {
-    let active = true
-    const handleSync = async () => {
-      
-      const status = await window.ipcRenderer.invoke('discord:status')
-
-      if (!active) return
-
-      if (status.isConnected && status.currentChannelId) {
-        
-        if (isPlaying) {
-          
-          if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
-            console.log('[App] Starting Discord Stream...')
-
-            
-            await window.ipcRenderer.invoke('discord:startStreamMode')
-
-            
-            const stream = getAudioStream()
-            if (stream) {
-              
-              
-              const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 96000 })
-
-              recorder.ondataavailable = async (e) => {
-                if (e.data.size > 0) {
-                  const buffer = await e.data.arrayBuffer()
-                  
-                  window.ipcRenderer.send('discord:audio-chunk', buffer)
-                }
-              }
-
-              recorder.start(100) 
-              mediaRecorderRef.current = recorder
-            }
-
-            
-            setLocalMute(true)
-
-            
-            window.ipcRenderer.invoke('discord:setVolume', 100).catch(console.error)
-          } else {
-            
-            if (mediaRecorderRef.current.state === 'paused') mediaRecorderRef.current.resume()
-            window.ipcRenderer.invoke('discord:resume').catch(console.error)
-          }
-        } else {
-          
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.pause() 
-            
-            
-            window.ipcRenderer.invoke('discord:pause').catch(console.error)
-          }
-        }
-      } else {
-        
-        if (mediaRecorderRef.current) {
-          mediaRecorderRef.current.stop()
-          mediaRecorderRef.current = null
-        }
-        setLocalMute(false) 
-      }
-    }
-
-    handleSync()
-
-    return () => { active = false }
-  }, [isPlaying, currentTrack, getAudioStream, setLocalMute]) 
-
-  
-  
-  
-   
-
-  
 
   
   let displayedTracks = allTracks

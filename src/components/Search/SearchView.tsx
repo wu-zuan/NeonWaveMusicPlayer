@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Search, Download, Loader2, ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react'
 import styles from './Search.module.css'
-import { ARTIST_NAMES } from '../../data/artists'
 
 interface SearchResult {
     id: string
@@ -91,12 +90,41 @@ const ArtistCard = React.memo(({ name, onClick }: { name: string, onClick: () =>
     )
 })
 
+const ARTIST_CATEGORIES = [
+    {
+        id: 'popular',
+        name: '🔥 熱門推薦',
+        artists: ['周杰倫', '林俊傑', '鄧紫棋', '陳奕迅', '五月天', '蔡依林', '張惠妹', '孫燕姿', '王力宏', '陶喆', '張學友', '劉德華', '郭富城', '黎明', '王菲', '莫文蔚', '那英', '林憶蓮', '李宗盛', '羅大佑', '周華健', '伍佰', '張信哲', '任賢齊', '許茹芸', '蘇慧倫', '徐懷鈺', '范曉萱', '李玟', '張雨生']
+    },
+    {
+        id: 'pop',
+        name: '🎤 流行金曲',
+        artists: ['羅志祥', '楊丞琳', '潘瑋柏', '王心凌', '張韶涵', '林宥嘉', '蕭敬騰', '楊宗緯', '梁靜茹', '戴佩妮', '蔡健雅', '陳綺貞', '田馥甄', 'S.H.E', '陳嘉樺', '任家萱', '韋禮安', '盧廣仲', '徐佳瑩', '李榮浩', '薛之謙', '華晨宇', '毛不易', '汪蘇瀧', '許嵩', '胡夏', '郁可唯', '丁噹', '郭靜', '范瑋琪', '張懸', '安溥', '魏如萱', '家家', '紀家盈', '艾怡良', '岑寧兒', '李千娜', '曾沛慈', '李佳薇', '閻奕格', '陳勢安', '畢書盡', 'Bii', '朱俐靜', '林曉培', '温嵐', '周蕙', '許慧欣', '卓文萱', '江美琪', '侯湘婷', '林凡', '順子', '戴愛玲', 'A-Lin', '黃小琥']
+    },
+    {
+        id: 'bands',
+        name: '🎸 樂團組合',
+        artists: ['動力火車', 'F.I.R.', '信樂團', '八三夭', '告五人', '茄子蛋', '滅火器', '美秀集團', '老王樂隊', '草東沒有派對', '理想混蛋', '宇宙人', '麋先生', '落日飛車', 'Deca Joins', '康士坦的變化球', '甜約翰', '怕胖團', 'TRASH', '南拳媽媽', '玖壹壹', '頑童MJ116', '兄弟本色', 'C.T.O', '五堅情', '九澤CP', '原子少年', 'Ozone', 'AcQUA源少年', 'U:NUS']
+    },
+    {
+        id: 'hiphop',
+        name: '🎧 潮流嘻哈',
+        artists: ['周興哲', '高爾宣', '瘦子E.SO', 'ØZI', 'J.Sheon', '熊仔', '熱狗 MC HotDog', '蛋堡', '國蛋', '李英宏', 'Leo王', '春艷', '夜貓組', '9m88', 'Julia 吳卓源', '陳芳語', '孫盛希', 'Karencici', '壞特 ?te', '施語庭', '持修', '黃宣', '雷擎', '鶴 The Crane', 'LINION', '雷雨心', '法蘭', '洪佩瑜', '陳嫺靜', '乃萬', '萬妮達', 'Vava', 'GAI', '艾熱', '那吾克熱', '楊和蘇', '福克斯', '劉聰', 'KEY.L', '功夫胖', 'C-BLOCK', 'Higher Brothers', '馬思唯', 'KnowKnow', 'Masiwei', 'Tizzy T', '滿舒克', 'Jony J']
+    },
+    {
+        id: 'classic',
+        name: '📻 經典港台',
+        artists: ['費玉清', '江蕙', '黃乙玲', '葉啓田', '陳雷', '蔡小虎', '翁立友', '龍千玉', '張秀卿', '黃妃', '蕭煌奇', '李聖傑', '林志炫', '彭佳慧', '辛曉琪', '萬芳', '趙傳', '齊秦', '齊豫', '潘越雲', '謝霆鋒', '陳小春', '古巨基', '鄭中基', '張智霖', '蘇永康', '許志安', '梁詠琪', '鄭秀文', '楊千嬅', '容祖兒', 'Twins', '蔡卓妍', '鍾欣潼', '鄧麗欣', '方力申', '薛凱琪', '衛蘭', '謝安琪', '泳兒']
+    }
+]
+
 export const SearchView = () => {
     const [query, setQuery] = useState('')
     const [results, setResults] = useState<SearchResult[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [hasSearched, setHasSearched] = useState(false)
     const [page, setPage] = useState(1)
+    const [selectedCategory, setSelectedCategory] = useState('popular')
     const PAGE_SIZE = 15
 
     const [previewSongId, setPreviewSongId] = useState<string | null>(null)
@@ -340,8 +368,19 @@ export const SearchView = () => {
                 {!hasSearched && !isLoading && (
                     <div>
                         <h2 className={styles.sectionTitle}>💎 華語歌手推薦</h2>
+                        <div className={styles.tabsContainer}>
+                            {ARTIST_CATEGORIES.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    className={`${styles.tab} ${selectedCategory === cat.id ? styles.tabActive : ''}`}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                >
+                                    {cat.name}
+                                </button>
+                            ))}
+                        </div>
                         <div className={styles.artistGrid}>
-                            {ARTIST_NAMES.map(name => (
+                            {(ARTIST_CATEGORIES.find(cat => cat.id === selectedCategory)?.artists || []).map(name => (
                                 <ArtistCard
                                     key={name}
                                     name={name}

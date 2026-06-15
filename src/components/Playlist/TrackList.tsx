@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { List, useListRef } from 'react-window'
 import { Search } from 'lucide-react'
 import { TrackItem } from './TrackItem'
 import styles from './Playlist.module.css'
@@ -13,12 +14,31 @@ interface TrackListProps {
     favorites?: Track[]
 }
 
+const ITEM_HEIGHT = 56
+
 export const TrackList: React.FC<TrackListProps> = ({
     title = '音樂庫', tracks, currentTrack, onPlay, onToggleFavorite, favorites = []
 }) => {
     const [searchQuery, setSearchQuery] = useState('')
     const [matches, setMatches] = useState<number[]>([])
     const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const listRef = useListRef() as any
+    const [listHeight, setListHeight] = useState(600)
+
+    // Measure container height for virtualized list
+    useEffect(() => {
+        const measure = () => {
+            if (containerRef.current) {
+                // Subtract header height (~90px) from container
+                const rect = containerRef.current.getBoundingClientRect()
+                setListHeight(Math.max(200, rect.height - 90))
+            }
+        }
+        measure()
+        window.addEventListener('resize', measure)
+        return () => window.removeEventListener('resize', measure)
+    }, [])
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         const q = e.target.value.toLowerCase()
@@ -44,11 +64,7 @@ export const TrackList: React.FC<TrackListProps> = ({
     }
 
     const scrollToMatch = (index: number) => {
-        const el = document.getElementById(`track-item-${index}`)
-        if (el) {
-            
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
+        listRef.current?.scrollToRow({ index, align: 'center' })
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -69,8 +85,33 @@ export const TrackList: React.FC<TrackListProps> = ({
         )
     }
 
+    const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+        const track = tracks[index]
+        const isFav = favorites.some(f => f.path === track.path)
+        const isActive = currentTrack?.path === track.path
+
+        // Optimization: Use currentTrack's artwork for the active item
+        const displayTrack = (isActive && currentTrack?.artwork)
+            ? { ...track, artwork: currentTrack.artwork }
+            : track
+
+        return (
+            <TrackItem
+                style={style}
+                key={track.path}
+                id={`track-item-${index}`}
+                track={displayTrack}
+                isActive={isActive}
+                isHighlighted={matches.length > 0 && matches[currentMatchIdx] === index}
+                onClick={() => onPlay(track)}
+                isFavorite={isFav}
+                onToggleFavorite={() => onToggleFavorite && onToggleFavorite(track)}
+            />
+        )
+    }
+
     return (
-        <div className={styles.container}>
+        <div className={styles.container} ref={containerRef}>
             <header className={styles.header}>
                 <h2 className={styles.heading}>{title}</h2>
                 <div className={styles.searchWrapper}>
@@ -87,31 +128,15 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </div>
                 <span className={styles.artist}>{tracks.length} 首歌曲</span>
             </header>
-            <div className={styles.trackList}>
-                {tracks.map((track, index) => {
-                    const isFav = favorites.some(f => f.path === track.path)
-                    const isActive = currentTrack?.path === track.path
-
-                    // Optimization: Use currentTrack's artwork for the active item
-                    // effectively showing the cover for the playing song without loading it for everyone
-                    const displayTrack = (isActive && currentTrack?.artwork)
-                        ? { ...track, artwork: currentTrack.artwork }
-                        : track
-
-                    return (
-                        <TrackItem
-                            key={`${track.path}-${index}`}
-                            id={`track-item-${index}`}
-                            track={displayTrack}
-                            isActive={isActive}
-                            isHighlighted={matches.length > 0 && matches[currentMatchIdx] === index}
-                            onClick={() => onPlay(track)}
-                            isFavorite={isFav}
-                            onToggleFavorite={() => onToggleFavorite && onToggleFavorite(track)}
-                        />
-                    )
-                })}
-            </div>
+            <List<{}>
+                listRef={listRef}
+                style={{ height: listHeight, width: '100%' }}
+                rowCount={tracks.length}
+                rowHeight={ITEM_HEIGHT}
+                rowComponent={Row}
+                rowProps={{}}
+                overscanCount={10}
+            />
         </div>
     )
 }

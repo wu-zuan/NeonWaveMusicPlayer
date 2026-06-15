@@ -1,4 +1,5 @@
 import RPC from 'discord-rpc';
+import { searchArtistImage as searchArtistImageShared } from './utils/artistSearch';
 
 export class DiscordRPCManager {
     private client: RPC.Client | null = null;
@@ -24,13 +25,27 @@ export class DiscordRPCManager {
         });
 
         try {
-            await this.client.login({ clientId: this.clientId });
+            // Set a 5-second connection timeout for Discord RPC login
+            const loginPromise = this.client.login({ clientId: this.clientId });
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error('Discord RPC login timed out after 5000ms')), 5000);
+            });
+
+            await Promise.race([loginPromise, timeoutPromise]);
         } catch (e) {
-            console.error('[DiscordRPC] Login failed:', e);
+            console.error('[DiscordRPC] Connection failed or timed out:', e);
+            if (this.client) {
+                try {
+                    await this.client.destroy();
+                } catch (destroyErr) {
+                    console.error('[DiscordRPC] Error destroying client:', destroyErr);
+                }
+            }
             this.client = null;
             this.isReady = false;
         }
     }
+
 
     async setActivity(data: {
         title: string;
@@ -79,43 +94,7 @@ export class DiscordRPCManager {
     }
 
     async searchArtistImage(artistName: string): Promise<string | null> {
-        try {
-            
-            const deezerUrl = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}&limit=1`
-            try {
-                const resDeezer = await fetch(deezerUrl)
-                if (resDeezer.ok) {
-                    const dataDeezer: any = await resDeezer.json()
-                    if (dataDeezer && dataDeezer.data && dataDeezer.data.length > 0) {
-                        return dataDeezer.data[0].picture_medium || dataDeezer.data[0].picture_big
-                    }
-                }
-            } catch (err) { }
-
-            
-            const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&media=music&entity=album&limit=1`
-            const resItunes = await fetch(itunesUrl)
-            if (resItunes.ok) {
-                const dataItunes: any = await resItunes.json()
-                if (dataItunes && dataItunes.results && dataItunes.results.length > 0) {
-                    const artwork = dataItunes.results[0].artworkUrl100
-                    if (artwork) return artwork.replace('100x100bb', '600x600bb')
-                }
-            }
-
-            
-            try {
-                const audioDbUrl = `https://www.theaudiodb.com/api/v1/json/2/search.php?s=${encodeURIComponent(artistName)}`
-                const resAudioDb = await fetch(audioDbUrl)
-                if (resAudioDb.ok) {
-                    const dataAudioDb: any = await resAudioDb.json()
-                    if (dataAudioDb && dataAudioDb.artists && dataAudioDb.artists.length > 0) {
-                        return dataAudioDb.artists[0].strArtistThumb || dataAudioDb.artists[0].strArtistFanart
-                    }
-                }
-            } catch (err) { }
-        } catch (e) { }
-        return null
+        return searchArtistImageShared(artistName)
     }
 
     async clearActivity() {

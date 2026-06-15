@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-electron
 *.local
 
 # Editor directories and files
@@ -24,3 +25,12 @@ dist-ssr
 *.sw?
 
 release/
+
+# Build artifacts & binaries
+*-player-script.js
+yt-dlp.exe
+yt-dlp
+
+# Test/debug files
+*.nwp
+debug.log

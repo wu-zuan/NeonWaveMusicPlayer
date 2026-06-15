@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process'
 import * as mm from 'music-metadata'
 import { DiscordBotManager } from './discordBot'
 import { DiscordRPCManager } from './discordRPC'
+import { searchArtistImage } from './utils/artistSearch'
 
 const require = createRequire(import.meta.url)
 let ffmpegPath = require('ffmpeg-static')
@@ -347,7 +348,30 @@ app.whenReady().then(() => {
   const discordRPC = new DiscordRPCManager()
 
   
+  // LRU image cache — limit to 200 entries to prevent unbounded memory growth
+  const IMAGE_CACHE_MAX = 200;
   const imageCache = new Map<string, string>();
+
+  function getFromImageCache(key: string): string | undefined {
+    const val = imageCache.get(key);
+    if (val) {
+      // Move to end (most recently used)
+      imageCache.delete(key);
+      imageCache.set(key, val);
+    }
+    return val;
+  }
+
+  function setImageCache(key: string, value: string) {
+    if (imageCache.has(key)) {
+      imageCache.delete(key);
+    } else if (imageCache.size >= IMAGE_CACHE_MAX) {
+      // Evict oldest entry
+      const oldest = imageCache.keys().next().value!;
+      imageCache.delete(oldest);
+    }
+    imageCache.set(key, value);
+  }
 
   async function uploadToCloud(artworkUrl: string): Promise<string | null> {
     try {
@@ -408,8 +432,9 @@ app.whenReady().then(() => {
     let artworkUrl = 'logo'; 
 
     
-    if (imageCache.has(cacheKey)) {
-        artworkUrl = imageCache.get(cacheKey)!;
+    const cached = getFromImageCache(cacheKey);
+    if (cached) {
+        artworkUrl = cached;
     } else if (data.artworkUrl && data.artworkUrl.startsWith('http') && !data.artworkUrl.includes('localhost')) {
         artworkUrl = data.artworkUrl;
     }
@@ -424,7 +449,7 @@ app.whenReady().then(() => {
              try {
                 const uploadedUrl = await uploadToCloud(data.artworkUrl);
                 if (uploadedUrl) {
-                    imageCache.set(cacheKey, uploadedUrl);
+                    setImageCache(cacheKey, uploadedUrl);
                     
                     discordRPC.setActivity({ ...data, artworkUrl: uploadedUrl }).catch(() => {});
                 }
@@ -475,7 +500,7 @@ app.whenReady().then(() => {
         
         if (title && artist) {
           const cacheKey = `${title}-${artist}`;
-          if (!imageCache.has(cacheKey) && metadata.common.picture && metadata.common.picture.length > 0) {
+          if (!getFromImageCache(cacheKey) && metadata.common.picture && metadata.common.picture.length > 0) {
             
             const pic = metadata.common.picture[0];
             const buffer = Buffer.from(pic.data);
@@ -490,7 +515,7 @@ app.whenReady().then(() => {
             const res = await fetch('https://telegra.ph/upload', { method: 'POST', body: form });
             const json: any = await res.json();
             if (Array.isArray(json) && json[0] && json[0].src) {
-              imageCache.set(cacheKey, `https://telegra.ph${json[0].src}`);
+              setImageCache(cacheKey, `https://telegra.ph${json[0].src}`);
               successCount++;
             }
           }
@@ -1143,57 +1168,7 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('search:artistImage', async (_, artistName) => {
-    try {
-      // 1. Try Deezer
-      // Add a small timeout to respect potential rate limits if called rapidly
-      const deezerUrl = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}&limit=1`
-      try {
-        const resDeezer = await fetch(deezerUrl)
-        if (resDeezer.ok) {
-          const dataDeezer: any = await resDeezer.json()
-          if (dataDeezer && dataDeezer.data && dataDeezer.data.length > 0) {
-            const pic = dataDeezer.data[0].picture_medium || dataDeezer.data[0].picture_big
-            if (pic) return pic
-          }
-        }
-      } catch (err) {
-        // Deezer failed, proceed to fallback
-      }
-
-      // 2. Fallback to iTunes (Album Art)
-      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&media=music&entity=album&limit=1`
-      const resItunes = await fetch(itunesUrl)
-      if (resItunes.ok) {
-        const dataItunes: any = await resItunes.json()
-        if (dataItunes && dataItunes.results && dataItunes.results.length > 0) {
-          const artwork = dataItunes.results[0].artworkUrl100
-          if (artwork) {
-            return artwork.replace('100x100bb', '600x600bb')
-          }
-        }
-      }
-
-      // 3. Fallback to TheAudioDB (Test API)
-      try {
-        const audioDbUrl = `https://www.theaudiodb.com/api/v1/json/2/search.php?s=${encodeURIComponent(artistName)}`
-        const resAudioDb = await fetch(audioDbUrl)
-        if (resAudioDb.ok) {
-          const dataAudioDb: any = await resAudioDb.json()
-          if (dataAudioDb && dataAudioDb.artists && dataAudioDb.artists.length > 0) {
-            const artistObj = dataAudioDb.artists[0]
-            const pic = artistObj.strArtistThumb || artistObj.strArtistFanart
-            if (pic) return pic
-          }
-        }
-      } catch (err) {
-        // ignore
-      }
-
-      return null
-    } catch (e) {
-      console.error('Error fetching artist image:', e)
-      return null
-    }
+    return searchArtistImage(artistName)
   })
 
   ipcMain.handle('search:lyrics', async (_, title, artist, filePath, duration) => {
@@ -1412,6 +1387,7 @@ app.whenReady().then(() => {
       
       if (filePath) {
         let filename = path.basename(filePath, path.extname(filePath))
+        const promises: Promise<any[]>[] = []
 
         
         
@@ -1427,14 +1403,14 @@ app.whenReady().then(() => {
           if (cT) {
             const query = `${cT} ${cA}`
             console.log(`[Lyrics] Strategy C-0 (Variety Pattern): ${query}`)
-            candidates.push(...await searchLrcLib(query, duration))
-            candidates.push(...await searchNetease(query, duration))
+            promises.push(searchLrcLib(query, duration))
+            promises.push(searchNetease(query, duration))
 
             
             if (cA.length > 0) {
               console.log(`[Lyrics] Strategy C-0 (Title + Duration): ${cT}`)
-              candidates.push(...await searchLrcLib(cT, duration))
-              candidates.push(...await searchNetease(cT, duration))
+              promises.push(searchLrcLib(cT, duration))
+              promises.push(searchNetease(cT, duration))
             }
           }
         }
@@ -1445,15 +1421,20 @@ app.whenReady().then(() => {
           const [a, t] = parsed
           const query = `${t} ${a}`
           console.log(`[Lyrics] Strategy C-1 (Parsed): ${query}`)
-          candidates.push(...await searchLrcLib(query, duration))
-          candidates.push(...await searchNetease(query, duration))
+          promises.push(searchLrcLib(query, duration))
+          promises.push(searchNetease(query, duration))
         }
 
         
         const cFilename = cleanString(filename)
         console.log(`[Lyrics] Strategy C-2 (Raw Cleaned): ${cFilename}`)
-        candidates.push(...await searchLrcLib(cFilename, duration))
-        candidates.push(...await searchNetease(cFilename, duration))
+        promises.push(searchLrcLib(cFilename, duration))
+        promises.push(searchNetease(cFilename, duration))
+
+        const resultsList = await Promise.all(promises)
+        resultsList.forEach(res => {
+          candidates.push(...res)
+        })
       }
 
       

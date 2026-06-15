@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const IDE_APPS = ['code', 'visual studio', 'intellij', 'webstorm', 'atom', 'sublime_text']
 const WORK_APPS = ['word', 'excel', 'powerpoint', 'notion', 'slack', 'teams']
@@ -7,16 +7,16 @@ const GAME_APPS = ['league of legends', 'valorant', 'minecraft', 'csgo', 'apex',
 export function useAppDetection() {
     const [currentApp, setCurrentApp] = useState<string>('')
     const [contextMode, setContextMode] = useState<'normal' | 'work' | 'game'>('normal')
+    const currentAppRef = useRef(currentApp)
+    currentAppRef.current = currentApp
 
     useEffect(() => {
         const checkApp = async () => {
             try {
-                
                 const appName = await window.ipcRenderer.invoke('app:active-window')
                 const lowerName = appName.toLowerCase()
 
-                
-                if (lowerName !== currentApp) {
+                if (lowerName !== currentAppRef.current) {
                     setCurrentApp(lowerName)
 
                     if (IDE_APPS.some(a => lowerName.includes(a)) || WORK_APPS.some(a => lowerName.includes(a))) {
@@ -32,10 +32,10 @@ export function useAppDetection() {
             }
         }
 
-        const interval = setInterval(checkApp, 2000) 
+        const interval = setInterval(checkApp, 2000)
 
         return () => clearInterval(interval)
-    }, [currentApp])
+    }, []) // Mount once — use ref for latest value
 
     return {
         currentApp,

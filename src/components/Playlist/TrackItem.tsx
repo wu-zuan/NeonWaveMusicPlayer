@@ -3,8 +3,34 @@ import { Music, AudioWaveform, Heart } from 'lucide-react'
 import styles from './Playlist.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 
+// LRU Artwork Cache — prevents memory bloat from base64 artwork strings
+const ARTWORK_CACHE_MAX = 80
+const artworkCache = new Map<string, string>()
+
+function getCachedArtwork(key: string): string | undefined {
+    const val = artworkCache.get(key)
+    if (val) {
+        // Move to end (most recently used)
+        artworkCache.delete(key)
+        artworkCache.set(key, val)
+    }
+    return val
+}
+
+function setCachedArtwork(key: string, value: string) {
+    if (artworkCache.has(key)) {
+        artworkCache.delete(key)
+    } else if (artworkCache.size >= ARTWORK_CACHE_MAX) {
+        // Evict oldest entry
+        const oldest = artworkCache.keys().next().value!
+        artworkCache.delete(oldest)
+    }
+    artworkCache.set(key, value)
+}
+
 interface TrackItemProps {
     id?: string
+    style?: React.CSSProperties
     track: Track
     isActive: boolean
     isFavorite?: boolean
@@ -13,16 +39,21 @@ interface TrackItemProps {
     onToggleFavorite?: () => void
 }
 
-export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFavorite, isHighlighted, onClick, onToggleFavorite }) => {
-    const [artwork, setArtwork] = React.useState<string | undefined>(track.artwork)
+export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive, isFavorite, isHighlighted, onClick, onToggleFavorite }) => {
+    const [artwork, setArtwork] = React.useState<string | undefined>(() => {
+        return track.artwork || getCachedArtwork(track.path)
+    })
     const itemRef = React.useRef<HTMLDivElement>(null)
 
-    
+    // Sync artwork from props (e.g. when currentTrack provides it)
     React.useEffect(() => {
-        if (track.artwork) setArtwork(track.artwork)
-    }, [track.artwork])
+        if (track.artwork) {
+            setArtwork(track.artwork)
+            setCachedArtwork(track.path, track.artwork)
+        }
+    }, [track.artwork, track.path])
 
-    
+    // Lazy-load artwork when visible (via IntersectionObserver)
     React.useEffect(() => {
         if (artwork || !itemRef.current) return
 
@@ -32,26 +63,28 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFav
                     const query = track.path.replace('shared:', '')
                     window.ipcRenderer.searchYouTube(query).then(results => {
                         if (results && results.length > 0) {
-                            if (results[0].thumbnail) setArtwork(results[0].thumbnail)
+                            if (results[0].thumbnail) {
+                                setArtwork(results[0].thumbnail)
+                                setCachedArtwork(track.path, results[0].thumbnail)
+                            }
                             if (results[0].duration) {
                                 track.duration = results[0].duration
-                                
-                                setArtwork((prev) => prev);
                             }
                         }
                     }).catch(() => {})
                 } else {
                     window.ipcRenderer.getAudioArtwork(track.path)
                         .then((art: string | null) => {
-                            if (art) setArtwork(art)
+                            if (art) {
+                                setArtwork(art)
+                                setCachedArtwork(track.path, art)
+                            }
                         })
-                        .catch(() => {
-                            
-                        })
+                        .catch(() => {})
                 }
                 observer.disconnect()
             }
-        }, { rootMargin: '50px' }) 
+        }, { rootMargin: '100px' })
 
         observer.observe(itemRef.current)
 
@@ -64,6 +97,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, track, isActive, isFav
             ref={itemRef}
             className={`${styles.trackItem} ${isActive ? styles.active : ''} ${isHighlighted ? styles.highlighted : ''}`}
             onClick={onClick}
+            style={style}
         >
             <div className={styles.icon}>
                 {artwork ? (

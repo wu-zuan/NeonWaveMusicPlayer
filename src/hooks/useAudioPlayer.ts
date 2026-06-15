@@ -90,8 +90,12 @@ export function useAudioPlayer(contextMode?: string) {
     }, [isShuffle, playlist])
 
     
-    const playTrack = async (originalTrack: Track, newPlaylist?: Track[]) => {
+    const currentTrackRef = useRef(currentTrack)
+    currentTrackRef.current = currentTrack
+
+    const playTrack = useCallback(async (originalTrack: Track, newPlaylist?: Track[]) => {
         const audio = audioRef.current
+        const prevTrack = currentTrackRef.current
 
         if (newPlaylist) {
             setPlaylist(newPlaylist)
@@ -101,16 +105,16 @@ export function useAudioPlayer(contextMode?: string) {
         const trackToPlay = { ...originalTrack }
         
         
-        if (currentTrack?.path !== trackToPlay.path) {
+        if (prevTrack?.path !== trackToPlay.path) {
             if (!audio.paused) {
                 try { audio.pause() } catch (e) { }
             }
             audio.currentTime = 0
             
             
-            if (currentTrack) {
+            if (prevTrack) {
                 setHistory(prev => {
-                    const { artwork, ...lightweightTrack } = currentTrack
+                    const { artwork, ...lightweightTrack } = prevTrack
                     const newHistory = [...prev, lightweightTrack]
                     if (newHistory.length > 50) return newHistory.slice(-50)
                     return newHistory
@@ -182,7 +186,8 @@ export function useAudioPlayer(contextMode?: string) {
         }
 
         // Same track: If we just loaded artwork (and it wasn't there before), update state
-        if (currentTrack?.path === trackToPlay.path && trackToPlay.artwork && !currentTrack?.artwork) {
+        const curTrack = currentTrackRef.current
+        if (curTrack?.path === trackToPlay.path && trackToPlay.artwork && !curTrack?.artwork) {
             setCurrentTrack(prev => prev ? ({ ...prev, artwork: trackToPlay.artwork }) : trackToPlay)
         }
 
@@ -192,7 +197,7 @@ export function useAudioPlayer(contextMode?: string) {
         } catch (e) {
             console.error("Playback failed:", e)
         }
-    }
+    }, [])
 
     
     const handleNext = useCallback((autoTrigger = false) => {
@@ -365,6 +370,14 @@ export function useAudioPlayer(contextMode?: string) {
     }, [currentTrack?.path, isPlaying]);
 
     
+    // Use refs for frequently-changing values to avoid tearing down the interval on every timeupdate
+    const syncCurrentTimeRef = useRef(currentTime)
+    syncCurrentTimeRef.current = currentTime
+    const syncDurationRef = useRef(duration)
+    syncDurationRef.current = duration
+    const syncIsPlayingRef = useRef(isPlaying)
+    syncIsPlayingRef.current = isPlaying
+
     useEffect(() => {
         const sync = () => {
             const gameModeSetting = localStorage.getItem('neonwave_mini_game_mode') || 'auto';
@@ -374,9 +387,9 @@ export function useAudioPlayer(contextMode?: string) {
                 title: currentTrack ? currentTrack.title : '',
                 artist: currentTrack ? currentTrack.artist : '',
                 artwork: currentTrack ? currentTrack.artwork : undefined,
-                currentTime,
-                duration,
-                isPlaying,
+                currentTime: syncCurrentTimeRef.current,
+                duration: syncDurationRef.current,
+                isPlaying: syncIsPlayingRef.current,
                 isGameModeActive
             });
         };
@@ -391,7 +404,7 @@ export function useAudioPlayer(contextMode?: string) {
             clearInterval(interval);
             window.removeEventListener('neonwave:settings-changed', handleSettingsChange);
         };
-    }, [currentTrack, isPlaying, currentTime, duration, contextMode]);
+    }, [currentTrack, contextMode]);
 
     const togglePlay = async () => {
         if (!audioRef.current) return;
