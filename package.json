@@ -38,6 +38,7 @@
     "yt-search": "^2.13.1"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@types/discord-rpc": "^4.0.10",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",

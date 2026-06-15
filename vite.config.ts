@@ -11,6 +11,10 @@ export default defineConfig({
         
         entry: 'electron/main.ts',
         vite: {
+          define: {
+            __filename: 'import.meta.filename',
+            __dirname: 'import.meta.dirname',
+          },
           build: {
             rollupOptions: {
               external: [
@@ -21,7 +25,9 @@ export default defineConfig({
                 'discord.js',
                 '@discordjs/voice',
                 'libsodium-wrappers',
-                '@snazzah/davey'
+                '@snazzah/davey',
+                'bufferutil',
+                'utf-8-validate'
               ],
             },
           },

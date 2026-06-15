@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
 import { autoUpdater } from 'electron-updater'
 import { spawn } from 'node:child_process'
 import * as mm from 'music-metadata'
@@ -15,6 +16,10 @@ if (app.isPackaged) {
   ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
 }
 
+
+if (process.argv.includes('--disable-gpu') || process.argv.includes('--no-gpu')) {
+  app.disableHardwareAcceleration()
+}
 
 autoUpdater.allowPrerelease = true
 
@@ -31,9 +36,66 @@ if (!gotTheLock) {
   })
 }
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+Object.defineProperty(globalThis, '__filename', { value: __filename })
+Object.defineProperty(globalThis, '__dirname', { value: __dirname })
 
 process.env.APP_ROOT = path.join(__dirname, '..')
+
+let logStream: fsSync.WriteStream | null = null
+
+export function writeLog(type: string, ...args: any[]) {
+  if (!logStream) return
+  const timestamp = new Date().toISOString()
+  const message = args.map(arg => {
+    if (typeof arg === 'object') {
+      try { return JSON.stringify(arg) } catch (e) { return String(arg) }
+    }
+    return String(arg)
+  }).join(' ')
+  logStream.write(`[${timestamp}] [${type}] ${message}\n`)
+}
+
+function setupFileLogging() {
+  const logPath = path.join(app.getPath('userData'), 'debug.log')
+  try {
+    fsSync.writeFileSync(logPath, `=== NeonWave Debug Session Started at ${new Date().toLocaleString()} ===\n`)
+    logStream = fsSync.createWriteStream(logPath, { flags: 'a' })
+
+    const originalLog = console.log
+    const originalError = console.error
+    const originalWarn = console.warn
+
+    console.log = (...args) => {
+      originalLog(...args)
+      writeLog('INFO', ...args)
+    }
+    console.error = (...args) => {
+      originalError(...args)
+      writeLog('ERROR', ...args)
+    }
+    console.warn = (...args) => {
+      originalWarn(...args)
+      writeLog('WARN', ...args)
+    }
+
+    process.on('uncaughtException', (error) => {
+      writeLog('CRITICAL', 'Uncaught Exception:', error.message, error.stack)
+      originalError('Uncaught Exception:', error)
+    })
+
+    process.on('unhandledRejection', (reason) => {
+      writeLog('CRITICAL', 'Unhandled Rejection:', reason)
+      originalError('Unhandled Rejection:', reason)
+    })
+  } catch (e) {
+    console.error('Failed to setup file logging:', e)
+  }
+}
+
+setupFileLogging()
 
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
@@ -68,6 +130,12 @@ function createWindow() {
       backgroundThrottling: false,
       devTools: true
     },
+  })
+
+  win.webContents.on('console-message', (_, level, message, line, sourceId) => {
+    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR']
+    const levelStr = levels[level] || 'INFO'
+    writeLog(`RENDERER-MAIN-${levelStr}`, `[${path.basename(sourceId)}:${line}] ${message}`)
   })
 
   
@@ -525,6 +593,12 @@ app.whenReady().then(() => {
                 preload: path.join(__dirname, 'preload.mjs'),
                 webSecurity: false,
             }
+        })
+
+        miniWin.webContents.on('console-message', (_, level, message, line, sourceId) => {
+            const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR']
+            const levelStr = levels[level] || 'INFO'
+            writeLog(`RENDERER-MINI-${levelStr}`, `[${path.basename(sourceId)}:${line}] ${message}`)
         })
 
         if (VITE_DEV_SERVER_URL) {

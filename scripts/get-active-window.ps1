@@ -12,9 +12,11 @@ $code = @"
     }
 "@
 
-try {
-    Add-Type $code -ErrorAction SilentlyContinue
-} catch {}
+if (-not ([System.Management.Automation.PSTypeName]'User32').Type) {
+    try {
+        Add-Type $code -ErrorAction SilentlyContinue
+    } catch {}
+}
 
 $lastProcessName = ""
 
