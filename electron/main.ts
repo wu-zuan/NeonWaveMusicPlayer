@@ -22,13 +22,13 @@ if (process.argv.includes('--disable-gpu') || process.argv.includes('--no-gpu'))
 }
 
 // GPU resilience: reduce GPU stress to prevent TDR (nvlddmkm Event 153)
-app.commandLine.appendSwitch('disable-gpu-compositing') // Use software compositing to avoid GPU overload
-app.commandLine.appendSwitch('disable-gpu-rasterization') // Prevent GPU raster which can trigger TDR
-app.commandLine.appendSwitch('disable-software-rasterizer') // Avoid fallback software raster overhead
-app.commandLine.appendSwitch('disable-gpu-sandbox') // Reduce GPU process restrictions
-app.commandLine.appendSwitch('gpu-no-context-lost') // Don't crash on GPU context lost
-app.commandLine.appendSwitch('disable-accelerated-video-decode') // Avoid GPU video decode stress
-app.commandLine.appendSwitch('max-active-webgl-contexts', '1')
+// app.commandLine.appendSwitch('disable-gpu-compositing') // Use software compositing to avoid GPU overload
+// app.commandLine.appendSwitch('disable-gpu-rasterization') // Prevent GPU raster which can trigger TDR
+// app.commandLine.appendSwitch('disable-software-rasterizer') // Avoid fallback software raster overhead
+// app.commandLine.appendSwitch('disable-gpu-sandbox') // Reduce GPU process restrictions
+// app.commandLine.appendSwitch('gpu-no-context-lost') // Don't crash on GPU context lost
+// app.commandLine.appendSwitch('disable-accelerated-video-decode') // Avoid GPU video decode stress
+// app.commandLine.appendSwitch('max-active-webgl-contexts', '1')
 
 
 autoUpdater.allowPrerelease = true
