@@ -1,1 +1,47 @@
-"use strict";const r=require("electron");r.contextBridge.exposeInMainWorld("ipcRenderer",{on(e,o){const n=(i,...d)=>o(i,...d);return r.ipcRenderer.on(e,n),()=>r.ipcRenderer.removeListener(e,n)},off(...e){const[o,...n]=e;return r.ipcRenderer.off(o,...n)},send(...e){const[o,...n]=e;return r.ipcRenderer.send(o,...n)},invoke(...e){const[o,...n]=e;return r.ipcRenderer.invoke(o,...n)},openDirectory:()=>r.ipcRenderer.invoke("dialog:openDirectory"),listMusicFiles:e=>r.ipcRenderer.invoke("files:listMusic",e),getAudioMetadata:(e,o)=>r.ipcRenderer.invoke("files:getMetadata",e,o),getAudioArtwork:e=>r.ipcRenderer.invoke("files:getArtwork",e),readFileBuffer:e=>r.ipcRenderer.invoke("files:readBuffer",e),checkUpdate:()=>r.ipcRenderer.invoke("update:check"),installUpdate:()=>r.ipcRenderer.invoke("update:install"),getAppVersion:()=>r.ipcRenderer.invoke("app:version"),onUpdateStatus:e=>(r.ipcRenderer.on("update-status",(o,n)=>e(n)),()=>r.ipcRenderer.removeAllListeners("update-status")),getArtistImage:e=>r.ipcRenderer.invoke("search:artistImage",e),searchYouTube:e=>r.ipcRenderer.invoke("search:youtube",e),getYouTubePreview:(e,o,n)=>r.ipcRenderer.invoke("search:youtubePreview",e,o,n),downloadYouTube:(e,o,n,i)=>r.ipcRenderer.invoke("download:youtube",e,o,n,i),downloadYouTubeToDir:(e,o,n,i,d,t,c)=>r.ipcRenderer.invoke("download:youtubeToDir",e,o,n,i,d,t,c),getLyrics:(e,o,n,i)=>r.ipcRenderer.invoke("search:lyrics",e,o,n,i),onDownloadProgress:e=>{r.ipcRenderer.on("download:progress",(o,n)=>e(n))},offDownloadProgress:()=>{r.ipcRenderer.removeAllListeners("download:progress")},updateDiscordPresence:e=>r.ipcRenderer.invoke("discord:updatePresence",e),clearDiscordPresence:()=>r.ipcRenderer.invoke("discord:clearPresence")});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("ipcRenderer", {
+  on(channel, listener) {
+    const wrappedListener = (event, ...args) => listener(event, ...args);
+    electron.ipcRenderer.on(channel, wrappedListener);
+    return () => electron.ipcRenderer.removeListener(channel, wrappedListener);
+  },
+  off(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.off(channel, ...omit);
+  },
+  send(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.send(channel, ...omit);
+  },
+  invoke(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.invoke(channel, ...omit);
+  },
+  openDirectory: () => electron.ipcRenderer.invoke("dialog:openDirectory"),
+  listMusicFiles: (path) => electron.ipcRenderer.invoke("files:listMusic", path),
+  getAudioMetadata: (path, options) => electron.ipcRenderer.invoke("files:getMetadata", path, options),
+  getAudioArtwork: (path) => electron.ipcRenderer.invoke("files:getArtwork", path),
+  readFileBuffer: (path) => electron.ipcRenderer.invoke("files:readBuffer", path),
+  checkUpdate: () => electron.ipcRenderer.invoke("update:check"),
+  installUpdate: () => electron.ipcRenderer.invoke("update:install"),
+  getAppVersion: () => electron.ipcRenderer.invoke("app:version"),
+  onUpdateStatus: (callback) => {
+    electron.ipcRenderer.on("update-status", (_, data) => callback(data));
+    return () => electron.ipcRenderer.removeAllListeners("update-status");
+  },
+  getArtistImage: (name) => electron.ipcRenderer.invoke("search:artistImage", name),
+  searchYouTube: (query) => electron.ipcRenderer.invoke("search:youtube", query),
+  getYouTubePreview: (url, title, artist) => electron.ipcRenderer.invoke("search:youtubePreview", url, title, artist),
+  downloadYouTube: (url, title, artist, format) => electron.ipcRenderer.invoke("download:youtube", url, title, artist, format),
+  downloadYouTubeToDir: (url, title, artist, dir, limitRate, fileTimestamp, format) => electron.ipcRenderer.invoke("download:youtubeToDir", url, title, artist, dir, limitRate, fileTimestamp, format),
+  getLyrics: (title, artist, filePath, duration) => electron.ipcRenderer.invoke("search:lyrics", title, artist, filePath, duration),
+  onDownloadProgress: (callback) => {
+    electron.ipcRenderer.on("download:progress", (_, data) => callback(data));
+  },
+  offDownloadProgress: () => {
+    electron.ipcRenderer.removeAllListeners("download:progress");
+  },
+  updateDiscordPresence: (data) => electron.ipcRenderer.invoke("discord:updatePresence", data),
+  clearDiscordPresence: () => electron.ipcRenderer.invoke("discord:clearPresence")
+});

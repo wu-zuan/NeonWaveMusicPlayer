@@ -26,9 +26,9 @@ body {
   margin: 0;
   padding: 0;
    
-  background: linear-gradient(-45deg, #020617, #0f172a, #172554, #1e1b4b);
-  background-size: 300% 300%;
-  animation: aurora 20s ease infinite;
+  /* Static gradient — avoids constant GPU repainting that triggers TDR crashes (nvlddmkm 153) */
+  background: linear-gradient(135deg, #020617 0%, #0f172a 35%, #172554 65%, #1e1b4b 100%);
+  background-size: 100% 100%;
 
   color: var(--text-main);
   font-family: var(--font-family);

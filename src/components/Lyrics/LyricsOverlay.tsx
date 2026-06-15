@@ -144,7 +144,11 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
             size: randomSize
         }
 
-        setDanmakuItems(prev => [...prev, newItem])
+        setDanmakuItems(prev => {
+            const next = [...prev, newItem]
+            // Cap at 8 concurrent items to prevent GPU overload
+            return next.length > 8 ? next.slice(-8) : next
+        })
 
     }, [activeIndex, lyrics, visible])
 
@@ -166,8 +170,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     zIndex: 9999,
                     pointerEvents: 'none',
                     overflow: 'hidden',
-                    background: 'rgba(0,0,0,0.2)', 
-                    backdropFilter: 'blur(2px)', 
+                    background: 'rgba(0,0,0,0.3)', 
                     fontFamily: '"Outfit", sans-serif',
                 }}
             >

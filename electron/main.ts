@@ -21,6 +21,16 @@ if (process.argv.includes('--disable-gpu') || process.argv.includes('--no-gpu'))
   app.disableHardwareAcceleration()
 }
 
+// GPU resilience: reduce GPU stress to prevent TDR (nvlddmkm Event 153)
+app.commandLine.appendSwitch('disable-gpu-compositing') // Use software compositing to avoid GPU overload
+app.commandLine.appendSwitch('disable-gpu-rasterization') // Prevent GPU raster which can trigger TDR
+app.commandLine.appendSwitch('disable-software-rasterizer') // Avoid fallback software raster overhead
+app.commandLine.appendSwitch('disable-gpu-sandbox') // Reduce GPU process restrictions
+app.commandLine.appendSwitch('gpu-no-context-lost') // Don't crash on GPU context lost
+app.commandLine.appendSwitch('disable-accelerated-video-decode') // Avoid GPU video decode stress
+app.commandLine.appendSwitch('max-active-webgl-contexts', '1')
+
+
 autoUpdater.allowPrerelease = true
 
 const gotTheLock = app.requestSingleInstanceLock()
@@ -159,9 +169,18 @@ function createWindow() {
   })
 
   
+  // Handle GPU process crash (TDR recovery)
   win.webContents.on('render-process-gone', (_event, details) => {
     console.error('Renderer process gone:', details.reason)
-    if (details.reason !== 'clean-exit') {
+    if (details.reason === 'gpu-dead' || details.reason === 'killed') {
+      // GPU TDR or killed — silently reload after a short delay
+      console.warn('[GPU Recovery] GPU process died, auto-reloading in 2s...')
+      setTimeout(() => {
+        if (win && !win.isDestroyed()) {
+          win.reload()
+        }
+      }, 2000)
+    } else if (details.reason !== 'clean-exit') {
       dialog.showMessageBox(win!, {
         type: 'error',
         title: 'NeonWave 錯誤',
@@ -170,6 +189,15 @@ function createWindow() {
       }).then(() => {
         win?.reload()
       })
+    }
+  })
+
+  // Handle child GPU process crashes specifically
+  app.on('child-process-gone', (_event, details) => {
+    if (details.type === 'GPU') {
+      console.warn('[GPU Recovery] GPU child process gone:', details.reason)
+      // Electron will restart the GPU process automatically;
+      // we just log and let it recover
     }
   })
 
