@@ -20,6 +20,13 @@ if (app.isPackaged) {
 // Disable hardware acceleration to prevent GPU TDR crashes (nvlddmkm Event 153)
 app.disableHardwareAcceleration()
 
+// Append switches to prevent GPU/sandbox crashes on Windows LTSC and AMD GPU systems
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+app.commandLine.appendSwitch('no-sandbox')
+
+
 
 autoUpdater.allowPrerelease = true
 
