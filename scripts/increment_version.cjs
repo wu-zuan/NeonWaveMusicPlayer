@@ -3,8 +3,24 @@ const path = require('path');
 
 const packageJsonPath = path.resolve(__dirname, '../package.json');
 
+let fileContent;
 try {
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    fileContent = fs.readFileSync(packageJsonPath, 'utf8');
+    JSON.parse(fileContent);
+} catch (parseErr) {
+    console.warn('[Warning] package.json is corrupted or invalid. Attempting to auto-restore from Git...');
+    try {
+        const { execSync } = require('child_process');
+        execSync('git restore package.json', { cwd: path.resolve(__dirname, '..') });
+        fileContent = fs.readFileSync(packageJsonPath, 'utf8');
+    } catch (restoreErr) {
+        console.error('[Error] Failed to auto-restore package.json from Git:', restoreErr.message);
+        process.exit(1);
+    }
+}
+
+try {
+    const packageJson = JSON.parse(fileContent);
     const version = packageJson.version;
 
     if (!version) {
