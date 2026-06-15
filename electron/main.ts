@@ -17,18 +17,8 @@ if (app.isPackaged) {
 }
 
 
-if (process.argv.includes('--disable-gpu') || process.argv.includes('--no-gpu')) {
-  app.disableHardwareAcceleration()
-}
-
-// GPU resilience: reduce GPU stress to prevent TDR (nvlddmkm Event 153)
-// app.commandLine.appendSwitch('disable-gpu-compositing') // Use software compositing to avoid GPU overload
-// app.commandLine.appendSwitch('disable-gpu-rasterization') // Prevent GPU raster which can trigger TDR
-// app.commandLine.appendSwitch('disable-software-rasterizer') // Avoid fallback software raster overhead
-// app.commandLine.appendSwitch('disable-gpu-sandbox') // Reduce GPU process restrictions
-// app.commandLine.appendSwitch('gpu-no-context-lost') // Don't crash on GPU context lost
-// app.commandLine.appendSwitch('disable-accelerated-video-decode') // Avoid GPU video decode stress
-// app.commandLine.appendSwitch('max-active-webgl-contexts', '1')
+// Disable hardware acceleration to prevent GPU TDR crashes (nvlddmkm Event 153)
+app.disableHardwareAcceleration()
 
 
 autoUpdater.allowPrerelease = true
@@ -217,6 +207,15 @@ function createWindow() {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })
 
+  win.on('closed', () => {
+    win = null
+    if (miniWin && !miniWin.isDestroyed()) {
+      try { miniWin.close() } catch (e) {}
+      miniWin = null
+    }
+    app.quit()
+  })
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
@@ -305,17 +304,19 @@ app.whenReady().then(() => {
 
   startActiveWindowMonitor()
 
-  app.on('will-quit', async () => {
+  app.on('will-quit', () => {
     (app as any).isQuitting = true
     if (monitorProcess) {
       try { monitorProcess.kill() } catch (e) {}
     }
     if (discordBot) {
-      try { await discordBot.disconnect() } catch (e) {}
+      try { discordBot.stop() } catch (e) {}
+      try { discordBot.leaveChannel() } catch (e) {}
+      if (discordBot.client) {
+        try { discordBot.client.destroy() } catch (e) {}
+      }
     }
-    setTimeout(() => {
-      process.exit(0)
-    }, 800)
+    process.exit(0)
   })
   
   createWindow()
