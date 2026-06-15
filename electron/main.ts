@@ -45,6 +45,7 @@ if (process.platform === 'win32') {
 
 
 autoUpdater.allowPrerelease = true
+autoUpdater.autoInstallOnAppQuit = false
 
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
@@ -54,7 +55,11 @@ if (!gotTheLock) {
     
     if (win) {
       if (win.isMinimized()) win.restore()
+      win.show()
       win.focus()
+      win.setAlwaysOnTop(true)
+      win.focus()
+      win.setAlwaysOnTop(false)
     }
   })
 }
@@ -163,8 +168,13 @@ function createWindow() {
 
   
   win.once('ready-to-show', () => {
-    win?.show()
-    win?.focus()
+    if (win) {
+      win.show()
+      win.focus()
+      win.setAlwaysOnTop(true)
+      win.focus()
+      win.setAlwaysOnTop(false)
+    }
   })
 
   
