@@ -21,22 +21,12 @@ if (app.isPackaged) {
 // Disable hardware acceleration to prevent GPU TDR crashes (nvlddmkm Event 153)
 // We will conditionally enable/disable it below based on system libraries
 if (process.platform === 'win32') {
-  const system32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32')
-  const hasMfplat = fsSync.existsSync(path.join(system32, 'mfplat.dll'))
-  const hasVcruntime = fsSync.existsSync(path.join(system32, 'vcruntime140.dll'))
-
-  if (!hasMfplat || !hasVcruntime) {
-    // Fallback: System lacks media features or C++ runtime, disable GPU entirely to prevent startup crashes
-    app.disableHardwareAcceleration()
-    app.commandLine.appendSwitch('disable-gpu')
-    app.commandLine.appendSwitch('disable-software-rasterizer')
-    app.commandLine.appendSwitch('disable-gpu-sandbox')
-    app.commandLine.appendSwitch('no-sandbox')
-  } else {
-    // Normal Windows environment: Keep GPU acceleration enabled, but disable sandbox to prevent AMD GPU / LTSC driver conflicts
-    app.commandLine.appendSwitch('disable-gpu-sandbox')
-    app.commandLine.appendSwitch('no-sandbox')
-  }
+  // Disable GPU hardware acceleration entirely to prevent Nvidia nvlddmkm Event 153 TDR crashes
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-software-rasterizer')
+  app.commandLine.appendSwitch('disable-gpu-sandbox')
+  app.commandLine.appendSwitch('no-sandbox')
 } else {
   app.disableHardwareAcceleration()
 }
