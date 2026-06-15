@@ -172,9 +172,9 @@ function createWindow() {
   // Handle GPU process crash (TDR recovery)
   win.webContents.on('render-process-gone', (_event, details) => {
     console.error('Renderer process gone:', details.reason)
-    if (details.reason === 'gpu-dead' || details.reason === 'killed') {
-      // GPU TDR or killed — silently reload after a short delay
-      console.warn('[GPU Recovery] GPU process died, auto-reloading in 2s...')
+    if (details.reason === 'crashed' || details.reason === 'killed') {
+      // GPU TDR or crash — silently reload after a short delay
+      console.warn('[GPU Recovery] Renderer crashed/killed, auto-reloading in 2s...', details.reason)
       setTimeout(() => {
         if (win && !win.isDestroyed()) {
           win.reload()
