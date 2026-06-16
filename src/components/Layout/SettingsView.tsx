@@ -417,6 +417,58 @@ export function SettingsView() {
                                             fontSize: '14px'
                                         }}
                                     />
+                                    {/* Recommended model pills */}
+                                    {(() => {
+                                        const recs: Record<string, string[]> = {
+                                            openai: ['gpt-4o-mini', 'gpt-4o', 'o3-mini'],
+                                            chatgpt: ['gpt-4o-mini', 'gpt-4o', 'o3-mini'],
+                                            openrouter: ['meta-llama/llama-3-8b-instruct:free', 'google/gemini-2.5-flash', 'deepseek/deepseek-chat'],
+                                            ollama: ['llama3', 'qwen2.5', 'gemma2', 'mistral'],
+                                            opwebui: ['llama3', 'qwen2.5', 'gpt-4o-mini'],
+                                            gemini: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+                                            claude: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest']
+                                        }
+                                        const list = recs[lyricsProvider]
+                                        if (!list) return null
+                                        return (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '12px', alignSelf: 'center' }}>💡 推薦熱門模型 (點擊填入)：</span>
+                                                {list.map(rec => (
+                                                    <button
+                                                        key={rec}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setLyricsModel(rec)
+                                                            localStorage.setItem('neonwave_lyrics_ai_model', rec)
+                                                        }}
+                                                        style={{
+                                                            padding: '4px 10px',
+                                                            borderRadius: '6px',
+                                                            background: 'rgba(255, 255, 255, 0.08)',
+                                                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                                                            color: 'var(--text-main)',
+                                                            fontSize: '12px',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.15s ease',
+                                                            outline: 'none'
+                                                        }}
+                                                        onMouseOver={(e) => {
+                                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'
+                                                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)'
+                                                            e.currentTarget.style.transform = 'translateY(-1px)'
+                                                        }}
+                                                        onMouseOut={(e) => {
+                                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
+                                                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)'
+                                                            e.currentTarget.style.transform = 'none'
+                                                        }}
+                                                    >
+                                                        {rec.split('/').pop()}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )
+                                    })()}
                                 </div>
                             </>
                         )}
