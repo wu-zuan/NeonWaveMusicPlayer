@@ -23,6 +23,7 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
   getAudioMetadata: (path, options) => electron.ipcRenderer.invoke("files:getMetadata", path, options),
   getAudioArtwork: (path) => electron.ipcRenderer.invoke("files:getArtwork", path),
   readFileBuffer: (path) => electron.ipcRenderer.invoke("files:readBuffer", path),
+  readFileBufferPartial: (path, maxBytes) => electron.ipcRenderer.invoke("files:readBufferPartial", path, maxBytes),
   checkUpdate: () => electron.ipcRenderer.invoke("update:check"),
   installUpdate: () => electron.ipcRenderer.invoke("update:install"),
   getAppVersion: () => electron.ipcRenderer.invoke("app:version"),

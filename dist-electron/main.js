@@ -4,7 +4,7 @@ import "node:url";
 import "node:path";
 import "node:fs/promises";
 import "node:fs";
-import { _, $, Z, Y } from "./main-C2h53cFr.js";
+import { _, $, Z, Y } from "./main-BfUkdOlT.js";
 import "node:child_process";
 export {
   _ as MAIN_DIST,

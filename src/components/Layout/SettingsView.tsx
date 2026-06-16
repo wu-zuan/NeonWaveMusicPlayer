@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { RefreshCw, Download, CheckCircle, AlertCircle, Globe } from 'lucide-react'
 
 const ScanProgress = () => {
-    const [scanData, setScanData] = useState<{current: number, total: number, success: number} | null>(null);
+    const [scanData, setScanData] = useState<{ current: number, total: number, success: number } | null>(null);
 
     useEffect(() => {
         const remove = (window as any).ipcRenderer.on('discord:scanProgress', (_: any, data: any) => {
@@ -35,7 +35,7 @@ const ScanProgress = () => {
 };
 
 export function useUpdater() {
-    const [status, setStatus] = useState<string>('idle') 
+    const [status, setStatus] = useState<string>('idle')
     const [progress, setProgress] = useState<any>(null)
     const [version, setVersion] = useState<string>('...')
     const [error, setError] = useState<string>('')
@@ -141,7 +141,7 @@ const CustomSelect = ({ value, onChange, options }: {
 
             {isOpen && (
                 <>
-                    <div 
+                    <div
                         onClick={() => setIsOpen(false)}
                         style={{ position: 'fixed', inset: 0, zIndex: 999 }}
                     />
@@ -207,7 +207,8 @@ export function SettingsView() {
     const [lyricsEndpoint, setLyricsEndpoint] = useState(() => localStorage.getItem('neonwave_lyrics_ai_endpoint') || '')
     const [lyricsModel, setLyricsModel] = useState(() => localStorage.getItem('neonwave_lyrics_ai_model') || '')
     const [lyricsMode, setLyricsMode] = useState(() => localStorage.getItem('neonwave_lyrics_ai_mode') || 'filename')
-    const [lyricsReasoning, setLyricsReasoning] = useState(() => localStorage.getItem('neonwave_lyrics_ai_reasoning') || 'default')
+    const [lyricsReasoning, setLyricsReasoning] = useState(() => localStorage.getItem('neonwave_lyrics_ai_reasoning') || 'none')
+    const [localCal, setLocalCal] = useState(() => localStorage.getItem('neonwave_local_audio_calibration') !== 'false')
     const [saveSuccess, setSaveSuccess] = useState(false)
 
     return (
@@ -319,8 +320,8 @@ export function SettingsView() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ color: 'var(--text-muted)' }}>啟用 Discord 狀態顯示</span>
                                 <label className="switch">
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         defaultChecked={localStorage.getItem('neonwave_enable_discord_rpc') !== 'false'}
                                         onChange={(e) => {
                                             const enabled = e.target.checked;
@@ -345,7 +346,7 @@ export function SettingsView() {
                                         await window.ipcRenderer.invoke('discord:clearCache');
                                         btn.innerHTML = '<span style="color:#4ade80">✓ 快取已清理，重新播放即可更新</span>';
                                         setTimeout(() => btn.innerHTML = originalText, 3000);
-                                    } catch (e) {}
+                                    } catch (e) { }
                                 }}
                                 style={{
                                     padding: '10px 20px', borderRadius: '10px',
@@ -383,8 +384,8 @@ export function SettingsView() {
                                 <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>在螢幕右上角顯示懸浮圓形播放器</div>
                             </div>
                             <label className="switch">
-                                <input 
-                                    type="checkbox" 
+                                <input
+                                    type="checkbox"
                                     defaultChecked={localStorage.getItem('neonwave_mini_player') === 'true'}
                                     onChange={async (e) => {
                                         const enabled = e.target.checked;
@@ -409,7 +410,7 @@ export function SettingsView() {
                                     • <b>始終點擊穿透</b>：始終點擊穿透，不受遊戲狀態限制，適合當作純桌面小組件的玩家。
                                 </div>
                             </div>
-                            <select 
+                            <select
                                 className="settings-select"
                                 defaultValue={localStorage.getItem('neonwave_mini_game_mode') || 'auto'}
                                 onChange={(e) => {
@@ -431,7 +432,7 @@ export function SettingsView() {
                                     自訂懸浮歌詞/彈幕的視覺外觀樣式。
                                 </div>
                             </div>
-                            <select 
+                            <select
                                 className="settings-select"
                                 defaultValue={localStorage.getItem('neonwave_subtitle_style') || 'neon'}
                                 onChange={(e) => {
@@ -450,11 +451,11 @@ export function SettingsView() {
 
                 <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '24px', marginTop: '24px' }}>
                     <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>AI 歌詞設定</h4>
-                    
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: 'var(--text-muted)' }}>歌詞來源 / AI 服務商</span>
-                            <CustomSelect 
+                            <CustomSelect
                                 value={lyricsProvider}
                                 onChange={(val) => {
                                     setLyricsProvider(val)
@@ -476,7 +477,7 @@ export function SettingsView() {
                             <>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>API 金鑰 (API Key)</span>
-                                    <input 
+                                    <input
                                         type="password"
                                         placeholder={lyricsProvider === 'ollama' ? 'Ollama 預設不需要 API Key' : '請輸入 API 金鑰...'}
                                         value={lyricsKey}
@@ -497,14 +498,14 @@ export function SettingsView() {
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>API 端點 URL (Endpoint)</span>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder={
                                             lyricsProvider === 'openai' ? 'https://api.openai.com/v1/chat/completions (留空使用預設)' :
-                                            lyricsProvider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions (留空使用預設)' :
-                                            lyricsProvider === 'ollama' ? 'http://localhost:11434/v1/chat/completions (留空使用預設)' :
-                                            lyricsProvider === 'opwebui' ? 'http://localhost:3000/api/v1/chat/completions (留空使用預設)' :
-                                            '請輸入自訂 API 端點路徑...'
+                                                lyricsProvider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions (留空使用預設)' :
+                                                    lyricsProvider === 'ollama' ? 'http://localhost:11434/v1/chat/completions (留空使用預設)' :
+                                                        lyricsProvider === 'opwebui' ? 'http://localhost:3000/api/v1/chat/completions (留空使用預設)' :
+                                                            '請輸入自訂 API 端點路徑...'
                                         }
                                         value={lyricsEndpoint}
                                         onChange={(e) => {
@@ -524,15 +525,15 @@ export function SettingsView() {
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>模型名稱 (Model Name)</span>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder={
                                             lyricsProvider === 'openai' ? 'gpt-4o / gpt-4o-mini' :
-                                            lyricsProvider === 'openrouter' ? 'meta-llama/llama-3-8b-instruct:free 等' :
-                                            lyricsProvider === 'ollama' ? 'llama3 / qwen2.5 等' :
-                                            lyricsProvider === 'gemini' ? 'gemini-1.5-flash / gemini-1.5-pro' :
-                                            lyricsProvider === 'claude' ? 'claude-3-5-sonnet-20241022' :
-                                            '請輸入模型代號...'
+                                                lyricsProvider === 'openrouter' ? 'meta-llama/llama-3-8b-instruct:free 等' :
+                                                    lyricsProvider === 'ollama' ? 'llama3 / qwen2.5 等' :
+                                                        lyricsProvider === 'gemini' ? 'gemini-1.5-flash / gemini-1.5-pro' :
+                                                            lyricsProvider === 'claude' ? 'claude-3-5-sonnet-20241022' :
+                                                                '請輸入模型代號...'
                                         }
                                         value={lyricsModel}
                                         onChange={(e) => {
@@ -605,7 +606,7 @@ export function SettingsView() {
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                             <span style={{ color: 'var(--text-muted)' }}>辨識模式 (如何抓取歌曲資訊)</span>
-                            <select 
+                            <select
                                 className="settings-select"
                                 value={lyricsMode}
                                 onChange={(e) => {
@@ -623,20 +624,34 @@ export function SettingsView() {
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                             <span style={{ color: 'var(--text-muted)' }}>思考強度 / 思考時間 (Reasoning Effort)</span>
-                            <select 
+                            <select
                                 className="settings-select"
                                 value={lyricsReasoning}
                                 onChange={(e) => {
                                     setLyricsReasoning(e.target.value)
                                 }}
                             >
-                                <option value="default">⚙️ 預設 (由模型決定)</option>
                                 <option value="none">🚫 關閉 (None - 最快)</option>
                                 <option value="minimal">⚡ 最低 (Minimal)</option>
                                 <option value="low">📉 低 (Low)</option>
                                 <option value="medium">📊 中 (Medium)</option>
                                 <option value="high">📈 高 (High)</option>
                             </select>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                            <div>
+                                <span style={{ color: 'var(--text-muted)' }}>本地音訊起點偵測校準</span>
+                                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>自動分析本地音檔前奏靜音長度，精準對齊歌詞起點（省去手動調整）</div>
+                            </div>
+                            <label className="switch">
+                                <input
+                                    type="checkbox"
+                                    checked={localCal}
+                                    onChange={(e) => setLocalCal(e.target.checked)}
+                                />
+                                <span className="slider round"></span>
+                            </label>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
@@ -649,6 +664,7 @@ export function SettingsView() {
                                     localStorage.setItem('neonwave_lyrics_ai_model', lyricsModel)
                                     localStorage.setItem('neonwave_lyrics_ai_mode', lyricsMode)
                                     localStorage.setItem('neonwave_lyrics_ai_reasoning', lyricsReasoning)
+                                    localStorage.setItem('neonwave_local_audio_calibration', String(localCal))
                                     window.dispatchEvent(new Event('neonwave:settings-changed'))
                                     setSaveSuccess(true)
                                     setTimeout(() => setSaveSuccess(false), 3000)
@@ -686,11 +702,11 @@ export function SettingsView() {
 
                 <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '24px', marginTop: '24px' }}>
                     <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>下載設定</h4>
-                    
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: 'var(--text-muted)' }}>並行下載數量 (請依據您的網路頻寬選擇)</span>
-                            <select 
+                            <select
                                 className="settings-select"
                                 defaultValue={localStorage.getItem('neonwave_download_concurrency') || '2'}
                                 onChange={(e) => {
@@ -712,7 +728,7 @@ export function SettingsView() {
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
                             <span style={{ color: 'var(--text-muted)' }}>預設下載格式</span>
-                            <select 
+                            <select
                                 className="settings-select"
                                 defaultValue={localStorage.getItem('neonwave_download_format') || 'm4a'}
                                 onChange={(e) => {

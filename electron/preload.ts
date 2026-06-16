@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   getAudioMetadata: (path: string, options?: { loadArtwork: boolean }) => ipcRenderer.invoke('files:getMetadata', path, options),
   getAudioArtwork: (path: string) => ipcRenderer.invoke('files:getArtwork', path),
   readFileBuffer: (path: string) => ipcRenderer.invoke('files:readBuffer', path),
+  readFileBufferPartial: (path: string, maxBytes: number) => ipcRenderer.invoke('files:readBufferPartial', path, maxBytes),
 
   
   checkUpdate: () => ipcRenderer.invoke('update:check'),

@@ -15,6 +15,25 @@ export interface Track {
 
 type RepeatMode = 'none' | 'all' | 'one'
 
+// Module-level singletons — survive Vite HMR hot reloads.
+// An HTMLAudioElement can only be connected to ONE AudioContext ever;
+// re-creating them on each hot reload would throw DOMException.
+let _sharedAudio: HTMLAudioElement | null = null
+let _sharedEngine: AudioEngine | null = null
+
+function getSharedAudio(): HTMLAudioElement {
+    if (!_sharedAudio) _sharedAudio = new Audio()
+    return _sharedAudio
+}
+
+function getSharedEngine(audio: HTMLAudioElement): AudioEngine {
+    if (!_sharedEngine) {
+        _sharedEngine = new AudioEngine()
+        _sharedEngine.connect(audio)
+    }
+    return _sharedEngine
+}
+
 export function useAudioPlayer(contextMode?: string) {
     
     
@@ -42,9 +61,9 @@ export function useAudioPlayer(contextMode?: string) {
     })
     const [history, setHistory] = useState<Track[]>([])
 
-    
-    const audioRef = useRef<HTMLAudioElement>(new Audio())
-    const engineRef = useRef<AudioEngine | null>(null)
+    // Use module-level singletons to avoid re-connection crashes on HMR
+    const audioRef = useRef<HTMLAudioElement>(getSharedAudio())
+    const engineRef = useRef<AudioEngine | null>(_sharedEngine)
 
     
     useEffect(() => {
@@ -173,8 +192,8 @@ export function useAudioPlayer(contextMode?: string) {
                 return
             }
         } else {
-            
             audioRef.current.crossOrigin = "anonymous"
+            // Use file:// protocol for HTMLAudioElement — custom protocols like media:// don't work for audio playback
             const encodedPath = trackToPlay.path.split(/[\\/]/).map(encodeURIComponent).join('/')
             finalUrl = `file:///${encodedPath}`
         }
@@ -270,17 +289,16 @@ export function useAudioPlayer(contextMode?: string) {
 
     
     useEffect(() => {
-        const engine = new AudioEngine()
-        engineRef.current = engine
+        // Get (or create) the shared engine — safe across HMR reloads
         const audio = audioRef.current
-        audio.crossOrigin = "anonymous"
-        try { 
-            engine.connect(audio) 
-            // Apply initial settings directly after connection to prevent startup sync issues
+        const engine = getSharedEngine(audio)
+        engineRef.current = engine
+        try {
+            // Apply initial settings (safe to call multiple times)
             engine.toggle8D(is8D)
             engine.setVolume(isMuted ? 0 : volume)
         } catch (e) {
-            console.warn("Connection error", e)
+            console.warn("Engine init error", e)
         }
     }, [])
 
@@ -418,7 +436,7 @@ export function useAudioPlayer(contextMode?: string) {
                 audioRef.current.pause();
                 setIsPlaying(false);
             } else {
-                
+                await engineRef.current?.resume()  // Resume AudioContext if suspended
                 await audioRef.current.play();
                 setIsPlaying(true);
             }
