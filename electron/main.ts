@@ -1385,16 +1385,22 @@ CRITICAL REQUIREMENTS:
               headers['Authorization'] = `Bearer ${apiKey}`
             }
 
+            const requestBody: any = {
+              model: finalModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+              ]
+            }
+
+            if (aiConfig && aiConfig.reasoning && aiConfig.reasoning !== 'default') {
+              requestBody.reasoning_effort = aiConfig.reasoning
+            }
+
             const response = await fetch(finalEndpoint, {
               method: 'POST',
               headers,
-              body: JSON.stringify({
-                model: finalModel,
-                messages: [
-                  { role: 'system', content: systemPrompt },
-                  { role: 'user', content: userPrompt }
-                ]
-              })
+              body: JSON.stringify(requestBody)
             })
 
             if (!response.ok) {

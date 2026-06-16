@@ -207,6 +207,7 @@ export function SettingsView() {
     const [lyricsEndpoint, setLyricsEndpoint] = useState(() => localStorage.getItem('neonwave_lyrics_ai_endpoint') || '')
     const [lyricsModel, setLyricsModel] = useState(() => localStorage.getItem('neonwave_lyrics_ai_model') || '')
     const [lyricsMode, setLyricsMode] = useState(() => localStorage.getItem('neonwave_lyrics_ai_mode') || 'filename')
+    const [lyricsReasoning, setLyricsReasoning] = useState(() => localStorage.getItem('neonwave_lyrics_ai_reasoning') || 'default')
     const [saveSuccess, setSaveSuccess] = useState(false)
 
     return (
@@ -620,6 +621,24 @@ export function SettingsView() {
                             * 註：當使用 AI 辨識且產生歌詞後，將會自動於歌曲資料夾下寫入一個同名的 <b>.lrc</b> 檔案。下次播放時會優先讀取該檔案，每首歌只處理一次。
                         </div>
 
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>思考強度 / 思考時間 (Reasoning Effort)</span>
+                            <select 
+                                className="settings-select"
+                                value={lyricsReasoning}
+                                onChange={(e) => {
+                                    setLyricsReasoning(e.target.value)
+                                }}
+                            >
+                                <option value="default">⚙️ 預設 (由模型決定)</option>
+                                <option value="none">🚫 關閉 (None - 最快)</option>
+                                <option value="minimal">⚡ 最低 (Minimal)</option>
+                                <option value="low">📉 低 (Low)</option>
+                                <option value="medium">📊 中 (Medium)</option>
+                                <option value="high">📈 高 (High)</option>
+                            </select>
+                        </div>
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
                             <button
                                 type="button"
@@ -629,6 +648,7 @@ export function SettingsView() {
                                     localStorage.setItem('neonwave_lyrics_ai_endpoint', lyricsEndpoint)
                                     localStorage.setItem('neonwave_lyrics_ai_model', lyricsModel)
                                     localStorage.setItem('neonwave_lyrics_ai_mode', lyricsMode)
+                                    localStorage.setItem('neonwave_lyrics_ai_reasoning', lyricsReasoning)
                                     window.dispatchEvent(new Event('neonwave:settings-changed'))
                                     setSaveSuccess(true)
                                     setTimeout(() => setSaveSuccess(false), 3000)

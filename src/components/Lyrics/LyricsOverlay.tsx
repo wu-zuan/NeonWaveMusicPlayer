@@ -177,7 +177,8 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 apiKey: localStorage.getItem('neonwave_lyrics_ai_key') || '',
                 endpoint: localStorage.getItem('neonwave_lyrics_ai_endpoint') || '',
                 model: localStorage.getItem('neonwave_lyrics_ai_model') || '',
-                mode: localStorage.getItem('neonwave_lyrics_ai_mode') || 'filename'
+                mode: localStorage.getItem('neonwave_lyrics_ai_mode') || 'filename',
+                reasoning: localStorage.getItem('neonwave_lyrics_ai_reasoning') || 'default'
             }
             const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path, duration, aiConfig)
             if (rawLrc) {
