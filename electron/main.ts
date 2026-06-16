@@ -1364,6 +1364,14 @@ CRITICAL REQUIREMENTS:
               } else if (provider === 'opwebui') {
                 finalEndpoint = 'http://localhost:3000/api/v1/chat/completions'
               }
+            } else {
+              if (!finalEndpoint.endsWith('/chat/completions')) {
+                if (finalEndpoint.endsWith('/')) {
+                  finalEndpoint += 'chat/completions'
+                } else {
+                  finalEndpoint += '/chat/completions'
+                }
+              }
             }
             const finalModel = model || (
               provider === 'openai' ? 'gpt-4o-mini' :
