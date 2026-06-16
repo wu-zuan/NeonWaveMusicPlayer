@@ -172,7 +172,14 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         setLyrics([])
         showStatus(`搜尋中: ${title}...`)
         try {
-            const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path, duration)
+            const aiConfig = {
+                provider: localStorage.getItem('neonwave_lyrics_ai_provider') || 'default',
+                apiKey: localStorage.getItem('neonwave_lyrics_ai_key') || '',
+                endpoint: localStorage.getItem('neonwave_lyrics_ai_endpoint') || '',
+                model: localStorage.getItem('neonwave_lyrics_ai_model') || '',
+                mode: localStorage.getItem('neonwave_lyrics_ai_mode') || 'filename'
+            }
+            const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path, duration, aiConfig)
             if (rawLrc) {
                 const parsed = parseLrc(rawLrc)
                 if (parsed.length > 0) {

@@ -1203,11 +1203,221 @@ app.whenReady().then(() => {
     return searchArtistImage(artistName)
   })
 
-  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, duration) => {
+  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, duration, aiConfig) => {
     try {
       const getArtistTitle = createRequire(import.meta.url)('get-artist-title')
 
-      console.log(`[Lyrics] Search Request: Title="${title}", Artist="${artist}", Duration=${duration}`)
+      console.log(`[Lyrics] Search Request: Title="${title}", Artist="${artist}", Duration=${duration}, AIConfig=${JSON.stringify(aiConfig || {})}`)
+
+      // Helper to convert Simplified Chinese to Traditional Chinese
+      const convertToTraditional = (text: string | null) => {
+        if (!text) return null
+        try {
+          const OpenCC = require('opencc-js')
+          const converter = OpenCC.Converter({ from: 'cn', to: 'tw' })
+          return converter(text)
+        } catch { return text }
+      }
+
+      // --- 1. Local Cache Check ---
+      if (filePath) {
+        try {
+          const extName = path.extname(filePath)
+          const lrcPath = filePath.substring(0, filePath.length - extName.length) + '.lrc'
+          try {
+            await fs.access(lrcPath)
+            const cachedLrc = await fs.readFile(lrcPath, 'utf8')
+            if (cachedLrc && cachedLrc.trim().length > 0) {
+              console.log(`[Lyrics] Found local cached LRC at: ${lrcPath}`)
+              return cachedLrc
+            }
+          } catch (e) {
+            // Local file doesn't exist
+          }
+        } catch (err) {
+          console.error('[Lyrics] Error accessing local cache:', err)
+        }
+      }
+
+      // --- Helper to save result to local cache ---
+      const saveToLocalCache = async (lyricsText: string) => {
+        if (filePath && lyricsText) {
+          try {
+            const extName = path.extname(filePath)
+            const lrcPath = filePath.substring(0, filePath.length - extName.length) + '.lrc'
+            await fs.writeFile(lrcPath, lyricsText, 'utf8')
+            console.log(`[Lyrics] Cached lrc locally to: ${lrcPath}`)
+          } catch (e) {
+            console.error('[Lyrics] Failed to write local cache file:', e)
+          }
+        }
+      }
+
+      // --- 2. AI Lyrics Fetch/Generation ---
+      if (aiConfig && aiConfig.provider && aiConfig.provider !== 'default') {
+        try {
+          let searchInfo = {
+            title: title || '',
+            artist: artist || '',
+            filename: filePath ? path.basename(filePath) : ''
+          }
+
+          // Read embedded ID3 tags if mode is 'audio' or 'audio_filename'
+          if (filePath && (aiConfig.mode === 'audio' || aiConfig.mode === 'audio_filename')) {
+            try {
+              const mm = createRequire(import.meta.url)('music-metadata')
+              const metadata = await mm.parseFile(filePath, { skipCovers: true })
+              if (metadata.common.title) searchInfo.title = metadata.common.title
+              if (metadata.common.artist) searchInfo.artist = metadata.common.artist
+            } catch (err) {
+              console.warn('[Lyrics] Failed to read ID3 tags for AI search:', err)
+            }
+          }
+
+          // Build prompt
+          let promptDetails = ""
+          if (aiConfig.mode === 'filename') {
+            promptDetails += `- Filename: "${searchInfo.filename || searchInfo.title}"\n`
+          } else if (aiConfig.mode === 'audio') {
+            promptDetails += `- Track Title: "${searchInfo.title}"\n- Artist: "${searchInfo.artist}"\n`
+          } else {
+            promptDetails += `- Track Title: "${searchInfo.title}"\n- Artist: "${searchInfo.artist}"\n- Filename: "${searchInfo.filename}"\n`
+          }
+
+          if (duration) {
+            promptDetails += `- Song Duration: ${Math.floor(duration)} seconds\n`
+          }
+
+          const systemPrompt = `You are a synchronized lyrics database. You MUST output ONLY the synced LRC lyrics with [mm:ss.xx] timestamps for the requested song. No explanations, no markdown blocks.`
+          const userPrompt = `Please find or generate the synchronized lyrics (LRC format) for this song.
+The lyrics MUST contain precise timestamps in the [minutes:seconds.hundredths] format (e.g., [00:12.34]).
+
+Song details:
+${promptDetails}
+
+CRITICAL REQUIREMENTS:
+1. Output ONLY the raw LRC content.
+2. DO NOT wrap the output in markdown code blocks (\`\`\`), HTML, or any other explanations.
+3. If this is a cover version (翻唱), ensure the lyrics and timestamps match this version, particularly aligning with the total duration of ${duration ? Math.floor(duration) : 'unknown'} seconds. Adjust the spacing and timestamps of the lines so they fit naturally from the beginning to the end of the song duration.
+4. If you absolutely cannot find or generate any lyrics, output exactly: "Lyrics not found".`
+
+          const provider = aiConfig.provider
+          const apiKey = aiConfig.apiKey || ''
+          const endpoint = aiConfig.endpoint || ''
+          const model = aiConfig.model || ''
+          
+          let aiOutput: string | null = null
+          console.log(`[Lyrics AI] Calling provider: ${provider}, model: ${model}`)
+
+          if (provider === 'gemini') {
+            const finalModel = model || 'gemini-1.5-flash'
+            const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${finalModel}:generateContent?key=${apiKey}`
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }]
+              })
+            })
+            if (!response.ok) {
+              const errText = await response.text()
+              throw new Error(`Gemini API error: ${response.status} - ${errText}`)
+            }
+            const resJson: any = await response.json()
+            aiOutput = resJson.candidates?.[0]?.content?.parts?.[0]?.text || null
+          } else if (provider === 'claude') {
+            const finalModel = model || 'claude-3-5-sonnet-20241022'
+            const url = endpoint || 'https://api.anthropic.com/v1/messages'
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json'
+              },
+              body: JSON.stringify({
+                model: finalModel,
+                max_tokens: 4000,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userPrompt }]
+              })
+            })
+            if (!response.ok) {
+              const errText = await response.text()
+              throw new Error(`Claude API error: ${response.status} - ${errText}`)
+            }
+            const resJson: any = await response.json()
+            aiOutput = resJson.content?.[0]?.text || null
+          } else {
+            // OpenAI-compatible (openai, openrouter, ollama, openwebui, chatgpt)
+            let finalEndpoint = endpoint
+            if (!finalEndpoint) {
+              if (provider === 'openai' || provider === 'chatgpt') {
+                finalEndpoint = 'https://api.openai.com/v1/chat/completions'
+              } else if (provider === 'openrouter') {
+                finalEndpoint = 'https://openrouter.ai/api/v1/chat/completions'
+              } else if (provider === 'ollama') {
+                finalEndpoint = 'http://localhost:11434/v1/chat/completions'
+              } else if (provider === 'opwebui') {
+                finalEndpoint = 'http://localhost:3000/api/v1/chat/completions'
+              }
+            }
+            const finalModel = model || (
+              provider === 'openai' ? 'gpt-4o-mini' :
+              provider === 'openrouter' ? 'meta-llama/llama-3-8b-instruct:free' :
+              provider === 'ollama' ? 'llama3' :
+              provider === 'opwebui' ? 'llama3' : ''
+            )
+
+            const headers: any = { 'Content-Type': 'application/json' }
+            if (apiKey) {
+              headers['Authorization'] = `Bearer ${apiKey}`
+            }
+
+            const response = await fetch(finalEndpoint, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                model: finalModel,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userPrompt }
+                ]
+              })
+            })
+
+            if (!response.ok) {
+              const errText = await response.text()
+              throw new Error(`AI API error (${provider}): ${response.status} - ${errText}`)
+            }
+
+            const resJson: any = await response.json()
+            aiOutput = resJson.choices?.[0]?.message?.content || null
+          }
+
+          if (aiOutput) {
+            let cleaned = aiOutput.trim()
+            // Clean markdown blocks
+            cleaned = cleaned.replace(/```(?:lrc|ini|txt|)?\n([\s\S]*?)\n```/g, '$1')
+            cleaned = cleaned.replace(/```([\s\S]*?)```/g, '$1')
+            cleaned = cleaned.trim()
+
+            if (cleaned && !cleaned.toLowerCase().includes('lyrics not found') && cleaned.includes('[')) {
+              const traditionalLrc = convertToTraditional(cleaned)
+              if (traditionalLrc) {
+                console.log(`[Lyrics AI] Successfully retrieved lyrics via AI.`)
+                await saveToLocalCache(traditionalLrc)
+                return traditionalLrc
+              }
+            }
+          }
+          console.log(`[Lyrics AI] AI response was empty or invalid. Falling back to default search.`)
+        } catch (err) {
+          console.error('[Lyrics AI] Failed to fetch via AI, falling back to default search:', err)
+        }
+      }
+
+      // --- 3. Default Guessing Logic (LRCLib / Netease) ---
 
       // --- 1. Enhanced Cleaning Logic ---
       const cleanString = (str: string) => {
@@ -1252,8 +1462,6 @@ app.whenReady().then(() => {
         s = replaceSmart(s, '[', ']')
         s = replaceSmart(s, '【', '】')
         s = replaceSmart(s, '{', '}')
-        // Note: We handle 《》 carefully. In standard cleaning, we keep content.
-        // But for filenames, we have a special strategy (C-0) below.
         s = replaceSmart(s, '《', '》')
 
         // Remove loose phrases
@@ -1285,13 +1493,11 @@ app.whenReady().then(() => {
         return s.replace(/\s+/g, ' ').trim()
       }
 
-      
       const getDurationDiff = (candDur: number, targetDur?: number) => {
         if (!targetDur) return 0 
         return Math.abs(candDur - targetDur)
       }
 
-      
       const searchLrcLib = async (q: string, targetDur?: number) => {
         try {
           const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`
@@ -1301,7 +1507,6 @@ app.whenReady().then(() => {
 
           if (!Array.isArray(list)) return []
 
-          
           return list
             .filter(t => t.syncedLyrics && t.syncedLyrics.length > 0)
             .map(t => ({
@@ -1319,10 +1524,8 @@ app.whenReady().then(() => {
         }
       }
 
-      
       const searchNetease = async (q: string, targetDur?: number) => {
         try {
-          
           const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(q)}&type=1&offset=0&total=true&limit=5`
           const res = await fetch(searchUrl, {
             headers: { 'Referer': 'https://music.163.com/', 'Cookie': 'appver=2.0.2' }
@@ -1332,7 +1535,6 @@ app.whenReady().then(() => {
 
           if (!data.result || !data.result.songs) return []
 
-          
           let candidates = data.result.songs.map((s: any) => ({
             id: s.id,
             track: s.name,
@@ -1341,7 +1543,6 @@ app.whenReady().then(() => {
             diff: targetDur ? getDurationDiff(s.duration / 1000, targetDur) : 0
           }))
 
-          
           if (targetDur) {
             candidates = candidates.filter((c: any) => c.diff <= 5)
             candidates.sort((a: any, b: any) => a.diff - b.diff)
@@ -1349,7 +1550,6 @@ app.whenReady().then(() => {
 
           if (candidates.length === 0) return []
 
-          
           const best = candidates[0]
           const lyricUrl = `https://music.163.com/api/song/lyric?id=${best.id}&lv=1&kv=1&tv=-1`
           const lrcRes = await fetch(lyricUrl, {
@@ -1374,27 +1574,12 @@ app.whenReady().then(() => {
         return []
       }
 
-      
-      const convertToTraditional = (text: string | null) => {
-        if (!text) return null
-        try {
-          const OpenCC = require('opencc-js')
-          const converter = OpenCC.Converter({ from: 'cn', to: 'tw' })
-          return converter(text)
-        } catch { return text }
-      }
-
-      
-      
-
       let candidates: any[] = []
 
-      
       if (title && artist) {
         const query = `${title} ${artist}`
         console.log(`[Lyrics] Strategy A: ${query}`)
 
-        
         const [lrcLibRes, neteaseRes] = await Promise.all([
           searchLrcLib(query, duration),
           searchNetease(query, duration)
@@ -1402,8 +1587,6 @@ app.whenReady().then(() => {
         candidates.push(...lrcLibRes, ...neteaseRes)
       }
 
-      
-      
       const cTitle = cleanString(title)
       const cArtist = cleanString(artist)
       if (cTitle && (cTitle !== title || cArtist !== artist)) {
@@ -1416,19 +1599,15 @@ app.whenReady().then(() => {
         candidates.push(...lrcLibRes, ...neteaseRes)
       }
 
-      
       if (filePath) {
         let filename = path.basename(filePath, path.extname(filePath))
         const promises: Promise<any[]>[] = []
 
-        
-        
         const varietyMatch = filename.match(/(.+?)《(.+?)》(.*)/)
         if (varietyMatch) {
           const rawArtist = varietyMatch[1] 
           const rawTitle = varietyMatch[2]  
 
-          
           const cA = cleanString(rawArtist).replace(/合唱/g, '').trim()
           const cT = cleanString(rawTitle)
 
@@ -1438,7 +1617,6 @@ app.whenReady().then(() => {
             promises.push(searchLrcLib(query, duration))
             promises.push(searchNetease(query, duration))
 
-            
             if (cA.length > 0) {
               console.log(`[Lyrics] Strategy C-0 (Title + Duration): ${cT}`)
               promises.push(searchLrcLib(cT, duration))
@@ -1447,7 +1625,6 @@ app.whenReady().then(() => {
           }
         }
 
-        
         const parsed = getArtistTitle(filename.replace(/_/g, ' '))
         if (parsed && parsed.length === 2) {
           const [a, t] = parsed
@@ -1457,7 +1634,6 @@ app.whenReady().then(() => {
           promises.push(searchNetease(query, duration))
         }
 
-        
         const cFilename = cleanString(filename)
         console.log(`[Lyrics] Strategy C-2 (Raw Cleaned): ${cFilename}`)
         promises.push(searchLrcLib(cFilename, duration))
@@ -1469,14 +1645,11 @@ app.whenReady().then(() => {
         })
       }
 
-      
       if (candidates.length === 0) {
         console.log("[Lyrics] No candidates found.")
         return null
       }
 
-      
-      
       const unique = new Map()
       candidates.forEach(c => {
         const key = `${c.source}-${c.id}`
@@ -1484,33 +1657,22 @@ app.whenReady().then(() => {
       })
       let finalPool = Array.from(unique.values())
 
-      
-      
       if (duration && duration > 0) {
         const strictMatches = finalPool.filter(c => c.diff <= 4)
         if (strictMatches.length > 0) {
           console.log(`[Lyrics] Calibration: Found ${strictMatches.length} strict duration matches.`)
           finalPool = strictMatches
         } else {
-          
-          
           const lenientMatches = finalPool.filter(c => c.diff <= 10)
           if (lenientMatches.length > 0) {
             console.log(`[Lyrics] Calibration: Found ${lenientMatches.length} lenient duration matches.`)
             finalPool = lenientMatches
           } else {
-            console.log(`[Lyrics] Calibration: No duration matches found. Closest is ${Math.min(...finalPool.map(c => c.diff))}s off.`)
-            
-            
-            
-            
+            console.log(`[Lyrics] Calibration: No duration matches found.`)
           }
         }
       }
 
-      
-      
-      
       finalPool.sort((a, b) => {
         if (Math.abs(a.diff - b.diff) > 0.5) return a.diff - b.diff 
         return 0
@@ -1519,7 +1681,11 @@ app.whenReady().then(() => {
       const bestMatch = finalPool[0]
       console.log(`[Lyrics] Selected: ${bestMatch.track} (${bestMatch.artist}) [${bestMatch.source}] Diff=${bestMatch.diff.toFixed(2)}s`)
 
-      return convertToTraditional(bestMatch.lyrics)
+      const finalLyrics = convertToTraditional(bestMatch.lyrics)
+      if (finalLyrics) {
+        await saveToLocalCache(finalLyrics)
+      }
+      return finalLyrics
 
     } catch (e) {
       console.error('Error fetching lyrics:', e)

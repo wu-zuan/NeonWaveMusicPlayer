@@ -69,6 +69,12 @@ export function useUpdater() {
 export function SettingsView() {
     const { status, progress, version, error, checkForUpdates, installUpdate } = useUpdater()
 
+    const [lyricsProvider, setLyricsProvider] = useState(() => localStorage.getItem('neonwave_lyrics_ai_provider') || 'default')
+    const [lyricsKey, setLyricsKey] = useState(() => localStorage.getItem('neonwave_lyrics_ai_key') || '')
+    const [lyricsEndpoint, setLyricsEndpoint] = useState(() => localStorage.getItem('neonwave_lyrics_ai_endpoint') || '')
+    const [lyricsModel, setLyricsModel] = useState(() => localStorage.getItem('neonwave_lyrics_ai_model') || '')
+    const [lyricsMode, setLyricsMode] = useState(() => localStorage.getItem('neonwave_lyrics_ai_mode') || 'filename')
+
     return (
         <div style={{ padding: '40px', maxWidth: '800px' }}>
             <h2 style={{ fontSize: '28px', marginBottom: '32px', fontWeight: 700 }}>設定</h2>
@@ -303,6 +309,135 @@ export function SettingsView() {
                                 <option value="cyberpunk">🤖 賽博龐克 (Cyberpunk)</option>
                                 <option value="glass">🫧 毛玻璃膠囊 (Glass Capsule)</option>
                             </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '24px', marginTop: '24px' }}>
+                    <h4 style={{ marginBottom: '16px', color: 'var(--text-main)' }}>AI 歌詞設定</h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>歌詞來源 / AI 服務商</span>
+                            <select 
+                                className="settings-select"
+                                value={lyricsProvider}
+                                onChange={(e) => {
+                                    setLyricsProvider(e.target.value)
+                                    localStorage.setItem('neonwave_lyrics_ai_provider', e.target.value)
+                                }}
+                            >
+                                <option value="default">🌐 預設模式 (猜測搜尋 - 免費)</option>
+                                <option value="openai">🧠 OpenAI</option>
+                                <option value="openrouter">🚀 OpenRouter</option>
+                                <option value="ollama">🦙 Ollama</option>
+                                <option value="opwebui">🌐 Open WebUI</option>
+                                <option value="chatgpt">💬 ChatGPT (自訂/代理)</option>
+                                <option value="gemini">♊ Google Gemini</option>
+                                <option value="claude">🎭 Anthropic Claude</option>
+                            </select>
+                        </div>
+
+                        {lyricsProvider !== 'default' && (
+                            <>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>API 金鑰 (API Key)</span>
+                                    <input 
+                                        type="password"
+                                        placeholder={lyricsProvider === 'ollama' ? 'Ollama 預設不需要 API Key' : '請輸入 API 金鑰...'}
+                                        value={lyricsKey}
+                                        onChange={(e) => {
+                                            setLyricsKey(e.target.value)
+                                            localStorage.setItem('neonwave_lyrics_ai_key', e.target.value)
+                                        }}
+                                        style={{
+                                            background: 'rgba(0,0,0,0.4)',
+                                            color: '#fff',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            padding: '10px 16px',
+                                            borderRadius: '10px',
+                                            outline: 'none',
+                                            fontSize: '14px'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>API 端點 URL (Endpoint)</span>
+                                    <input 
+                                        type="text"
+                                        placeholder={
+                                            lyricsProvider === 'openai' ? 'https://api.openai.com/v1/chat/completions (留空使用預設)' :
+                                            lyricsProvider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions (留空使用預設)' :
+                                            lyricsProvider === 'ollama' ? 'http://localhost:11434/v1/chat/completions (留空使用預設)' :
+                                            lyricsProvider === 'opwebui' ? 'http://localhost:3000/api/v1/chat/completions (留空使用預設)' :
+                                            '請輸入自訂 API 端點路徑...'
+                                        }
+                                        value={lyricsEndpoint}
+                                        onChange={(e) => {
+                                            setLyricsEndpoint(e.target.value)
+                                            localStorage.setItem('neonwave_lyrics_ai_endpoint', e.target.value)
+                                        }}
+                                        style={{
+                                            background: 'rgba(0,0,0,0.4)',
+                                            color: '#fff',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            padding: '10px 16px',
+                                            borderRadius: '10px',
+                                            outline: 'none',
+                                            fontSize: '14px'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>模型名稱 (Model Name)</span>
+                                    <input 
+                                        type="text"
+                                        placeholder={
+                                            lyricsProvider === 'openai' ? 'gpt-4o / gpt-4o-mini' :
+                                            lyricsProvider === 'openrouter' ? 'meta-llama/llama-3-8b-instruct:free 等' :
+                                            lyricsProvider === 'ollama' ? 'llama3 / qwen2.5 等' :
+                                            lyricsProvider === 'gemini' ? 'gemini-1.5-flash / gemini-1.5-pro' :
+                                            lyricsProvider === 'claude' ? 'claude-3-5-sonnet-20241022' :
+                                            '請輸入模型代號...'
+                                        }
+                                        value={lyricsModel}
+                                        onChange={(e) => {
+                                            setLyricsModel(e.target.value)
+                                            localStorage.setItem('neonwave_lyrics_ai_model', e.target.value)
+                                        }}
+                                        style={{
+                                            background: 'rgba(0,0,0,0.4)',
+                                            color: '#fff',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            padding: '10px 16px',
+                                            borderRadius: '10px',
+                                            outline: 'none',
+                                            fontSize: '14px'
+                                        }}
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>辨識模式 (如何抓取歌曲資訊)</span>
+                            <select 
+                                className="settings-select"
+                                value={lyricsMode}
+                                onChange={(e) => {
+                                    setLyricsMode(e.target.value)
+                                    localStorage.setItem('neonwave_lyrics_ai_mode', e.target.value)
+                                }}
+                            >
+                                <option value="filename">📁 依據檔案名稱 (預設)</option>
+                                <option value="audio">🎵 依據音檔內嵌標籤 (ID3 Tags)</option>
+                                <option value="audio_filename">🔀 混合模式 (音檔內嵌標籤 + 檔案名稱)</option>
+                            </select>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '-8px', lineHeight: '1.5' }}>
+                            * 註：當使用 AI 辨識且產生歌詞後，將會自動於歌曲資料夾下寫入一個同名的 <b>.lrc</b> 檔案。下次播放時會優先讀取該檔案，每首歌只處理一次。
                         </div>
                     </div>
                 </div>
