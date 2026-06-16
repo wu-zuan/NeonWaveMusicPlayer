@@ -620,8 +620,11 @@ app.whenReady().then(() => {
   })
 
     ipcMain.handle('update:install', () => {
-        
-        autoUpdater.quitAndInstall(false, true)
+        try {
+            if (win && !win.isDestroyed()) win.destroy()
+            if (miniWin && !miniWin.isDestroyed()) miniWin.destroy()
+        } catch (e) {}
+        autoUpdater.quitAndInstall(true, true)
     })
 
     ipcMain.handle('window:togglePlay', () => {

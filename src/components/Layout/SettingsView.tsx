@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { RefreshCw, Download, CheckCircle, AlertCircle } from 'lucide-react'
+import { RefreshCw, Download, CheckCircle, AlertCircle, Globe } from 'lucide-react'
 
 const ScanProgress = () => {
     const [scanData, setScanData] = useState<{current: number, total: number, success: number} | null>(null);
@@ -64,6 +64,102 @@ export function useUpdater() {
     }
 
     return { status, progress, version, error, checkForUpdates, installUpdate }
+}
+
+interface CustomSelectOption {
+    value: string
+    label: string
+    icon: React.ReactNode
+}
+
+const CustomSelect = ({ value, onChange, options }: {
+    value: string
+    onChange: (val: string) => void
+    options: CustomSelectOption[]
+}) => {
+    const [isOpen, setIsOpen] = useState(false)
+    const selected = options.find(o => o.value === value) || options[0]
+
+    return (
+        <div style={{ position: 'relative', width: '240px', zIndex: 10 }}>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="settings-select"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    textAlign: 'left',
+                    backgroundPosition: 'right 12px center',
+                    backgroundImage: 'none',
+                    paddingRight: '36px'
+                }}
+            >
+                {selected.icon}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.label}</span>
+                <span style={{ fontSize: '10px', opacity: 0.5 }}>{isOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {isOpen && (
+                <>
+                    <div 
+                        onClick={() => setIsOpen(false)}
+                        style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                    />
+                    <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '6px',
+                        background: '#18181c',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+                        zIndex: 1000
+                    }}>
+                        {options.map(o => (
+                            <button
+                                key={o.value}
+                                type="button"
+                                onClick={() => {
+                                    onChange(o.value)
+                                    setIsOpen(false)
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    width: '100%',
+                                    padding: '10px 16px',
+                                    border: 'none',
+                                    background: o.value === value ? 'var(--accent, #8b5cf6)' : 'transparent',
+                                    color: '#fff',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    transition: 'all 0.15s ease',
+                                    outline: 'none'
+                                }}
+                                onMouseOver={(e) => {
+                                    if (o.value !== value) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                                }}
+                                onMouseOut={(e) => {
+                                    if (o.value !== value) e.currentTarget.style.background = 'transparent'
+                                }}
+                            >
+                                {o.icon}
+                                <span>{o.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    )
 }
 
 export function SettingsView() {
@@ -319,23 +415,23 @@ export function SettingsView() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: 'var(--text-muted)' }}>歌詞來源 / AI 服務商</span>
-                            <select 
-                                className="settings-select"
+                            <CustomSelect 
                                 value={lyricsProvider}
-                                onChange={(e) => {
-                                    setLyricsProvider(e.target.value)
-                                    localStorage.setItem('neonwave_lyrics_ai_provider', e.target.value)
+                                onChange={(val) => {
+                                    setLyricsProvider(val)
+                                    localStorage.setItem('neonwave_lyrics_ai_provider', val)
                                 }}
-                            >
-                                <option value="default">🌐 預設模式 (猜測搜尋 - 免費)</option>
-                                <option value="openai">🧠 OpenAI</option>
-                                <option value="openrouter">🚀 OpenRouter</option>
-                                <option value="ollama">🦙 Ollama</option>
-                                <option value="opwebui">🌐 Open WebUI</option>
-                                <option value="chatgpt">💬 ChatGPT (自訂/代理)</option>
-                                <option value="gemini">♊ Google Gemini</option>
-                                <option value="claude">🎭 Anthropic Claude</option>
-                            </select>
+                                options={[
+                                    { value: 'default', label: '預設模式 (猜測搜尋 - 免費)', icon: <Globe size={16} /> },
+                                    { value: 'openai', label: 'OpenAI', icon: <img src="openai.svg" alt="OpenAI" style={{ width: 16, height: 16, objectFit: 'contain' }} /> },
+                                    { value: 'openrouter', label: 'OpenRouter', icon: <img src="openrouter.svg" alt="OpenRouter" style={{ width: 16, height: 16, objectFit: 'contain' }} /> },
+                                    { value: 'ollama', label: 'Ollama', icon: <img src="ollama.svg" alt="Ollama" style={{ width: 16, height: 16, objectFit: 'contain' }} /> },
+                                    { value: 'opwebui', label: 'Open WebUI', icon: <img src="openwebui.svg" alt="Open WebUI" style={{ width: 16, height: 16, objectFit: 'contain' }} /> },
+                                    { value: 'chatgpt', label: 'ChatGPT (自訂/代理)', icon: <img src="chatgpt.svg" alt="ChatGPT" style={{ width: 16, height: 16, objectFit: 'contain' }} /> },
+                                    { value: 'gemini', label: 'Google Gemini', icon: <img src="gemini.svg" alt="Gemini" style={{ width: 16, height: 16, objectFit: 'contain' }} /> },
+                                    { value: 'claude', label: 'Anthropic Claude', icon: <img src="claude.svg" alt="Claude" style={{ width: 16, height: 16, objectFit: 'contain' }} /> }
+                                ]}
+                            />
                         </div>
 
                         {lyricsProvider !== 'default' && (
