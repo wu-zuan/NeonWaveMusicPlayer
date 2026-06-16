@@ -281,6 +281,29 @@ export function SettingsView() {
                                 <option value="always">🔒 始終啟用 (始終點擊穿透)</option>
                             </select>
                         </div>
+
+                        {/* Subtitle Style Option */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: '16px' }}>
+                            <div>
+                                <div style={{ color: 'var(--text-main)' }}>歌詞字幕/彈幕樣式</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '480px', marginTop: '4px', lineHeight: '1.5' }}>
+                                    自訂懸浮歌詞/彈幕的視覺外觀樣式。
+                                </div>
+                            </div>
+                            <select 
+                                className="settings-select"
+                                defaultValue={localStorage.getItem('neonwave_subtitle_style') || 'neon'}
+                                onChange={(e) => {
+                                    localStorage.setItem('neonwave_subtitle_style', e.target.value);
+                                    window.dispatchEvent(new Event('neonwave:settings-changed'));
+                                }}
+                            >
+                                <option value="neon">🌟 經典霓虹 (Classic Neon)</option>
+                                <option value="minimal">📝 極簡黑白 (Minimalist)</option>
+                                <option value="cyberpunk">🤖 賽博龐克 (Cyberpunk)</option>
+                                <option value="glass">🫧 毛玻璃膠囊 (Glass Capsule)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
