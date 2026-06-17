@@ -15,7 +15,7 @@ interface SidebarProps {
     onImportPlaylist: () => void
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+const SidebarView: React.FC<SidebarProps> = ({
     playlists, currentView, onChangeView, onOpenFolder, onRemoveFolder, onRenameFolder, onRefreshLibrary, onExportPlaylist, onImportPlaylist
 }) => {
     const folders = playlists.filter(p => !p.type || p.type === 'folder')
@@ -209,3 +209,5 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </aside>
     )
 }
+
+export const Sidebar = React.memo(SidebarView)

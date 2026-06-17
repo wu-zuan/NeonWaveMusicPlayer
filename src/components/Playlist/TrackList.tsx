@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { List, useListRef } from 'react-window'
 import { Search } from 'lucide-react'
 import { TrackItem } from './TrackItem'
@@ -16,7 +16,7 @@ interface TrackListProps {
 
 const ITEM_HEIGHT = 56
 
-export const TrackList: React.FC<TrackListProps> = ({
+const TrackListView: React.FC<TrackListProps> = ({
     title = '音樂庫', tracks, currentTrack, onPlay, onToggleFavorite, favorites = []
 }) => {
     const [searchQuery, setSearchQuery] = useState('')
@@ -25,6 +25,7 @@ export const TrackList: React.FC<TrackListProps> = ({
     const containerRef = useRef<HTMLDivElement>(null)
     const listRef = useListRef() as any
     const [listHeight, setListHeight] = useState(600)
+    const favoritePaths = useMemo(() => new Set(favorites.map(f => f.path)), [favorites])
 
     // Measure container height for virtualized list
     useEffect(() => {
@@ -87,7 +88,7 @@ export const TrackList: React.FC<TrackListProps> = ({
 
     const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
         const track = tracks[index]
-        const isFav = favorites.some(f => f.path === track.path)
+        const isFav = favoritePaths.has(track.path)
         const isActive = currentTrack?.path === track.path
 
         // Optimization: Use currentTrack's artwork for the active item
@@ -140,3 +141,5 @@ export const TrackList: React.FC<TrackListProps> = ({
         </div>
     )
 }
+
+export const TrackList = React.memo(TrackListView)

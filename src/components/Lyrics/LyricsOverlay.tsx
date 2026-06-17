@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { parseLrc, LyricLine, getCurrentLineIndex } from '../../utils/lrcParser'
 
 interface LyricsOverlayProps {
@@ -165,8 +165,13 @@ const CYBERPUNK_MAP: Record<string, string> = {
     '#ffffff': '#ffe600', '#f8fafc': '#ffe600', '#00fff2': '#ffe600'
 }
 const MAX_CONCURRENT = 6
+const lyricsCache = new Map<string, LyricLine[]>()
 
-export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
+function buildLyricsCacheKey(trackTitle: string, trackArtist: string, trackPath?: string, trackDuration?: number) {
+    return [trackPath || '', trackTitle || '', trackArtist || '', trackDuration ?? ''].join('|')
+}
+
+const LyricsOverlayView: React.FC<LyricsOverlayProps> = ({
     visible, onClose, trackTitle, trackArtist, trackPath, trackDuration, currentTime
 }) => {
     const [loading, setLoading] = useState(false)
@@ -181,6 +186,8 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     const containerRef = useRef<HTMLDivElement>(null)
     const activeCountRef = useRef(0)
     const statusTimerRef = useRef<ReturnType<typeof setTimeout>>()
+    const statusClearTimerRef = useRef<ReturnType<typeof setTimeout>>()
+    const fetchSeqRef = useRef(0)
 
     useEffect(() => {
         injectStyles()
@@ -196,12 +203,21 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
 
     const showStatus = useCallback((msg: string) => {
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        if (statusClearTimerRef.current) clearTimeout(statusClearTimerRef.current)
         setStatusMsg(msg)
         setStatusVisible(true)
         statusTimerRef.current = setTimeout(() => {
             setStatusVisible(false)
-            setTimeout(() => setStatusMsg(null), 300) // Wait for fade-out animation
+            statusClearTimerRef.current = setTimeout(() => setStatusMsg(null), 300) // Wait for fade-out animation
         }, 3000)
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            fetchSeqRef.current += 1
+            if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+            if (statusClearTimerRef.current) clearTimeout(statusClearTimerRef.current)
+        }
     }, [])
 
     useEffect(() => {
@@ -210,27 +226,42 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         }
     }, [visible, showStatus])
 
-    const isSynced = useMemo(() => lyrics.some(l => l.time > 0), [lyrics])
-
     useEffect(() => {
-        if (!isSynced) return
+        if (lyrics.length === 0) {
+            setActiveIndex(-1)
+            return
+        }
         const idx = getCurrentLineIndex(lyrics, currentTime)
         if (idx !== activeIndex) {
             setActiveIndex(idx)
         }
-    }, [currentTime, lyrics, isSynced, activeIndex])
-
-    useEffect(() => {
-        if (!isSynced) {
-            setActiveIndex(-1)
-        }
-    }, [lyrics, isSynced])
+    }, [currentTime, lyrics, activeIndex])
 
     // Lyrics fetching
-    const fetchLyrics = async (title: string, artist: string, path: string = '', duration: number = 0) => {
+    const fetchLyrics = useCallback(async (title: string, artist: string, path: string = '', duration: number = 0) => {
+        const requestId = ++fetchSeqRef.current
+        const isStale = () => requestId !== fetchSeqRef.current
+        const cacheKey = buildLyricsCacheKey(title, artist, path, duration)
+
+        const applyLyrics = (lines: LyricLine[]) => {
+            const cloned = lines.map(line => ({ ...line }))
+            lyricsCache.set(cacheKey, cloned)
+            setLyrics(cloned)
+            setError(false)
+            setActiveIndex(-1)
+        }
+
+        const cached = lyricsCache.get(cacheKey)
+        if (cached && cached.length > 0) {
+            applyLyrics(cached)
+            showStatus("已载入同步歌词")
+            return
+        }
+
         setLoading(true)
         setError(false)
         setLyrics([])
+        setActiveIndex(-1)
         showStatus(`搜索中: ${title}...`)
         try {
             const aiConfig = {
@@ -242,6 +273,8 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 reasoning: localStorage.getItem('neonwave_lyrics_ai_reasoning') || 'none'
             }
             const rawLrc = await window.ipcRenderer.getLyrics(title, artist, path, duration, aiConfig)
+            if (isStale()) return
+
             if (rawLrc) {
                 let parsed = parseLrc(rawLrc)
 
@@ -250,25 +283,23 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     try {
                         console.log(`[Lyrics Local Calibration] Reading first 2MB of track: ${path}`)
                         const fileBuf = await (window as any).ipcRenderer.readFileBufferPartial(path, 2 * 1024 * 1024)
+                        if (isStale()) return
                         if (fileBuf) {
-                            // Create a dedicated, temporary AudioContext for calibration only
                             const calCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
                             try {
                                 const audioBuf = await calCtx.decodeAudioData(fileBuf.slice(0))
+                                if (isStale()) return
                                 const channelData = audioBuf.getChannelData(0)
                                 const sampleRate = audioBuf.sampleRate
 
-                                // Use -30dB threshold (less sensitive than -45dB to avoid noise detection)
                                 const threshold = Math.pow(10, -30 / 20)
-                                // Use 50ms window for better granularity
                                 const windowSize = Math.floor(sampleRate * 0.05)
                                 
                                 let localStart = 0
                                 let consecutiveWindowsAboveThreshold = 0
                                 let firstQualifyingWindowStart = 0
-                                const requiredConsecutiveWindows = 3 // Require 3 consecutive windows (150ms) above threshold
+                                const requiredConsecutiveWindows = 3
                                 
-                                // Scan with 10ms stride for better precision
                                 const stride = Math.max(1, Math.floor(sampleRate * 0.01))
                                 for (let i = 0; i < channelData.length - windowSize; i += stride) {
                                     let sum = 0
@@ -279,12 +310,10 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                     
                                     if (rms > threshold) {
                                         if (consecutiveWindowsAboveThreshold === 0) {
-                                            // Track the start of the first qualifying window
                                             firstQualifyingWindowStart = i
                                         }
                                         consecutiveWindowsAboveThreshold++
                                         if (consecutiveWindowsAboveThreshold >= requiredConsecutiveWindows) {
-                                            // Found the actual start: use the recorded start position
                                             localStart = firstQualifyingWindowStart / sampleRate
                                             break
                                         }
@@ -295,7 +324,6 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
 
                                 console.log(`[Lyrics Local Calibration] Detected local sound start at: ${localStart.toFixed(2)}s`)
 
-                                // Find the first valid synced lyric line time (>= 0 to include 0.00 start)
                                 const firstValidLine = parsed.find(line => line.time >= 0 && line.text.trim().length > 0)
                                 const firstLyricTime = firstValidLine ? firstValidLine.time : 1.5
 
@@ -309,7 +337,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                                     }))
                                 }
                             } finally {
-                                calCtx.close() // Free resources
+                                calCtx.close()
                             }
                         }
                     } catch (calErr) {
@@ -317,8 +345,10 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                     }
                 }
 
+                if (isStale()) return
+
                 if (parsed.length > 0) {
-                    setLyrics(parsed)
+                    applyLyrics(parsed)
                     showStatus("已载入同步歌词")
                 } else {
                     setError(true)
@@ -329,18 +359,24 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
                 showStatus("未找到同步歌词")
             }
         } catch (e) {
+            if (isStale()) return
             console.error(e)
             setError(true)
             showStatus("载入歌词时发生错误")
         } finally {
-            setLoading(false)
+            if (!isStale()) {
+                setLoading(false)
+            }
         }
-    }
+    }, [showStatus])
 
     useEffect(() => {
         if (!visible || !trackTitle) return
         fetchLyrics(trackTitle, trackArtist, trackPath, trackDuration)
-    }, [trackTitle, trackArtist, trackPath, visible, trackDuration, fetchTrigger])
+        return () => {
+            fetchSeqRef.current += 1
+        }
+    }, [trackTitle, trackArtist, trackPath, visible, trackDuration, fetchTrigger, fetchLyrics])
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -355,11 +391,10 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
     // Clear danmaku on track change
     useEffect(() => {
         if (containerRef.current) {
-            const items = containerRef.current.querySelectorAll('.danmaku-item')
-            items.forEach(el => el.remove())
+            containerRef.current.replaceChildren()
             activeCountRef.current = 0
         }
-    }, [trackTitle, visible, isSynced])
+    }, [trackTitle, visible, lyrics])
 
     // Spawn danmaku items via direct DOM manipulation — zero React re-renders
     useEffect(() => {
@@ -418,17 +453,6 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
 
     }, [activeIndex, lyrics, visible, subStyle])
 
-    // Track active danmaku count for error display
-    const [hasDanmaku, setHasDanmaku] = useState(false)
-    useEffect(() => {
-        if (!visible) return
-        const interval = setInterval(() => {
-            const count = containerRef.current?.querySelectorAll('.danmaku-item').length || 0
-            setHasDanmaku(count > 0)
-        }, 1000)
-        return () => clearInterval(interval)
-    }, [visible])
-
     if (!visible) return null
 
     return (
@@ -465,7 +489,7 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
             <div ref={containerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
 
             {/* Error fallback with retry */}
-            {error && !hasDanmaku && (
+            {error && (
                 <div className="lyrics-error" style={{ pointerEvents: 'auto' }}>
                     <div>未找到歌词</div>
                     <button
@@ -509,3 +533,20 @@ export const LyricsOverlay: React.FC<LyricsOverlayProps> = ({
         </div>
     )
 }
+
+export const LyricsOverlay = React.memo(LyricsOverlayView, (prev, next) => {
+    if (prev.visible !== next.visible) return false
+    if (!prev.visible && !next.visible) {
+        return prev.trackTitle === next.trackTitle
+            && prev.trackArtist === next.trackArtist
+            && prev.trackPath === next.trackPath
+            && prev.trackDuration === next.trackDuration
+    }
+
+    return prev.trackTitle === next.trackTitle
+        && prev.trackArtist === next.trackArtist
+        && prev.trackPath === next.trackPath
+        && prev.trackDuration === next.trackDuration
+        && prev.currentTime === next.currentTime
+        && prev.trackArtwork === next.trackArtwork
+})

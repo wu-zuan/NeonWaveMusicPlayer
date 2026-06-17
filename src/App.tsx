@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Sidebar } from './components/Layout/Sidebar'
 import { TrackList } from './components/Playlist/TrackList'
 import { PlayerBar } from './components/Player/PlayerBar'
@@ -159,23 +159,26 @@ function App() {
   }
 
   
-  let displayedTracks = allTracks
-  let viewTitle = '所有歌曲'
+  const { displayedTracks, viewTitle } = useMemo(() => {
+    if (view === 'all_songs') {
+      return { displayedTracks: allTracks, viewTitle: '所有歌曲' }
+    }
 
-  if (view === 'all_songs') {
-    displayedTracks = allTracks
-    viewTitle = '所有歌曲'
-  } else if (view === 'favorites') {
-    displayedTracks = favorites
-    viewTitle = '我的最愛'
-  } else {
-    
+    if (view === 'favorites') {
+      return { displayedTracks: favorites, viewTitle: '我的最愛' }
+    }
+
     const pl = playlists.find(p => p.id === view)
     if (pl) {
-      displayedTracks = pl.tracks
-      viewTitle = pl.name
+      return { displayedTracks: pl.tracks, viewTitle: pl.name }
     }
-  }
+
+    return { displayedTracks: allTracks, viewTitle: '所有歌曲' }
+  }, [view, allTracks, favorites, playlists])
+
+  const handleToggleLyrics = useCallback(() => {
+    setShowLyrics(v => !v)
+  }, [])
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -267,7 +270,7 @@ function App() {
           onSetPosition={setPosition}
           onSetFocusMode={setFocusMode}
           onSetNormalization={setNormalization}
-          onToggleLyrics={() => setShowLyrics(!showLyrics)}
+          onToggleLyrics={handleToggleLyrics}
         />
 
         <ImportChoiceModal

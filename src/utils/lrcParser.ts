@@ -50,14 +50,20 @@ export function parseLrc(lrc: string): LyricLine[] {
 }
 
 export function getCurrentLineIndex(lyrics: LyricLine[], currentTime: number): number {
+    let left = 0
+    let right = lyrics.length - 1
     let index = -1
-    for (let i = 0; i < lyrics.length; i++) {
-        if (lyrics[i].time <= currentTime) { 
-            index = i
+
+    while (left <= right) {
+        const mid = left + Math.floor((right - left) / 2)
+        if (lyrics[mid].time <= currentTime) {
+            index = mid
+            left = mid + 1
         } else {
-            break
+            right = mid - 1
         }
     }
+
     return index
 }
 
