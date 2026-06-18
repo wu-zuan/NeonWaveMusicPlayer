@@ -5,6 +5,7 @@ import { TrackList } from './components/Playlist/TrackList'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { SettingsView } from './components/Layout/SettingsView'
 import { SearchView } from './components/Search/SearchView'
+import { SupportDeskView } from './components/SupportDesk/SupportDeskView'
 import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { useLibrary } from './hooks/useLibrary'
 import { useAppDetection } from './hooks/useAppDetection'
@@ -18,7 +19,23 @@ import { MiniPlayer } from './components/Player/MiniPlayer'
 
 function App() {
   const isMini = new URLSearchParams(window.location.search).get('mini') === 'true'
+  return isMini ? <MiniModeApp /> : <MainApp />
+}
 
+function MiniModeApp() {
+  useEffect(() => {
+    document.body.classList.add('mini-mode')
+    document.documentElement.classList.add('mini-mode')
+    return () => {
+      document.body.classList.remove('mini-mode')
+      document.documentElement.classList.remove('mini-mode')
+    }
+  }, [])
+
+  return <MiniPlayer />
+}
+
+function MainApp() {
   // === All hooks MUST be called before any conditional return (React rules of hooks) ===
 
   const {
@@ -44,24 +61,13 @@ function App() {
   const [importModalData, setImportModalData] = useState<any | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
 
-  useEffect(() => {
-    if (isMini) {
-      document.body.classList.add('mini-mode')
-      document.documentElement.classList.add('mini-mode')
-    } else {
-      document.body.classList.remove('mini-mode')
-      document.documentElement.classList.remove('mini-mode')
-    }
-  }, [isMini])
-
   // Listen for playback toggle commands from the mini player (PIP)
   useEffect(() => {
-    if (isMini) return
     const cleanup = (window as any).ipcRenderer.on('player:togglePlay', () => {
       togglePlay()
     })
     return () => { if (cleanup) cleanup() }
-  }, [isMini, togglePlay])
+  }, [togglePlay])
 
   useEffect(() => {
     if (contextMode === 'work') {
@@ -135,11 +141,6 @@ function App() {
       if (debounceTimer) clearTimeout(debounceTimer)
     }
   }, [isPlaying, currentTrack, getAudioStream, setLocalMute])
-
-  // Early return for mini player mode (AFTER all hooks)
-  if (isMini) {
-    return <MiniPlayer />
-  }
 
   const handleImportClick = async () => {
     const data = await readImportFile()
@@ -234,6 +235,10 @@ function App() {
 
           {view === 'discord' && (
             <DiscordControlPanel />
+          )}
+
+          {view === 'support' && (
+            <SupportDeskView />
           )}
         </div>
 

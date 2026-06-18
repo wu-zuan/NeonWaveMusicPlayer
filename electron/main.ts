@@ -10,6 +10,7 @@ import * as mm from 'music-metadata'
 import { DiscordBotManager } from './discordBot'
 import { DiscordRPCManager } from './discordRPC'
 import { searchArtistImage } from './utils/artistSearch'
+import { initSupportDeskDb, listSupportTickets } from './supportDeskDb'
 
 // Register custom standard protocol for local media playback to bypass CORS restrictions for Web Audio API
 protocol.registerSchemesAsPrivileged([
@@ -348,6 +349,10 @@ app.whenReady().then(() => {
 
   startActiveWindowMonitor()
 
+  void initSupportDeskDb().catch((err) => {
+    console.error('[SupportDesk] Failed to initialize MySQL store:', err)
+  })
+
   app.on('will-quit', () => {
     (app as any).isQuitting = true
     if (monitorProcess) {
@@ -664,6 +669,10 @@ app.whenReady().then(() => {
         } catch (e) {
             return '6.1.3'
         }
+    })
+
+    ipcMain.handle('support:tickets:list', async () => {
+        return listSupportTickets()
     })
 
     

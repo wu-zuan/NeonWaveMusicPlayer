@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface TrackInfo {
     title: string
@@ -12,29 +12,39 @@ interface TrackInfo {
 
 export function MiniPlayer() {
     const [track, setTrack] = useState<TrackInfo | null>(null)
+    const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     useEffect(() => {
         const cleanup = (window as any).ipcRenderer.on('player:sync', (_: any, data: TrackInfo) => {
             setTrack(data)
         })
-        return () => { if (cleanup) cleanup() }
+        return () => {
+            if (clickTimeoutRef.current) {
+                clearTimeout(clickTimeoutRef.current)
+                clickTimeoutRef.current = null
+            }
+            if (cleanup) cleanup()
+        }
     }, [])
 
     const isGameModeActive = !!(track && track.isGameModeActive)
 
     // Handle single/double clicks to control playback and restore main window
-    let clickTimeout: any = null
-    const handleClicks = (e: React.MouseEvent) => {
+    const handleClicks = useCallback((e: React.MouseEvent) => {
         e.stopPropagation()
         if (e.detail === 1) {
-            clickTimeout = (setTimeout as any)(() => {
+            if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current)
+            clickTimeoutRef.current = setTimeout(() => {
                 (window as any).ipcRenderer.invoke('window:togglePlay').catch(console.error)
             }, 250)
         } else if (e.detail === 2) {
-            if (clickTimeout) (clearTimeout as any)(clickTimeout)
+            if (clickTimeoutRef.current) {
+                clearTimeout(clickTimeoutRef.current)
+                clickTimeoutRef.current = null
+            }
             (window as any).ipcRenderer.invoke('window:restoreMain').catch(console.error)
         }
-    }
+    }, [])
 
     if (!track || !track.title) return (
         <div 
@@ -132,8 +142,8 @@ export function MiniPlayer() {
                     transition: 'all 0.5s ease',
                     boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
                 }}>
-                    <img 
-                        src={track.artwork || 'logo.png'} 
+                        <img 
+                            src={track.artwork || '/logo.png'} 
                         style={{
                             width: '100%',
                             height: '100%',

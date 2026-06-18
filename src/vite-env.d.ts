@@ -19,6 +19,7 @@ interface Window {
         downloadYouTubeToDir(url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number, format?: string): Promise<string | null>
         getArtistImage(name: string): Promise<string | null>
         getLyrics(title: string, artist: string, filePath?: string, duration?: number, aiConfig?: any): Promise<string | null>
+        getSupportTickets(): Promise<any[]>
         onDownloadProgress(callback: (data: { url: string, speed: string, percent?: number }) => void): void
         offDownloadProgress(): void
 
