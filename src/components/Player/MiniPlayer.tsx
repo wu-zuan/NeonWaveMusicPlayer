@@ -62,7 +62,7 @@ export function MiniPlayer() {
                 fontFamily: "'Outfit', 'Inter', sans-serif",
                 opacity: isGameModeActive ? 0.35 : 1,
                 transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
-                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                transition: 'opacity 0.2s ease, transform 0.2s ease'
             } as any}
         >
             <div style={{
@@ -81,7 +81,7 @@ export function MiniPlayer() {
                     ? '0 10px 30px rgba(0,0,0,0.9), 0 0 15px rgba(255, 85, 0, 0.15)' 
                     : '0 8px 32px rgba(0,0,0,0.5)',
                 fontFamily: "'Outfit', sans-serif",
-                transition: 'all 0.5s ease'
+                transition: 'background-color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease'
             }}>
                 NeonWave
             </div>
@@ -111,7 +111,7 @@ export function MiniPlayer() {
                 fontFamily: "'Outfit', 'Inter', sans-serif",
                 opacity: isGameModeActive ? 0.35 : 1,
                 transform: isGameModeActive ? 'scale(0.92)' : 'scale(1)',
-                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                transition: 'opacity 0.2s ease, transform 0.2s ease'
             } as any}
         >
             <div style={{
@@ -129,7 +129,7 @@ export function MiniPlayer() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                transition: 'all 0.5s ease'
+                transition: 'background-color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease'
             }}>
                 { }
                 <div style={{
@@ -139,16 +139,18 @@ export function MiniPlayer() {
                     overflow: 'hidden',
                     position: 'relative',
                     animation: track.isPlaying ? 'spin 12s linear infinite' : 'none',
-                    transition: 'all 0.5s ease',
+                    transition: 'transform 0.2s ease',
                     boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
                 }}>
                         <img 
                             src={track.artwork || '/logo.png'} 
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            filter: 'brightness(0.5) contrast(1.1)'
+                            alt=""
+                            decoding="async"
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                filter: 'brightness(0.5) contrast(1.1)'
                         }}
                     />
                     
@@ -197,7 +199,7 @@ export function MiniPlayer() {
                         strokeDashoffset={offset}
                         strokeLinecap="round"
                         style={{ 
-                            transition: 'stroke-dashoffset 0.5s linear',
+                            transition: 'stroke-dashoffset 0.2s linear',
                             filter: 'drop-shadow(0 0 3px var(--accent-primary, #00fff2))'
                         }}
                     />

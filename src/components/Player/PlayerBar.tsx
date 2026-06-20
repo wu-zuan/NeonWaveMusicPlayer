@@ -157,7 +157,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                 flex: 1, padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 500,
                                 background: activeTab === 'effects' ? 'rgba(255,255,255,0.1)' : 'transparent',
                                 color: activeTab === 'effects' ? 'var(--text-main)' : 'var(--text-muted)',
-                                transition: 'all 0.2s'
+                                transition: 'background-color 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease'
                             }}
                         >
                             🎛️ 音效特效
@@ -168,7 +168,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                 flex: 1, padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 500,
                                 background: activeTab === 'spatial' ? 'rgba(255,255,255,0.1)' : 'transparent',
                                 color: activeTab === 'spatial' ? 'var(--text-main)' : 'var(--text-muted)',
-                                transition: 'all 0.2s'
+                                transition: 'background-color 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease'
                             }}
                         >
                             📡 3D 空間
@@ -192,13 +192,13 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                     style={{
                                         width: '40px', height: '22px', borderRadius: '11px', border: 'none', cursor: 'pointer',
                                         background: isFocus ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
-                                        position: 'relative', transition: 'all 0.3s'
+                                        position: 'relative', transition: 'background-color 0.16s ease, transform 0.16s ease'
                                     }}
                                 >
                                     <div style={{
                                         position: 'absolute', top: '2px', left: isFocus ? '20px' : '2px',
                                         width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
-                                        transition: 'all 0.3s', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                        transition: 'left 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                                     }} />
                                 </button>
                             </div>
@@ -217,19 +217,19 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                     style={{
                                         width: '40px', height: '22px', borderRadius: '11px', border: 'none', cursor: 'pointer',
                                         background: isNorm ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
-                                        position: 'relative', transition: 'all 0.3s'
+                                        position: 'relative', transition: 'background-color 0.16s ease, transform 0.16s ease'
                                     }}
                                 >
                                     <div style={{
                                         position: 'absolute', top: '2px', left: isNorm ? '20px' : '2px',
                                         width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
-                                        transition: 'all 0.3s', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                        transition: 'left 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                                     }} />
                                 </button>
                             </div>
 
                             { }
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: isFocus ? 0.5 : 1, pointerEvents: isFocus ? 'none' : 'auto', transition: 'all 0.3s' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: isFocus ? 0.5 : 1, pointerEvents: isFocus ? 'none' : 'auto', transition: 'opacity 0.16s ease' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>真實空間模擬</label>
                                     {isFocus && <span style={{ fontSize: '10px', color: 'var(--accent-secondary)' }}>專注模式下不可用</span>}
@@ -245,7 +245,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                                 color: spaceMode === mode ? '#000' : 'var(--text-muted)',
                                                 border: '1px solid',
                                                 borderColor: spaceMode === mode ? 'var(--accent-primary)' : 'transparent',
-                                                borderRadius: '6px', fontSize: '11px', padding: '6px 0', cursor: 'pointer', transition: 'all 0.2s',
+                                                borderRadius: '6px', fontSize: '11px', padding: '6px 0', cursor: 'pointer', transition: 'background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease',
                                                 whiteSpace: 'nowrap'
                                             }}
                                         >

@@ -398,7 +398,13 @@ export const SearchView = () => {
                 {/* Results List */}
                 {hasSearched && currentResults.map(item => (
                     <div key={item.id} className={styles.resultItem}>
-                        <img src={item.thumbnail} alt={item.title} className={styles.thumbnail} />
+                        <img
+                            src={item.thumbnail}
+                            alt={item.title}
+                            className={styles.thumbnail}
+                            loading="lazy"
+                            decoding="async"
+                        />
                         <div className={styles.info}>
                             <div className={styles.title}>{item.title}</div>
                             <div className={styles.artist}>{item.artist}</div>

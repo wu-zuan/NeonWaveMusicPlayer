@@ -78,7 +78,7 @@
 .actionBtn {
     background: transparent;
     color: var(--text-muted);
-    transition: all 0.2s;
+    transition: color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
     border-radius: 50%;
     width: 36px;
     height: 36px;
@@ -102,7 +102,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
 }
 
@@ -174,7 +174,7 @@
     border: 1px solid var(--glass-border);
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-muted);
-    transition: all 0.3s;
+    transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .toggle8D:hover {
@@ -188,7 +188,7 @@
     color: #fff;
     border-color: var(--accent-secondary);
     box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
-    animation: pulse 2s infinite;
+    animation: pulse 1.6s infinite;
 }
 
 @keyframes pulse {

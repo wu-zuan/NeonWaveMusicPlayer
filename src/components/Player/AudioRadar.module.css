@@ -78,7 +78,7 @@
     box-shadow: 0 0 15px var(--accent-primary);
     cursor: grab;
     z-index: 20;
-    transition: width 0.2s, height 0.2s, box-shadow 0.2s;
+    transition: width 0.16s ease, height 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .source:active {
@@ -100,7 +100,7 @@
     padding: 2px 8px;
     border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
     opacity: 0;
 }
 

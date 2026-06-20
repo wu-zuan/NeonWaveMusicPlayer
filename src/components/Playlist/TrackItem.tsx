@@ -3,9 +3,16 @@ import { Music, AudioWaveform, Heart } from 'lucide-react'
 import styles from './Playlist.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 
-// LRU Artwork Cache — prevents memory bloat from base64 artwork strings
+// LRU artwork cache + request queue.
+// The virtualized list still mounts many visible items at once, so we cap
+// concurrent artwork lookups to keep scrolling responsive.
 const ARTWORK_CACHE_MAX = 80
 const artworkCache = new Map<string, string>()
+const artworkResultCache = new Map<string, { artwork?: string; duration?: number }>()
+const artworkPromiseCache = new Map<string, Promise<{ artwork?: string; duration?: number }>>()
+const ARTWORK_LOAD_CONCURRENCY = 2
+let activeArtworkLoads = 0
+const artworkLoadQueue: Array<() => void> = []
 
 function getCachedArtwork(key: string): string | undefined {
     const val = artworkCache.get(key)
@@ -28,6 +35,73 @@ function setCachedArtwork(key: string, value: string) {
     artworkCache.set(key, value)
 }
 
+function setCachedArtworkResult(key: string, value: { artwork?: string; duration?: number }) {
+    artworkResultCache.set(key, value)
+    if (value.artwork) {
+        setCachedArtwork(key, value.artwork)
+    }
+}
+
+function runNextArtworkLoad() {
+    if (activeArtworkLoads >= ARTWORK_LOAD_CONCURRENCY) return
+    const next = artworkLoadQueue.shift()
+    if (!next) return
+    activeArtworkLoads += 1
+    next()
+}
+
+function scheduleArtworkLoad<T>(work: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const task = () => {
+            work()
+                .then(resolve, reject)
+                .finally(() => {
+                    activeArtworkLoads -= 1
+                    runNextArtworkLoad()
+                })
+        }
+
+        artworkLoadQueue.push(task)
+        runNextArtworkLoad()
+    })
+}
+
+function loadTrackArtwork(track: Track): Promise<{ artwork?: string; duration?: number }> {
+    const cached = artworkResultCache.get(track.path)
+    if (cached) return Promise.resolve(cached)
+
+    const cachedPromise = artworkPromiseCache.get(track.path)
+    if (cachedPromise) return cachedPromise
+
+    const promise = scheduleArtworkLoad(async () => {
+        if (track.path.startsWith('shared:')) {
+            const query = track.path.replace('shared:', '')
+            const results = await window.ipcRenderer.searchYouTube(query)
+            const first = results?.[0]
+            const resolved = {
+                artwork: first?.thumbnail || undefined,
+                duration: first?.duration || undefined
+            }
+            setCachedArtworkResult(track.path, resolved)
+            return resolved
+        }
+
+        const art = await window.ipcRenderer.getAudioArtwork(track.path)
+        const resolved = { artwork: art || undefined }
+        if (resolved.artwork) {
+            setCachedArtworkResult(track.path, resolved)
+        } else {
+            artworkResultCache.set(track.path, resolved)
+        }
+        return resolved
+    }).finally(() => {
+        artworkPromiseCache.delete(track.path)
+    })
+
+    artworkPromiseCache.set(track.path, promise)
+    return promise
+}
+
 interface TrackItemProps {
     id?: string
     style?: React.CSSProperties
@@ -41,64 +115,77 @@ interface TrackItemProps {
 
 export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive, isFavorite, isHighlighted, onClick, onToggleFavorite }) => {
     const [artwork, setArtwork] = React.useState<string | undefined>(() => {
-        return track.artwork || getCachedArtwork(track.path)
+        return track.artwork || getCachedArtwork(track.path) || artworkResultCache.get(track.path)?.artwork
     })
+    const [resolvedDuration, setResolvedDuration] = React.useState<number | undefined>(() => track.duration)
+    const [artworkLoaded, setArtworkLoaded] = React.useState(false)
     const itemRef = React.useRef<HTMLDivElement>(null)
 
     // Sync artwork from props (e.g. when currentTrack provides it)
     React.useEffect(() => {
         if (track.artwork) {
             setArtwork(track.artwork)
+            setArtworkLoaded(false)
             setCachedArtwork(track.path, track.artwork)
+            setCachedArtworkResult(track.path, { artwork: track.artwork, duration: track.duration })
         }
-    }, [track.artwork, track.path])
+        if (track.duration) {
+            setResolvedDuration(track.duration)
+        }
+    }, [track.artwork, track.duration, track.path])
+
+    // Reuse results already fetched elsewhere without touching IPC again.
+    React.useEffect(() => {
+        const cached = artworkResultCache.get(track.path)
+        if (!cached) return
+
+        if (cached.artwork && cached.artwork !== artwork) {
+            setArtwork(cached.artwork)
+            setArtworkLoaded(false)
+        }
+
+        if (cached.duration && !resolvedDuration) {
+            setResolvedDuration(cached.duration)
+        }
+    }, [artwork, resolvedDuration, track.path])
 
     // Lazy-load artwork when visible (via IntersectionObserver) with a small debounce/delay
     React.useEffect(() => {
         if (artwork || !itemRef.current) return
 
-        let timeoutId: any = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+        let cancelled = false
 
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
                 timeoutId = setTimeout(() => {
-                    if (track.path.startsWith('shared:')) {
-                        const query = track.path.replace('shared:', '')
-                        window.ipcRenderer.searchYouTube(query).then(results => {
-                            if (results && results.length > 0) {
-                                if (results[0].thumbnail) {
-                                    setArtwork(results[0].thumbnail)
-                                    setCachedArtwork(track.path, results[0].thumbnail)
-                                }
-                                if (results[0].duration) {
-                                    track.duration = results[0].duration
-                                }
+                    loadTrackArtwork(track)
+                        .then((result) => {
+                            if (cancelled) return
+                            if (result.artwork) {
+                                setArtwork(result.artwork)
+                                setArtworkLoaded(false)
                             }
-                        }).catch(() => {})
-                    } else {
-                        window.ipcRenderer.getAudioArtwork(track.path)
-                            .then((art: string | null) => {
-                                if (art) {
-                                    setArtwork(art)
-                                    setCachedArtwork(track.path, art)
-                                }
-                            })
-                            .catch(() => {})
-                    }
-                }, 200)
+                            if (result.duration && !resolvedDuration) {
+                                setResolvedDuration(result.duration)
+                            }
+                        })
+                        .catch(() => {})
+                }, 80)
                 observer.disconnect()
             }
-        }, { rootMargin: '100px' })
+        }, { rootMargin: '160px 0px' })
 
         observer.observe(itemRef.current)
 
         return () => {
+            cancelled = true
             observer.disconnect()
             if (timeoutId) {
                 clearTimeout(timeoutId)
             }
         }
-    }, [artwork, track.path])
+    }, [artwork, resolvedDuration, track.path])
 
     return (
         <div
@@ -110,7 +197,19 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
         >
             <div className={styles.icon}>
                 {artwork ? (
-                    <img src={artwork} alt="" style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }} />
+                    <img
+                        src={artwork}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        draggable={false}
+                        className={`${styles.artwork} ${artworkLoaded ? styles.artworkLoaded : styles.artworkPending}`}
+                        onLoad={() => setArtworkLoaded(true)}
+                        onError={() => {
+                            setArtwork(undefined)
+                            setArtworkLoaded(false)
+                        }}
+                    />
                 ) : (
                     isActive ? <AudioWaveform size={20} /> : <Music size={20} />
                 )}
@@ -131,7 +230,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
             </button>
 
             <div className={styles.duration}>
-                {track.duration ? formatTime(track.duration) : ''}
+                {resolvedDuration ? formatTime(resolvedDuration) : ''}
             </div>
         </div>
     )
