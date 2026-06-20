@@ -11,6 +11,7 @@ import { DiscordBotManager } from './discordBot'
 import { DiscordRPCManager } from './discordRPC'
 import { searchArtistImage } from './utils/artistSearch'
 import { initSupportDeskDb, listSupportTickets } from './supportDeskDb'
+import { PartyRoomService, type PartyCommand } from './partyRoom'
 
 // Register custom standard protocol for local media playback to bypass CORS restrictions for Web Audio API
 protocol.registerSchemesAsPrivileged([
@@ -142,6 +143,7 @@ let miniWin: BrowserWindow | null = null
 let activeWindowName = "unknown"
 let monitorProcess: any = null
 let discordBot: any = null
+let partyRoomService: PartyRoomService | null = null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -353,10 +355,18 @@ app.whenReady().then(() => {
     console.error('[SupportDesk] Failed to initialize MySQL store:', err)
   })
 
+  partyRoomService = new PartyRoomService((command: PartyCommand) => {
+    if (!win || win.isDestroyed()) return
+    win.webContents.send('party:command', command)
+  })
+
   app.on('will-quit', () => {
     (app as any).isQuitting = true
     if (monitorProcess) {
       try { monitorProcess.kill() } catch (e) {}
+    }
+    if (partyRoomService) {
+      try { partyRoomService.stop() } catch (e) {}
     }
     if (discordBot) {
       try { discordBot.stop() } catch (e) {}
@@ -675,6 +685,30 @@ app.whenReady().then(() => {
         return listSupportTickets()
     })
 
+    ipcMain.handle('party:status', () => {
+        return partyRoomService?.getStatus() ?? {
+            active: false,
+            roomId: null,
+            inviteUrl: null,
+            localUrl: null,
+            publicUrl: null,
+            tunnelStatus: 'idle',
+            cloudflaredAvailable: false,
+            track: null
+        }
+    })
+
+    ipcMain.handle('party:start', async (_event, options?: { autoTunnel?: boolean }) => {
+        if (!partyRoomService) throw new Error('Party service unavailable')
+        return await partyRoomService.start(options)
+    })
+
+    ipcMain.handle('party:stop', async () => {
+        if (!partyRoomService) return false
+        await partyRoomService.stop()
+        return true
+    })
+
     
     let lastIgnoreMouseEvents: boolean | null = null
     ipcMain.on('player:sync', (_, data) => {
@@ -686,6 +720,17 @@ app.whenReady().then(() => {
                 lastIgnoreMouseEvents = shouldIgnore
                 miniWin.setIgnoreMouseEvents(shouldIgnore, { forward: true })
             }
+        }
+        if (partyRoomService) {
+            partyRoomService.updatePlayback({
+                path: data?.path,
+                title: data?.title,
+                artist: data?.artist,
+                artwork: data?.artwork,
+                currentTime: Number(data?.currentTime || 0),
+                duration: Number(data?.duration || 0),
+                isPlaying: !!data?.isPlaying
+            })
         }
     })
 

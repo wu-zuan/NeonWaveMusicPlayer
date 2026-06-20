@@ -70,6 +70,30 @@ function MainApp() {
   }, [togglePlay])
 
   useEffect(() => {
+    if (!(window as any).ipcRenderer?.on) return
+
+    const cleanup = (window as any).ipcRenderer.on('party:command', (_event: any, command: any) => {
+      if (!command || !command.action) return
+
+      if (command.action === 'toggle-play') {
+        togglePlay()
+      } else if (command.action === 'next') {
+        handleNext()
+      } else if (command.action === 'prev') {
+        handlePrev()
+      } else if (command.action === 'seek') {
+        const nextTime = Number(command.value)
+        if (!Number.isNaN(nextTime)) seek(nextTime)
+      } else if (command.action === 'volume') {
+        const nextVolume = Number(command.value)
+        if (!Number.isNaN(nextVolume)) setVolume(nextVolume)
+      }
+    })
+
+    return () => { if (cleanup) cleanup() }
+  }, [togglePlay, handleNext, handlePrev, seek, setVolume])
+
+  useEffect(() => {
     if (contextMode === 'work') {
       setFocusMode(true)
     } else if (contextMode === 'normal') {

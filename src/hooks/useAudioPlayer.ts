@@ -407,8 +407,10 @@ export function useAudioPlayer(contextMode?: string) {
             const isGameModeActive = (gameModeSetting === 'always') || (gameModeSetting === 'auto' && contextMode === 'game');
 
             window.ipcRenderer.send('player:sync', {
+                path: currentTrack ? currentTrack.path : '',
                 title: currentTrack ? currentTrack.title : '',
                 artist: currentTrack ? currentTrack.artist : '',
+                album: currentTrack ? currentTrack.album : undefined,
                 artwork: currentTrack ? currentTrack.artwork : undefined,
                 currentTime: syncCurrentTimeRef.current,
                 duration: syncDurationRef.current,

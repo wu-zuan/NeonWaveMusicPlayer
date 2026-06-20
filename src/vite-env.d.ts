@@ -20,6 +20,28 @@ interface Window {
         getArtistImage(name: string): Promise<string | null>
         getLyrics(title: string, artist: string, filePath?: string, duration?: number, aiConfig?: any): Promise<string | null>
         getSupportTickets(): Promise<any[]>
+        invoke(channel: 'party:status'): Promise<{
+            active: boolean
+            roomId: string | null
+            inviteUrl: string | null
+            localUrl: string | null
+            publicUrl: string | null
+            tunnelStatus: 'idle' | 'starting' | 'connected' | 'error'
+            tunnelMessage?: string
+            cloudflaredAvailable: boolean
+            track: {
+                title: string
+                artist: string
+                album?: string
+                artwork?: string
+                currentTime: number
+                duration: number
+                isPlaying: boolean
+                streamable: boolean
+            } | null
+        }>
+        invoke(channel: 'party:start', options?: { autoTunnel?: boolean }): Promise<any>
+        invoke(channel: 'party:stop'): Promise<boolean>
         onDownloadProgress(callback: (data: { url: string, speed: string, percent?: number }) => void): void
         offDownloadProgress(): void
 

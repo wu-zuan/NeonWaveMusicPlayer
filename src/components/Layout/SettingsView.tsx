@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, Download, CheckCircle, AlertCircle, Globe } from 'lucide-react'
+import { ListeningPartyPanel } from '../Party/ListeningPartyPanel'
 
 const ScanProgress = () => {
     const [scanData, setScanData] = useState<{ current: number, total: number, success: number } | null>(null);
@@ -214,6 +215,10 @@ export function SettingsView() {
     return (
         <div style={{ padding: '40px', maxWidth: '800px' }}>
             <h2 style={{ fontSize: '28px', marginBottom: '32px', fontWeight: 700 }}>設定</h2>
+
+            <div style={{ marginBottom: '24px' }}>
+                <ListeningPartyPanel />
+            </div>
 
             <div className="glass" style={{ padding: '32px', borderRadius: '24px' }}>
                 <h3 style={{ fontSize: '20px', marginBottom: '24px' }}>關於 NeonWave</h3>
