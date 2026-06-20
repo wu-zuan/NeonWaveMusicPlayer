@@ -118,14 +118,12 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
         return track.artwork || getCachedArtwork(track.path) || artworkResultCache.get(track.path)?.artwork
     })
     const [resolvedDuration, setResolvedDuration] = React.useState<number | undefined>(() => track.duration)
-    const [artworkLoaded, setArtworkLoaded] = React.useState(false)
     const itemRef = React.useRef<HTMLDivElement>(null)
 
     // Sync artwork from props (e.g. when currentTrack provides it)
     React.useEffect(() => {
         if (track.artwork) {
             setArtwork(track.artwork)
-            setArtworkLoaded(false)
             setCachedArtwork(track.path, track.artwork)
             setCachedArtworkResult(track.path, { artwork: track.artwork, duration: track.duration })
         }
@@ -141,7 +139,6 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
 
         if (cached.artwork && cached.artwork !== artwork) {
             setArtwork(cached.artwork)
-            setArtworkLoaded(false)
         }
 
         if (cached.duration && !resolvedDuration) {
@@ -164,7 +161,6 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
                             if (cancelled) return
                             if (result.artwork) {
                                 setArtwork(result.artwork)
-                                setArtworkLoaded(false)
                             }
                             if (result.duration && !resolvedDuration) {
                                 setResolvedDuration(result.duration)
@@ -203,11 +199,9 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
                         loading="lazy"
                         decoding="async"
                         draggable={false}
-                        className={`${styles.artwork} ${artworkLoaded ? styles.artworkLoaded : styles.artworkPending}`}
-                        onLoad={() => setArtworkLoaded(true)}
+                        className={styles.artwork}
                         onError={() => {
                             setArtwork(undefined)
-                            setArtworkLoaded(false)
                         }}
                     />
                 ) : (
