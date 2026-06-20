@@ -424,9 +424,19 @@ export function useAudioPlayer(contextMode?: string) {
         const handleSettingsChange = () => sync();
         window.addEventListener('neonwave:settings-changed', handleSettingsChange);
 
-        const interval = setInterval(sync, 1000);
+        let stopped = false
+        let timer: ReturnType<typeof setTimeout> | null = null
+
+        const loop = () => {
+            if (stopped) return
+            sync()
+            timer = setTimeout(loop, syncIsPlayingRef.current ? 250 : 1000)
+        }
+
+        loop()
         return () => {
-            clearInterval(interval);
+            stopped = true
+            if (timer) clearTimeout(timer)
             window.removeEventListener('neonwave:settings-changed', handleSettingsChange);
         };
     }, [currentTrack, contextMode]);

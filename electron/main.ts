@@ -684,7 +684,11 @@ app.whenReady().then(() => {
             localUrl: null,
             publicUrl: null,
             tunnelStatus: 'idle',
+            tunnelMessage: undefined,
             cloudflaredAvailable: false,
+            cloudflaredState: 'idle',
+            cloudflaredMessage: undefined,
+            cloudflaredProgress: undefined,
             track: null
         }
     })

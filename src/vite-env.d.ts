@@ -28,6 +28,9 @@ interface Window {
             tunnelStatus: 'idle' | 'starting' | 'connected' | 'error'
             tunnelMessage?: string
             cloudflaredAvailable: boolean
+            cloudflaredState: 'idle' | 'downloading' | 'ready' | 'error'
+            cloudflaredMessage?: string
+            cloudflaredProgress?: number
             track: {
                 title: string
                 artist: string

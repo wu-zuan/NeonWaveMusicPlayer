@@ -466,7 +466,7 @@ export class PartyRoomService {
   }
 
   private getInviteUrl() {
-    return this.getPublicUrl() || this.getLocalUrl()
+    return this.getPublicUrl()
   }
 
   private validateContext(roomId: string | undefined, token: string | undefined) {
@@ -812,6 +812,56 @@ export class PartyRoomService {
       font-size: 13px;
     }
     .status strong { color: var(--text); }
+    .status.waiting {
+      justify-content: flex-start;
+      gap: 10px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 rgba(0, 255, 242, 0.45);
+      animation: pulse 1.4s ease-in-out infinite;
+      flex: 0 0 auto;
+    }
+    .status-text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .status-title {
+      color: var(--text);
+      font-weight: 700;
+    }
+    .status-subtitle {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .loading-bar {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255,255,255,.08);
+      position: relative;
+    }
+    .loading-bar::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(0,255,242,.8), transparent);
+      transform: translateX(-100%);
+      animation: sweep 1.2s linear infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(0, 255, 242, 0.45); }
+      50% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 242, 0); }
+    }
+    @keyframes sweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
     .error {
       color: #fda4af;
       font-size: 13px;
@@ -840,18 +890,25 @@ export class PartyRoomService {
         <span class="pill" id="conn">連線中</span>
         <span class="pill" id="room">Room ${escapeHtml(roomId)}</span>
       </div>
+      <div id="linkStatus" class="status waiting">
+        <span class="status-dot"></span>
+        <div class="status-text">
+          <div class="status-title">正在等待 Cloudflare 公開網址</div>
+          <div class="status-subtitle">連線成功後才會顯示分享連結，避免曝光本機位址。</div>
+        </div>
+      </div>
       <div>
         <div class="bar"><div id="progress"></div></div>
         <div class="status">
           <span id="time">0:00 / 0:00</span>
-          <span id="source">${escapeHtml(inviteUrl || '')}</span>
+          <span id="source">${inviteUrl ? escapeHtml(inviteUrl) : '等待 Cloudflare 產生公開連結'}</span>
         </div>
       </div>
       <div class="controls">
         <button id="prevBtn" class="secondary">上一首</button>
         <button id="toggleBtn" class="primary">${isPlaying === 'true' ? '暫停' : '播放'}</button>
         <button id="nextBtn" class="secondary">下一首</button>
-        <button id="copyBtn" class="secondary">複製邀請連結</button>
+        <button id="copyBtn" class="secondary" ${inviteUrl ? '' : 'disabled'}>複製邀請連結</button>
       </div>
       <div class="row">
         <input id="seek" type="range" min="0" max="${duration}" step="0.1" value="${currentTime}" ${streamable === 'true' ? '' : 'disabled'} />
@@ -874,6 +931,7 @@ export class PartyRoomService {
     const progressEl = document.getElementById('progress');
     const timeEl = document.getElementById('time');
     const errorEl = document.getElementById('error');
+    const linkStatusEl = document.getElementById('linkStatus');
     const seekEl = document.getElementById('seek');
     const toggleBtn = document.getElementById('toggleBtn');
     const prevBtn = document.getElementById('prevBtn');
@@ -884,6 +942,7 @@ export class PartyRoomService {
     let state = ${JSON.stringify(baseState)};
     let manualSeek = false;
     let currentStreamPath = '';
+    let pendingAudioTarget = null;
 
     function fmt(t) {
       if (!isFinite(t) || t < 0) return '0:00';
@@ -908,7 +967,20 @@ export class PartyRoomService {
         currentStreamPath = next;
         audio.src = next;
         audio.load();
+        pendingAudioTarget = state.track.currentTime || 0;
       }
+    }
+
+    function syncAudioPosition(force = false) {
+      if (!state.track?.streamable || !Number.isFinite(state.track.currentTime)) return;
+      const target = Math.max(0, state.track.currentTime || 0);
+      const actual = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      if (force || Math.abs(actual - target) > 0.6) {
+        try {
+          audio.currentTime = target;
+        } catch {}
+      }
+      pendingAudioTarget = target;
     }
 
     async function sendCommand(action, value) {
@@ -935,6 +1007,21 @@ export class PartyRoomService {
       if (connEl) {
         connEl.textContent = next.active ? (next.publicUrl ? 'Cloudflare Tunnel 已連線' : '本機房間已啟動') : '尚未開啟房間';
       }
+      if (linkStatusEl) {
+        if (next.publicUrl) {
+          linkStatusEl.className = 'status';
+          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">分享連結已就緒</div><div class="status-subtitle">現在可以把公開網址分享給朋友。</div></div>';
+        } else if (next.tunnelStatus === 'starting' || next.cloudflaredState === 'downloading') {
+          linkStatusEl.className = 'status waiting';
+          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">正在建立 Cloudflare Tunnel</div><div class="status-subtitle">請稍候，正在背景準備公開連結。</div></div>';
+        } else if (next.active) {
+          linkStatusEl.className = 'status waiting';
+          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">等待 Cloudflare 產生公開連結</div><div class="status-subtitle">房間已啟動，但還沒拿到可對外分享的網址。</div></div>';
+        } else {
+          linkStatusEl.className = 'status waiting';
+          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">尚未建立分享房間</div><div class="status-subtitle">按下建立房間後，會自動下載依賴並開啟 Tunnel。</div></div>';
+        }
+      }
       if (roomEl) roomEl.textContent = 'Room ' + (next.roomId || '-');
 
       const duration = next.track?.duration || 0;
@@ -945,7 +1032,7 @@ export class PartyRoomService {
       if (!manualSeek) seekEl.value = String(currentTime || 0);
       timeEl.textContent = fmt(currentTime) + ' / ' + fmt(duration);
       toggleBtn.textContent = next.track?.isPlaying ? '暫停' : '播放';
-      sourceEl.textContent = next.publicUrl || next.localUrl || '';
+      sourceEl.textContent = next.publicUrl || '等待 Cloudflare 產生公開連結';
 
       setAudioSrc();
       if (!next.track?.streamable) {
@@ -954,11 +1041,13 @@ export class PartyRoomService {
         setError('');
       }
       if (next.track?.isPlaying && !audio.paused) {
-        // keep playing
+        syncAudioPosition()
       } else if (next.track?.isPlaying) {
+        syncAudioPosition(true)
         audio.play().catch(() => {});
       } else if (!next.track?.isPlaying && !audio.paused) {
         audio.pause();
+        syncAudioPosition(true)
       }
     }
 
@@ -975,7 +1064,11 @@ export class PartyRoomService {
     });
     copyBtn.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(state.publicUrl || state.localUrl || '');
+        if (!state.publicUrl) {
+          setError('請等 Cloudflare 公開網址建立完成後再複製。');
+          return;
+        }
+        await navigator.clipboard.writeText(state.publicUrl);
         copyBtn.textContent = '已複製';
         setTimeout(() => copyBtn.textContent = '複製邀請連結', 1200);
       } catch (err) {
@@ -997,9 +1090,19 @@ export class PartyRoomService {
 
     audio.addEventListener('timeupdate', () => {
       if (!state.track?.isPlaying) return;
-      if (Math.abs(audio.currentTime - (state.track?.currentTime || 0)) > 2) {
-        // host state will resync shortly
+      const target = pendingAudioTarget ?? state.track?.currentTime ?? 0;
+      if (Math.abs(audio.currentTime - target) > 0.6) {
+        syncAudioPosition(true);
       }
+    });
+    audio.addEventListener('loadedmetadata', () => {
+      syncAudioPosition(true);
+    });
+    audio.addEventListener('playing', () => {
+      syncAudioPosition(true);
+    });
+    audio.addEventListener('seeked', () => {
+      syncAudioPosition(false);
     });
     audio.addEventListener('error', () => {
       if (audio.error) setError('串流載入失敗，請確認主機仍在播放可串流的本機檔案。');

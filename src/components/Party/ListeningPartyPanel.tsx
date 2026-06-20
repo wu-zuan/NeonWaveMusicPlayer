@@ -85,9 +85,9 @@ export function ListeningPartyPanel() {
     }
 
     const copyInvite = async () => {
-        const text = status.publicUrl || status.localUrl || ''
+        const text = status.publicUrl || ''
         if (!text) {
-            setMessage('尚未建立邀請連結')
+            setMessage('請等 Cloudflare 公開網址建立完成後再複製')
             return
         }
         await navigator.clipboard.writeText(text)
@@ -98,6 +98,22 @@ export function ListeningPartyPanel() {
     const currentLabel = status.active
         ? (status.publicUrl ? 'Cloudflare Tunnel 已連線' : '本機房間已啟動')
         : '尚未建立聆聽房間'
+
+    const linkLabel = status.publicUrl
+        ? '分享連結已就緒'
+        : status.tunnelStatus === 'starting' || status.cloudflaredState === 'downloading'
+            ? '正在建立 Cloudflare Tunnel'
+            : status.active
+                ? '等待 Cloudflare 產生公開連結'
+                : '尚未建立分享房間'
+
+    const linkDescription = status.publicUrl
+        ? '現在可以把公開網址分享給朋友。'
+        : status.tunnelStatus === 'starting' || status.cloudflaredState === 'downloading'
+            ? '請稍候，正在背景準備公開連結。'
+            : status.active
+                ? '房間已啟動，但還沒拿到可對外分享的網址。'
+                : '按下建立房間後，會自動下載依賴並開啟 Tunnel。'
 
     const cloudflaredLabel = status.cloudflaredState === 'downloading'
         ? '背景下載中'
@@ -147,12 +163,25 @@ export function ListeningPartyPanel() {
                     </span>
                 </div>
 
-                {status.publicUrl || status.localUrl ? (
-                    <div className={styles.linkBox}>
-                        <div className={styles.linkLabel}>分享連結</div>
-                        <div className={styles.linkValue}>{status.publicUrl || status.localUrl}</div>
-                    </div>
-                ) : null}
+                <div className={styles.linkBox}>
+                    <div className={styles.linkLabel}>分享連結</div>
+                    {status.publicUrl ? (
+                        <div className={styles.linkValue}>{status.publicUrl}</div>
+                    ) : (
+                        <div className={styles.linkPlaceholder}>
+                            <span className={styles.statusDot} />
+                            <div>
+                                <div className={styles.linkHeadline}>{linkLabel}</div>
+                                <div className={styles.linkSubtext}>{linkDescription}</div>
+                            </div>
+                        </div>
+                    )}
+                    {!status.publicUrl ? (
+                        <div className={styles.linkLoading}>
+                            <div className={styles.loadingBar} />
+                        </div>
+                    ) : null}
+                </div>
 
                 {status.cloudflaredState === 'downloading' && typeof status.cloudflaredProgress === 'number' ? (
                     <div className={styles.progressBox}>
@@ -183,7 +212,7 @@ export function ListeningPartyPanel() {
                     </button>
                 )}
 
-                <button className={styles.secondaryBtn} onClick={copyInvite} disabled={!status.active}>
+                <button className={styles.secondaryBtn} onClick={copyInvite} disabled={!status.publicUrl}>
                     <Link2 size={16} />
                     複製邀請連結
                 </button>
