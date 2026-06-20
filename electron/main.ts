@@ -645,7 +645,11 @@ app.whenReady().then(() => {
             if (win && !win.isDestroyed()) win.destroy()
             if (miniWin && !miniWin.isDestroyed()) miniWin.destroy()
         } catch (e) {}
-        autoUpdater.quitAndInstall(true, true)
+        
+        // Give a short delay for windows to close and file handles to be released
+        setTimeout(() => {
+            autoUpdater.quitAndInstall(false, true)
+        }, 500)
     })
 
     ipcMain.handle('window:togglePlay', () => {
