@@ -39,6 +39,7 @@ export type PartyStatus = {
   cloudflaredMessage?: string
   cloudflaredProgress?: number
   track: {
+    path?: string
     title: string
     artist: string
     album?: string
@@ -47,6 +48,7 @@ export type PartyStatus = {
     duration: number
     isPlaying: boolean
     streamable: boolean
+    isVideo?: boolean
   } | null
 }
 
@@ -120,9 +122,13 @@ export class PartyRoomService {
   }
 
   updatePlayback(snapshot: Partial<PlaybackSnapshot>) {
+    const cleanSnapshot = { ...snapshot }
+    if (cleanSnapshot.artwork === undefined) {
+      delete cleanSnapshot.artwork
+    }
     this.playback = {
       ...this.playback,
-      ...snapshot,
+      ...cleanSnapshot,
       updatedAt: Date.now()
     }
     this.broadcastState()
@@ -161,6 +167,7 @@ export class PartyRoomService {
   getStatus(): PartyStatus {
     const liveCurrentTime = this.getLiveCurrentTime()
     const streamable = !!this.playback.path && !this.playback.path.startsWith('shared:')
+    const isVideo = !!this.playback.path && /\.(mp4|mov|wmv|avi|webm)$/i.test(this.playback.path)
     return {
       active: !!this.server && !!this.roomId && !!this.roomToken,
       roomId: this.roomId,
@@ -175,6 +182,7 @@ export class PartyRoomService {
       cloudflaredProgress: this.cloudflaredProgress,
       track: this.roomId
         ? {
+            path: this.playback.path,
             title: this.playback.title || '',
             artist: this.playback.artist || '',
             album: this.playback.album,
@@ -182,7 +190,8 @@ export class PartyRoomService {
             currentTime: liveCurrentTime,
             duration: this.playback.duration || 0,
             isPlaying: this.playback.isPlaying,
-            streamable
+            streamable,
+            isVideo
           }
         : null
     }
@@ -704,10 +713,13 @@ export class PartyRoomService {
     }
     .art {
       aspect-ratio: 1;
-      background: rgba(255,255,255,.05);
+      background: #000;
       border-right: 1px solid var(--line);
-      display: grid;
-      place-items: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
     }
     .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .fallback {
@@ -862,6 +874,14 @@ export class PartyRoomService {
       0% { transform: translateX(-100%); }
       100% { transform: translateX(100%); }
     }
+    .wrap.has-video {
+      grid-template-columns: 1fr;
+    }
+    .wrap.has-video .art {
+      aspect-ratio: 16 / 9;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
     .error {
       color: #fda4af;
       font-size: 13px;
@@ -877,7 +897,9 @@ export class PartyRoomService {
 <body>
   <div class="wrap">
     <div class="art">
-      ${artwork ? `<img id="artwork" src="${artwork}" alt="artwork" />` : `<div class="fallback">NeonWave</div>`}
+      <img id="artwork" src="${artwork || ''}" style="${artwork ? '' : 'display:none;'} max-width: 100%; max-height: 100%; object-fit: cover;" alt="artwork" />
+      <div id="fallback" class="fallback" style="${artwork ? 'display:none;' : ''}">NeonWave</div>
+      <video id="player" preload="metadata" playsinline webkit-playsinline style="width: 100%; height: 100%; object-fit: contain; display: none; position: absolute; inset: 0; z-index: 5;" ${streamable === 'true' ? '' : 'hidden'}></video>
     </div>
     <div class="main">
       <div>
@@ -911,18 +933,26 @@ export class PartyRoomService {
         <button id="copyBtn" class="secondary" ${inviteUrl ? '' : 'disabled'}>複製邀請連結</button>
       </div>
       <div class="row">
+        <span style="font-size: 13px; color: var(--muted); min-width: 36px;">進度</span>
         <input id="seek" type="range" min="0" max="${duration}" step="0.1" value="${currentTime}" ${streamable === 'true' ? '' : 'disabled'} />
         <button id="syncBtn" class="secondary">同步</button>
       </div>
+      <div class="row" style="margin-top: 10px; display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 13px; color: var(--muted); min-width: 36px;">音量</span>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="1" style="max-width: 150px; flex: initial;" />
+        <span id="volumeVal" style="font-size: 12px; color: var(--muted); min-width: 36px; text-align: left;">100%</span>
+      </div>
       <div class="error" id="error"></div>
-      <audio id="audio" preload="metadata" ${streamable === 'true' ? '' : 'hidden'}></audio>
     </div>
   </div>
   <script>
     const roomId = ${JSON.stringify(roomId)};
     const token = ${JSON.stringify(token)};
     const apiBase = '';
-    const audio = document.getElementById('audio');
+    const wrapEl = document.querySelector('.wrap');
+    const audio = document.getElementById('player');
+    const artworkEl = document.getElementById('artwork');
+    const fallbackEl = document.getElementById('fallback');
     const titleEl = document.getElementById('title');
     const artistEl = document.getElementById('artist');
     const albumEl = document.getElementById('album');
@@ -939,10 +969,32 @@ export class PartyRoomService {
     const copyBtn = document.getElementById('copyBtn');
     const syncBtn = document.getElementById('syncBtn');
     const sourceEl = document.getElementById('source');
+    const volumeEl = document.getElementById('volume');
+    const volumeValEl = document.getElementById('volumeVal');
     let state = ${JSON.stringify(baseState)};
     let manualSeek = false;
     let currentStreamPath = '';
     let pendingAudioTarget = null;
+    let lastHostTime = 0;
+    let lastHostTimeReceivedAt = 0;
+
+    // Initial volume load
+    const savedVolume = localStorage.getItem('party_volume');
+    if (savedVolume !== null) {
+      const val = Number(savedVolume);
+      audio.volume = val;
+      if (volumeEl) volumeEl.value = String(val);
+      if (volumeValEl) volumeValEl.textContent = Math.round(val * 100) + '%';
+    }
+
+    if (volumeEl) {
+      volumeEl.addEventListener('input', () => {
+        const val = Number(volumeEl.value);
+        audio.volume = val;
+        if (volumeValEl) volumeValEl.textContent = Math.round(val * 100) + '%';
+        localStorage.setItem('party_volume', String(val));
+      });
+    }
 
     function fmt(t) {
       if (!isFinite(t) || t < 0) return '0:00';
@@ -955,19 +1007,32 @@ export class PartyRoomService {
       errorEl.textContent = msg || '';
     }
 
-    function setAudioSrc() {
+    function setAudioSrc(forceReload = false) {
       if (!state.track || !state.track.streamable) {
         audio.removeAttribute('src');
         audio.load();
         currentStreamPath = '';
+        audio.style.display = 'none';
+        if (artworkEl) artworkEl.style.display = state.track?.artwork ? '' : 'none';
+        if (fallbackEl) fallbackEl.style.display = state.track?.artwork ? 'none' : '';
         return;
       }
-      const next = '/api/room/' + roomId + '/stream?token=' + encodeURIComponent(token);
-      if (currentStreamPath !== next) {
+      const buster = state.track.path ? encodeURIComponent(state.track.path) : Date.now();
+      const next = '/api/room/' + roomId + '/stream?token=' + encodeURIComponent(token) + '&_cb=' + buster;
+      if (currentStreamPath !== next || forceReload) {
         currentStreamPath = next;
         audio.src = next;
         audio.load();
         pendingAudioTarget = state.track.currentTime || 0;
+      }
+      if (state.track.isVideo) {
+        audio.style.display = 'block';
+        if (artworkEl) artworkEl.style.display = 'none';
+        if (fallbackEl) fallbackEl.style.display = 'none';
+      } else {
+        audio.style.display = 'none';
+        if (artworkEl) artworkEl.style.display = state.track.artwork ? '' : 'none';
+        if (fallbackEl) fallbackEl.style.display = state.track.artwork ? 'none' : '';
       }
     }
 
@@ -975,7 +1040,7 @@ export class PartyRoomService {
       if (!state.track?.streamable || !Number.isFinite(state.track.currentTime)) return;
       const target = Math.max(0, state.track.currentTime || 0);
       const actual = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-      if (force || Math.abs(actual - target) > 0.6) {
+      if (force || Math.abs(actual - target) > 3.0) {
         try {
           audio.currentTime = target;
         } catch {}
@@ -997,7 +1062,34 @@ export class PartyRoomService {
     }
 
     function render(next) {
+      const oldTrackPath = (state && state.track) ? state.track.path || '' : '';
+      const newTrackPath = (next && next.track) ? next.track.path || '' : '';
+      const trackChanged = oldTrackPath !== newTrackPath;
+
+      const hostTime = (next && next.track) ? next.track.currentTime || 0 : 0;
+      const hostIsPlaying = !!(next && next.track && next.track.isPlaying);
+      const now = Date.now();
+      
+      let hostDidSeek = false;
+      if (lastHostTimeReceivedAt > 0 && !trackChanged) {
+        const elapsed = (now - lastHostTimeReceivedAt) / 1000;
+        const expectedHostTime = lastHostTime + (hostIsPlaying ? elapsed : 0);
+        if (Math.abs(hostTime - expectedHostTime) > 2.5) {
+          hostDidSeek = true;
+        }
+      }
+      
+      lastHostTime = hostTime;
+      lastHostTimeReceivedAt = now;
+
       state = next;
+      if (wrapEl) {
+        if (next.track?.isVideo) {
+          wrapEl.classList.add('has-video');
+        } else {
+          wrapEl.classList.remove('has-video');
+        }
+      }
       if (titleEl) titleEl.textContent = next.track?.title || '等待主機開始播放';
       if (artistEl) artistEl.textContent = next.track?.artist || '目前尚未同步歌曲';
       if (albumEl) {
@@ -1027,27 +1119,45 @@ export class PartyRoomService {
       const duration = next.track?.duration || 0;
       const currentTime = next.track?.currentTime || 0;
       const pct = duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
-      progressEl.style.width = pct + '%';
-      seekEl.max = String(duration || 0);
-      if (!manualSeek) seekEl.value = String(currentTime || 0);
-      timeEl.textContent = fmt(currentTime) + ' / ' + fmt(duration);
+      
+      const isLocallyPlaying = audio && !audio.paused && !audio.ended;
+      if (!isLocallyPlaying) {
+        progressEl.style.width = pct + '%';
+        seekEl.max = String(duration || 0);
+        if (!manualSeek) seekEl.value = String(currentTime || 0);
+        timeEl.textContent = fmt(currentTime) + ' / ' + fmt(duration);
+      }
+
+      if (artworkEl) {
+        if (next.track?.artwork) {
+          artworkEl.src = next.track.artwork;
+          artworkEl.style.display = next.track.isVideo ? 'none' : '';
+          if (fallbackEl) fallbackEl.style.display = 'none';
+        } else {
+          artworkEl.src = '';
+          artworkEl.style.display = 'none';
+          if (fallbackEl) fallbackEl.style.display = next.track?.isVideo ? 'none' : '';
+        }
+      }
       toggleBtn.textContent = next.track?.isPlaying ? '暫停' : '播放';
       sourceEl.textContent = next.publicUrl || '等待 Cloudflare 產生公開連結';
 
-      setAudioSrc();
+      setAudioSrc(trackChanged);
       if (!next.track?.streamable) {
         setError('目前播放的歌曲無法從主機直接串流。若是串流來源，請先改播本機檔案。');
       } else {
         setError('');
       }
       if (next.track?.isPlaying && !audio.paused) {
-        syncAudioPosition()
+        if (hostDidSeek || trackChanged) {
+          syncAudioPosition(true);
+        }
       } else if (next.track?.isPlaying) {
-        syncAudioPosition(true)
+        syncAudioPosition(true);
         audio.play().catch(() => {});
       } else if (!next.track?.isPlaying && !audio.paused) {
         audio.pause();
-        syncAudioPosition(true)
+        syncAudioPosition(true);
       }
     }
 
@@ -1057,7 +1167,11 @@ export class PartyRoomService {
     syncBtn.addEventListener('click', async () => {
       try {
         const res = await fetch(apiBase + '/api/room/' + roomId + '?token=' + encodeURIComponent(token));
-        if (res.ok) render(await res.json());
+        if (res.ok) {
+          const nextState = await res.json();
+          render(nextState);
+          syncAudioPosition(true);
+        }
       } catch (err) {
         setError(err.message || '同步失敗');
       }
@@ -1089,20 +1203,17 @@ export class PartyRoomService {
     });
 
     audio.addEventListener('timeupdate', () => {
-      if (!state.track?.isPlaying) return;
-      const target = pendingAudioTarget ?? state.track?.currentTime ?? 0;
-      if (Math.abs(audio.currentTime - target) > 0.6) {
-        syncAudioPosition(true);
-      }
+      if (manualSeek) return;
+      const duration = audio.duration || state.track?.duration || 0;
+      const currentTime = audio.currentTime || 0;
+      const pct = duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
+      progressEl.style.width = pct + '%';
+      seekEl.max = String(duration || 0);
+      seekEl.value = String(currentTime || 0);
+      timeEl.textContent = fmt(currentTime) + ' / ' + fmt(duration);
     });
     audio.addEventListener('loadedmetadata', () => {
       syncAudioPosition(true);
-    });
-    audio.addEventListener('playing', () => {
-      syncAudioPosition(true);
-    });
-    audio.addEventListener('seeked', () => {
-      syncAudioPosition(false);
     });
     audio.addEventListener('error', () => {
       if (audio.error) setError('串流載入失敗，請確認主機仍在播放可串流的本機檔案。');

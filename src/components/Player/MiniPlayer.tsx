@@ -16,7 +16,11 @@ export function MiniPlayer() {
 
     useEffect(() => {
         const cleanup = (window as any).ipcRenderer.on('player:sync', (_: any, data: TrackInfo) => {
-            setTrack(data)
+            setTrack(prev => ({
+                ...prev,
+                ...data,
+                artwork: data.artwork !== undefined ? data.artwork : prev?.artwork
+            }))
         })
         return () => {
             if (clickTimeoutRef.current) {

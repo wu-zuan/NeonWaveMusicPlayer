@@ -402,21 +402,33 @@ export function useAudioPlayer(contextMode?: string) {
     syncIsPlayingRef.current = isPlaying
 
     useEffect(() => {
+        let lastSyncedPath = ''
+        let lastSyncedArtwork = ''
+
         const sync = () => {
             const gameModeSetting = localStorage.getItem('neonwave_mini_game_mode') || 'auto';
             const isGameModeActive = (gameModeSetting === 'always') || (gameModeSetting === 'auto' && contextMode === 'game');
 
+            const currentPath = currentTrack ? currentTrack.path : '';
+            const currentArtwork = currentTrack ? currentTrack.artwork || '' : '';
+            const shouldSendArtwork = (currentPath !== lastSyncedPath) || (currentArtwork !== lastSyncedArtwork);
+
             window.ipcRenderer.send('player:sync', {
-                path: currentTrack ? currentTrack.path : '',
+                path: currentPath,
                 title: currentTrack ? currentTrack.title : '',
                 artist: currentTrack ? currentTrack.artist : '',
                 album: currentTrack ? currentTrack.album : undefined,
-                artwork: currentTrack ? currentTrack.artwork : undefined,
+                artwork: shouldSendArtwork ? (currentTrack ? currentTrack.artwork : undefined) : undefined,
                 currentTime: syncCurrentTimeRef.current,
                 duration: syncDurationRef.current,
                 isPlaying: syncIsPlayingRef.current,
                 isGameModeActive
             });
+
+            if (shouldSendArtwork) {
+                lastSyncedPath = currentPath;
+                lastSyncedArtwork = currentArtwork;
+            }
         };
 
         sync(); 

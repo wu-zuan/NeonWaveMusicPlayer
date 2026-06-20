@@ -293,32 +293,19 @@ const LyricsOverlayView: React.FC<LyricsOverlayProps> = ({
                                 const sampleRate = audioBuf.sampleRate
 
                                 const threshold = Math.pow(10, -30 / 20)
-                                const windowSize = Math.floor(sampleRate * 0.05)
-                                
                                 let localStart = 0
-                                let consecutiveWindowsAboveThreshold = 0
-                                let firstQualifyingWindowStart = 0
-                                const requiredConsecutiveWindows = 3
+                                let consecutiveAbove = 0
+                                const requiredConsecutive = Math.floor(sampleRate * 0.02) // 20ms of continuous sound
                                 
-                                const stride = Math.max(1, Math.floor(sampleRate * 0.01))
-                                for (let i = 0; i < channelData.length - windowSize; i += stride) {
-                                    let sum = 0
-                                    for (let j = 0; j < windowSize; j++) {
-                                        sum += channelData[i + j] * channelData[i + j]
-                                    }
-                                    const rms = Math.sqrt(sum / windowSize)
-                                    
-                                    if (rms > threshold) {
-                                        if (consecutiveWindowsAboveThreshold === 0) {
-                                            firstQualifyingWindowStart = i
-                                        }
-                                        consecutiveWindowsAboveThreshold++
-                                        if (consecutiveWindowsAboveThreshold >= requiredConsecutiveWindows) {
-                                            localStart = firstQualifyingWindowStart / sampleRate
+                                for (let i = 0; i < channelData.length; i++) {
+                                    if (Math.abs(channelData[i]) > threshold) {
+                                        consecutiveAbove++
+                                        if (consecutiveAbove >= requiredConsecutive) {
+                                            localStart = (i - consecutiveAbove) / sampleRate
                                             break
                                         }
                                     } else {
-                                        consecutiveWindowsAboveThreshold = 0
+                                        consecutiveAbove = 0
                                     }
                                 }
 

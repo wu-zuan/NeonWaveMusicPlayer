@@ -365,8 +365,8 @@ export class AudioEngine {
             const z = Math.cos(this.rotationAngle) * radius * 0.5 
 
             
-            this.panner.positionX.setTargetAtTime(x, this.context.currentTime, 0.05)
-            this.panner.positionZ.setTargetAtTime(z, this.context.currentTime, 0.05)
+            this.panner.positionX.value = x
+            this.panner.positionZ.value = z
         }
         this.intervalId = window.setInterval(loop, 16)
     }
