@@ -1,5 +1,5 @@
 import React from 'react'
-import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2, RefreshCw, Radio, Share2, Upload, Inbox } from 'lucide-react'
+import { FolderOpen, Search, Settings, Music, Heart, ListMusic, Trash2, Edit2, RefreshCw, Radio, Share2, Upload } from 'lucide-react'
 import styles from './Sidebar.module.css'
 import { Playlist } from '../../hooks/useLibrary'
 
@@ -180,14 +180,6 @@ const SidebarView: React.FC<SidebarProps> = ({
                 { }
                 <div className={styles.bottomSection}>
                     <div className={styles.sectionTitle}>應用程式</div>
-
-                    <button
-                        className={`${styles.navItem} ${currentView === 'support' ? styles.active : ''}`}
-                        onClick={() => onChangeView('support')}
-                    >
-                        <Inbox size={20} />
-                        <span>客服看板</span>
-                    </button>
 
                     <button
                         className={`${styles.navItem} ${currentView === 'search' ? styles.active : ''}`}

@@ -10,7 +10,6 @@ import * as mm from 'music-metadata'
 import { DiscordBotManager } from './discordBot'
 import { DiscordRPCManager } from './discordRPC'
 import { searchArtistImage } from './utils/artistSearch'
-import { initSupportDeskDb, listSupportTickets } from './supportDeskDb'
 import { PartyRoomService, type PartyCommand } from './partyRoom'
 
 // Register custom standard protocol for local media playback to bypass CORS restrictions for Web Audio API
@@ -351,10 +350,6 @@ app.whenReady().then(() => {
 
   startActiveWindowMonitor()
 
-  void initSupportDeskDb().catch((err) => {
-    console.error('[SupportDesk] Failed to initialize MySQL store:', err)
-  })
-
   partyRoomService = new PartyRoomService((command: PartyCommand) => {
     if (!win || win.isDestroyed()) return
     win.webContents.send('party:command', command)
@@ -679,10 +674,6 @@ app.whenReady().then(() => {
         } catch (e) {
             return '6.1.3'
         }
-    })
-
-    ipcMain.handle('support:tickets:list', async () => {
-        return listSupportTickets()
     })
 
     ipcMain.handle('party:status', () => {

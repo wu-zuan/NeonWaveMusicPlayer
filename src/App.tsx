@@ -5,7 +5,6 @@ import { TrackList } from './components/Playlist/TrackList'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { SettingsView } from './components/Layout/SettingsView'
 import { SearchView } from './components/Search/SearchView'
-import { SupportDeskView } from './components/SupportDesk/SupportDeskView'
 import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { useLibrary } from './hooks/useLibrary'
 import { useAppDetection } from './hooks/useAppDetection'
@@ -261,9 +260,6 @@ function MainApp() {
             <DiscordControlPanel />
           )}
 
-          {view === 'support' && (
-            <SupportDeskView />
-          )}
         </div>
 
         <LyricsOverlay
