@@ -4,18 +4,33 @@ import {
     createAudioPlayer,
     createAudioResource,
     StreamType,
-    AudioResource
+    AudioResource,
+    entersState,
+    VoiceConnectionStatus,
+    type DiscordGatewayAdapterCreator,
+    type VoiceConnection,
+    type VoiceConnectionState
 } from '@discordjs/voice';
+import type { RateLimitData } from '@discordjs/rest';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess } from 'node:child_process';
+
+const LOGIN_TIMEOUT_MS = 20_000;
+const LOGIN_COOLDOWN_MS = 15_000;
+const VOICE_JOIN_COOLDOWN_MS = 5_000;
+const RATE_LIMIT_BUFFER_MS = 1_000;
 
 export class DiscordBotManager {
     private client: Client | null = null;
     private player = createAudioPlayer();
     private currentResource: AudioResource | null = null;
-    private currentConnection: any = null;
+    private currentConnection: VoiceConnection | null = null;
     private streamInput: PassThrough | null = null;
     private currentProcess: ChildProcess | null = null;
+    private currentToken: string | null = null;
+    private loginPromise: Promise<{ username: string, avatar: string | null }> | null = null;
+    private nextLoginAllowedAt = 0;
+    private nextVoiceJoinAllowedAt = 0;
     public isConnected = false;
     public currentGuildId: string | null = null;
     public currentChannelId: string | null = null;
@@ -27,39 +42,109 @@ export class DiscordBotManager {
     }
 
     async login(token: string): Promise<{ username: string, avatar: string | null }> {
+        const normalizedToken = token.trim();
+        if (!normalizedToken) throw new Error('Discord bot token is required');
+
+        if (this.client?.user && this.isConnected && this.currentToken === normalizedToken) {
+            return {
+                username: this.client.user.tag,
+                avatar: this.client.user.avatarURL()
+            };
+        }
+
+        if (this.loginPromise) return this.loginPromise;
+
+        const now = Date.now();
+        if (now < this.nextLoginAllowedAt) {
+            const seconds = Math.ceil((this.nextLoginAllowedAt - now) / 1000);
+            throw new Error(`Discord is rate limiting bot login. Please wait ${seconds}s before trying again.`);
+        }
+
+        this.loginPromise = this.performLogin(normalizedToken).finally(() => {
+            this.loginPromise = null;
+        });
+
+        return this.loginPromise;
+    }
+
+    private async performLogin(token: string): Promise<{ username: string, avatar: string | null }> {
         if (this.client) {
             await this.disconnect();
-            await this.client.destroy();
         }
 
         this.client = new Client({
             intents: [
                 GatewayIntentBits.Guilds,
                 GatewayIntentBits.GuildVoiceStates
-            ]
+            ],
+            rest: {
+                globalRequestsPerSecond: 10,
+                offset: 250,
+                retries: 5,
+                timeout: 20_000,
+                invalidRequestWarningInterval: 50
+            }
         });
 
-        return new Promise((resolve, reject) => {
-            if (!this.client) return reject("Client init failed");
+        this.client.rest.on('rateLimited', (info: RateLimitData) => {
+            const retryAfter = Number(info?.retryAfter || info?.timeToReset || 0);
+            if (retryAfter > 0) {
+                const retryAt = Date.now() + retryAfter + RATE_LIMIT_BUFFER_MS;
+                this.nextLoginAllowedAt = Math.max(this.nextLoginAllowedAt, retryAt);
+                this.nextVoiceJoinAllowedAt = Math.max(this.nextVoiceJoinAllowedAt, retryAt);
+            }
+            console.warn('[DiscordBot] REST rate limited:', {
+                route: info?.route,
+                method: info?.method,
+                retryAfter,
+                global: info?.global,
+                scope: info?.scope
+            });
+        });
 
-            const timeout = setTimeout(() => {
-                reject(new Error("Login timed out"));
-            }, 10000);
+        this.client.on('error', (error) => {
+            console.error('[DiscordBot] Client Error:', error.message);
+        });
 
-            this.client.once('ready', async (c) => {
-                clearTimeout(timeout);
-                this.isConnected = true;
-                resolve({
-                    username: c.user.tag,
-                    avatar: c.user.avatarURL()
+        try {
+            const result = await new Promise<{ username: string, avatar: string | null }>((resolve, reject) => {
+                if (!this.client) return reject("Client init failed");
+
+                let settled = false;
+                const finish = (callback: () => void) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeout);
+                    callback();
+                };
+
+                const timeout = setTimeout(() => {
+                    finish(() => reject(new Error("Login timed out")));
+                }, LOGIN_TIMEOUT_MS);
+
+                this.client.once('ready', async (c) => {
+                    finish(() => {
+                        this.isConnected = true;
+                        this.currentToken = token;
+                        this.nextLoginAllowedAt = Date.now() + LOGIN_COOLDOWN_MS;
+                        resolve({
+                            username: c.user.tag,
+                            avatar: c.user.avatarURL()
+                        });
+                    });
+                });
+
+                this.client.login(token).catch((e) => {
+                    finish(() => reject(e));
                 });
             });
 
-            this.client.login(token).catch((e) => {
-                clearTimeout(timeout);
-                reject(e);
-            });
-        });
+            return result;
+        } catch (e: unknown) {
+            this.applyRateLimitBackoff(e);
+            await this.destroyClientOnly();
+            throw e;
+        }
     }
 
     getGuilds() {
@@ -92,6 +177,22 @@ export class DiscordBotManager {
 
     async joinChannel(guildId: string, channelId: string) {
         if (!this.client || !this.isConnected) throw new Error("Bot not connected");
+        if (
+            this.currentConnection &&
+            this.currentGuildId === guildId &&
+            this.currentChannelId === channelId &&
+            this.currentConnection.state.status !== 'destroyed' &&
+            this.currentConnection.state.status !== 'disconnected'
+        ) {
+            return true;
+        }
+
+        const now = Date.now();
+        if (now < this.nextVoiceJoinAllowedAt) {
+            const seconds = Math.ceil((this.nextVoiceJoinAllowedAt - now) / 1000);
+            throw new Error(`Discord voice join is cooling down. Please wait ${seconds}s before trying again.`);
+        }
+
         const guild = this.client.guilds.cache.get(guildId);
         if (!guild) throw new Error("Guild not found");
 
@@ -99,46 +200,63 @@ export class DiscordBotManager {
         if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Invalid channel");
 
         try {
-            this.currentConnection = joinVoiceChannel({
+            if (this.currentConnection) {
+                this.stop();
+                try { this.currentConnection.destroy(); } catch {
+                    // Already disconnected.
+                }
+                this.currentConnection = null;
+            }
+
+            const connection = joinVoiceChannel({
                 channelId: channelId,
                 guildId: guildId,
-                adapterCreator: guild.voiceAdapterCreator as any,
+                adapterCreator: guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
                 selfDeaf: true,
                 selfMute: false
             });
 
+            this.currentConnection = connection;
+            this.nextVoiceJoinAllowedAt = Date.now() + VOICE_JOIN_COOLDOWN_MS;
             
-            this.currentConnection.on('stateChange', async (_: any, newState: any) => {
+            connection.on('stateChange', async (_oldState: VoiceConnectionState, newState: VoiceConnectionState) => {
                 const status = newState.status;
                 if (status === 'disconnected') {
                     try {
                         await Promise.race([
-                            import('@discordjs/voice').then(m => m.entersState(this.currentConnection, m.VoiceConnectionStatus.Signalling, 5000)),
-                            import('@discordjs/voice').then(m => m.entersState(this.currentConnection, m.VoiceConnectionStatus.Connecting, 5000))
+                            entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+                            entersState(connection, VoiceConnectionStatus.Connecting, 5000)
                         ]);
                         
                     } catch (error) {
                         
-                        try { this.currentConnection.destroy(); } catch { }
+                        if (this.currentConnection === connection) {
+                            try { connection.destroy(); } catch {
+                                // Already disconnected.
+                            }
+                            this.currentConnection = null;
+                            this.currentChannelId = null;
+                            this.currentGuildId = null;
+                        }
+                    }
+                } else if (status === 'destroyed') {
+                    if (this.currentConnection === connection) {
                         this.currentConnection = null;
                         this.currentChannelId = null;
                         this.currentGuildId = null;
+                        this.stop();
                     }
-                } else if (status === 'destroyed') {
-                    this.currentConnection = null;
-                    this.currentChannelId = null;
-                    this.currentGuildId = null;
-                    this.stop(); 
                 }
             });
 
-            this.currentConnection.subscribe(this.player);
+            connection.subscribe(this.player);
 
             this.currentGuildId = guildId;
             this.currentChannelId = channelId;
 
             return true;
         } catch (e) {
+            this.applyRateLimitBackoff(e);
             throw e;
         }
     }
@@ -159,9 +277,7 @@ export class DiscordBotManager {
         this.stop();
         await this.leaveChannel();
         if (this.client) {
-            await this.client.destroy();
-            this.client = null;
-            this.isConnected = false;
+            await this.destroyClientOnly();
         }
     }
 
@@ -183,85 +299,116 @@ export class DiscordBotManager {
             try {
                 this.currentProcess.kill();
             } catch (e) {
-                
+                // Process may already have exited.
             }
             this.currentProcess = null;
         }
     }
 
-    async playFile(filePath: string, ffmpegPath?: string) {
+    private async destroyClientOnly() {
+        if (!this.client) return;
+
         try {
-            this.killCurrentProcess(); 
+            await this.client.destroy();
+        } catch (e) {
+            console.warn('[DiscordBot] Client destroy failed:', e);
+        }
 
-            if (!this.currentConnection) {
-                throw new Error('No active voice connection. Please join a channel first.');
-            }
+        this.client = null;
+        this.isConnected = false;
+        this.currentToken = null;
+    }
 
-            const connState = this.currentConnection.state.status;
+    private applyRateLimitBackoff(error: unknown) {
+        const errorLike = error as {
+            retry_after?: number | string;
+            retryAfter?: number | string;
+            status?: number;
+            code?: number;
+            message?: string;
+        };
+        const retryAfterSeconds = Number(errorLike.retry_after ?? errorLike.retryAfter ?? 0);
+        const retryAfterMs = retryAfterSeconds > 0 && retryAfterSeconds < 1000
+            ? retryAfterSeconds * 1000
+            : retryAfterSeconds;
+        const is429 = errorLike.status === 429 || errorLike.code === 429 || String(errorLike.message || '').includes('429');
 
-            if (connState === 'destroyed' || connState === 'disconnected') {
-                throw new Error(`Voice connection is ${connState}. Cannot play audio.`);
-            }
+        if (!is429 && retryAfterMs <= 0) return;
 
-            if (!ffmpegPath) {
-                const resource = createAudioResource(filePath, {
-                    metadata: { title: filePath },
-                    inlineVolume: true
-                });
-                this.currentResource = resource;
-                resource.volume?.setVolume(1.0);
-                this.player.play(resource);
-                return;
-            }
+        const delay = Math.max(retryAfterMs, LOGIN_COOLDOWN_MS) + RATE_LIMIT_BUFFER_MS;
+        const retryAt = Date.now() + delay;
+        this.nextLoginAllowedAt = Math.max(this.nextLoginAllowedAt, retryAt);
+        this.nextVoiceJoinAllowedAt = Math.max(this.nextVoiceJoinAllowedAt, retryAt);
+    }
 
-            const { spawn } = await import('node:child_process');
+    async playFile(filePath: string, ffmpegPath?: string) {
+        this.killCurrentProcess(); 
 
-            const args = [
-                '-i', filePath,
-                '-analyzeduration', '0',
-                '-loglevel', '0',
-                '-f', 's16le',
-                '-ar', '48000',
-                '-ac', '2',
-                'pipe:1'
-            ];
+        if (!this.currentConnection) {
+            throw new Error('No active voice connection. Please join a channel first.');
+        }
 
-            const ffmpegProcess = spawn(ffmpegPath, args);
-            this.currentProcess = ffmpegProcess;
+        const connState = this.currentConnection.state.status;
 
-            let hasStarted = false;
+        if (connState === 'destroyed' || connState === 'disconnected') {
+            throw new Error(`Voice connection is ${connState}. Cannot play audio.`);
+        }
 
-            ffmpegProcess.on('error', (err) => {
-                console.error('[DiscordBot] FFmpeg Spawn Error:', err);
-            });
-
-            ffmpegProcess.on('close', () => {
-                if (this.currentProcess === ffmpegProcess) {
-                    this.currentProcess = null;
-                }
-            });
-
-            ffmpegProcess.stdout?.on('data', () => {
-                if (!hasStarted) {
-                    hasStarted = true;
-                }
-            });
-
-            const resource = createAudioResource(ffmpegProcess.stdout, {
-                inputType: StreamType.Raw,
-                metadata: {
-                    title: filePath
-                },
+        if (!ffmpegPath) {
+            const resource = createAudioResource(filePath, {
+                metadata: { title: filePath },
                 inlineVolume: true
             });
             this.currentResource = resource;
             resource.volume?.setVolume(1.0);
-
             this.player.play(resource);
-
-        } catch (e) {
-            throw e;
+            return;
         }
+
+        const { spawn } = await import('node:child_process');
+
+        const args = [
+            '-i', filePath,
+            '-analyzeduration', '0',
+            '-loglevel', '0',
+            '-f', 's16le',
+            '-ar', '48000',
+            '-ac', '2',
+            'pipe:1'
+        ];
+
+        const ffmpegProcess = spawn(ffmpegPath, args);
+        this.currentProcess = ffmpegProcess;
+
+        let hasStarted = false;
+
+        ffmpegProcess.on('error', (err) => {
+            console.error('[DiscordBot] FFmpeg Spawn Error:', err);
+        });
+
+        ffmpegProcess.on('close', () => {
+            if (this.currentProcess === ffmpegProcess) {
+                this.currentProcess = null;
+            }
+        });
+
+        ffmpegProcess.stdout?.on('data', () => {
+            if (!hasStarted) {
+                hasStarted = true;
+            }
+        });
+
+        const resource = createAudioResource(ffmpegProcess.stdout, {
+            inputType: StreamType.Raw,
+            metadata: {
+                title: filePath
+            },
+            inlineVolume: true
+        });
+        this.currentResource = resource;
+        resource.volume?.setVolume(1.0);
+
+        this.player.play(resource);
     }
 
     pause() {
@@ -275,6 +422,12 @@ export class DiscordBotManager {
     stop() {
         this.player.stop();
         this.killCurrentProcess();
+        if (this.streamInput && !this.streamInput.destroyed) {
+            try { this.streamInput.destroy(); } catch {
+                // Stream is already closing.
+            }
+        }
+        this.streamInput = null;
     }
 
     setVolume(volume: number) {
@@ -291,6 +444,11 @@ export class DiscordBotManager {
         if (!this.currentConnection) throw new Error("Not connected");
 
         this.killCurrentProcess(); 
+        if (this.streamInput && !this.streamInput.destroyed) {
+            try { this.streamInput.destroy(); } catch {
+                // Stream is already closing.
+            }
+        }
 
         this.streamInput = new PassThrough();
 
@@ -353,7 +511,7 @@ export class DiscordBotManager {
             try {
                 this.streamInput.write(buffer);
             } catch (e) {
-                
+                // Stream teardown can race with disconnect.
             }
         }
     }

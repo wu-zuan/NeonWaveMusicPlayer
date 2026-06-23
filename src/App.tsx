@@ -129,7 +129,7 @@ function MainApp() {
                 }
               }
 
-              recorder.start(100)
+              recorder.start(250)
               mediaRecorderRef.current = recorder
             }
 

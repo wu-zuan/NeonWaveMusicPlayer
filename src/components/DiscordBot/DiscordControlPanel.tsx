@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Disc, Server, Volume2, LogOut, Power, Radio, Plus, Trash2, User, ChevronDown, Check } from 'lucide-react'
 import styles from './DiscordControlPanel.module.css'
 import { ConfirmationModal } from '../UI/ConfirmationModal'
@@ -24,11 +24,34 @@ interface SavedBot {
     avatar: string | null
 }
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+    return error instanceof Error ? error.message : fallback
+}
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    reject(new Error(`${label}逾時，請稍後再試。`))
+                }, timeoutMs)
+            })
+        ])
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId)
+    }
+}
+
 export const DiscordControlPanel: React.FC = () => {
     const [token, setToken] = useState('')
     const [step, setStep] = useState(1) 
     const [loading, setLoading] = useState(false)
+    const [loadingText, setLoadingText] = useState('處理中...')
     const [error, setError] = useState<string | null>(null)
+    const operationSeqRef = useRef(0)
+    const activeOperationRef = useRef<number | null>(null)
 
     const [userInfo, setUserInfo] = useState<{ username: string, avatar: string | null } | null>(null)
     const [guilds, setGuilds] = useState<DiscordGuild[]>([])
@@ -61,6 +84,28 @@ export const DiscordControlPanel: React.FC = () => {
 
     
     const [showUserMenu, setShowUserMenu] = useState(false)
+
+    const runOperation = async (label: string, task: () => Promise<void>, fallback: string) => {
+        if (activeOperationRef.current !== null) return
+
+        const operationId = ++operationSeqRef.current
+        activeOperationRef.current = operationId
+        setLoadingText(label)
+        setLoading(true)
+        setError(null)
+
+        try {
+            await task()
+        } catch (e: unknown) {
+            setError(getErrorMessage(e, fallback))
+        } finally {
+            if (activeOperationRef.current === operationId) {
+                activeOperationRef.current = null
+                setLoading(false)
+                setLoadingText('處理中...')
+            }
+        }
+    }
 
     
     useEffect(() => {
@@ -154,23 +199,24 @@ export const DiscordControlPanel: React.FC = () => {
     // -- Actions --
 
     const handleLogin = async (loginToken: string = token) => {
-        if (!loginToken) return
-        setLoading(true)
-        setError(null)
-        try {
-            const data = await window.ipcRenderer.invoke('discord:login', loginToken)
+        if (!loginToken || loading) return
+        await runOperation('正在連線機器人...', async () => {
+            const data = await withTimeout(
+                window.ipcRenderer.invoke('discord:login', loginToken),
+                30000,
+                '連線機器人'
+            )
             setUserInfo({ username: data.username, avatar: data.avatar })
-            const guildList = await window.ipcRenderer.invoke('discord:getGuilds')
+            const guildList = await withTimeout(
+                window.ipcRenderer.invoke('discord:getGuilds'),
+                10000,
+                '讀取伺服器'
+            )
             setGuilds(guildList)
             setStep(2)
 
-            // Save bot to list
             saveBotAccount(loginToken, data.username, data.avatar)
-        } catch (e: any) {
-            setError(e.message || 'Login failed')
-        } finally {
-            setLoading(false)
-        }
+        }, 'Login failed')
     }
 
     const saveBotAccount = (botToken: string, username: string, avatar: string | null) => {
@@ -209,33 +255,29 @@ export const DiscordControlPanel: React.FC = () => {
     }
 
     const handleSelectGuild = async (guild: DiscordGuild) => {
-        setLoading(true)
-        setError(null)
-        try {
-            const channelList = await window.ipcRenderer.invoke('discord:getChannels', guild.id)
+        await runOperation('正在讀取語音頻道...', async () => {
+            const channelList = await withTimeout(
+                window.ipcRenderer.invoke('discord:getChannels', guild.id),
+                10000,
+                '讀取語音頻道'
+            )
             setChannels(channelList)
             setSelectedGuild(guild)
             setStep(3)
-        } catch (e: any) {
-            setError(e.message || 'Failed to fetch channels')
-        } finally {
-            setLoading(false)
-        }
+        }, 'Failed to fetch channels')
     }
 
     const handleJoinChannel = async (channel: DiscordChannel) => {
         if (!selectedGuild) return
-        setLoading(true)
-        setError(null)
-        try {
-            await window.ipcRenderer.invoke('discord:join', selectedGuild.id, channel.id)
+        await runOperation('正在加入語音頻道...', async () => {
+            await withTimeout(
+                window.ipcRenderer.invoke('discord:join', selectedGuild.id, channel.id),
+                15000,
+                '加入語音頻道'
+            )
             setActiveChannel(channel)
             setStep(4)
-        } catch (e: any) {
-            setError(e.message || 'Failed to join channel')
-        } finally {
-            setLoading(false)
-        }
+        }, 'Failed to join channel')
     }
 
     const handleDisconnect = async () => {
@@ -243,26 +285,21 @@ export const DiscordControlPanel: React.FC = () => {
             '斷開連線',
             '確定要完全斷開機器人連線嗎？',
             async () => {
-                setLoading(true)
-                try {
-                    await window.ipcRenderer.invoke('discord:leave')
-                    await window.ipcRenderer.invoke('discord:disconnect') // Assuming we add a disconnect main process handler or reuse leave logic implies stop? 
-                    // Wait, previous code just used invoke('discord:leave') which just leaves channel. 
-                    // The user wants "Disconnect" to typically mean "Log out" or "Shutdown bot connection"
-                    // The previous code had a typo in handleDisconnect it called invoke('discord:leave') but logic implied reset.
-
-                    // Actually let's just reset state to 1
+                await runOperation('正在斷開連線...', async () => {
+                    await withTimeout(
+                        window.ipcRenderer.invoke('discord:disconnect'),
+                        15000,
+                        '斷開連線'
+                    )
                     setStep(1)
                     setUserInfo(null)
                     setSelectedGuild(null)
                     setActiveChannel(null)
-                    setToken('') // Clear current token input
+                    setChannels([])
+                    setGuilds([])
+                    setToken('')
                     closeModal()
-                } catch (e) {
-                    console.error(e)
-                } finally {
-                    setLoading(false)
-                }
+                }, 'Disconnect failed')
             },
             true,
             '斷開連線'
@@ -274,21 +311,21 @@ export const DiscordControlPanel: React.FC = () => {
             '切換帳號',
             '確定要切換帳號嗎？目前的機器人將會斷線。',
             async () => {
-                setLoading(true)
-                try {
-                    await window.ipcRenderer.invoke('discord:leave')
-                    // Reset to accounts list
+                await runOperation('正在準備切換帳號...', async () => {
+                    await withTimeout(
+                        window.ipcRenderer.invoke('discord:disconnect'),
+                        15000,
+                        '切換帳號'
+                    )
                     setStep(1)
                     setUserInfo(null)
                     setSelectedGuild(null)
                     setActiveChannel(null)
+                    setChannels([])
+                    setGuilds([])
                     setIsAddingNew(false)
                     closeModal()
-                } catch (e) {
-                    console.error(e)
-                } finally {
-                    setLoading(false)
-                }
+                }, 'Switch account failed')
             },
             false,
             '切換'
@@ -296,23 +333,21 @@ export const DiscordControlPanel: React.FC = () => {
     }
 
     const handleLeaveChannel = async () => {
-        setLoading(true)
-        try {
-            await window.ipcRenderer.invoke('discord:leave')
-            // Go back to channel selection
+        await runOperation('正在離開語音頻道...', async () => {
+            await withTimeout(
+                window.ipcRenderer.invoke('discord:leave'),
+                15000,
+                '離開語音頻道'
+            )
             setActiveChannel(null)
             setStep(3)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setLoading(false)
-        }
+        }, 'Leave channel failed')
     }
 
     useEffect(() => {
-        const checkStatus = async () => {
-            setLoading(true)
-
+        const checkStatus = async (showLoading = false) => {
+            if (activeOperationRef.current !== null) return
+            if (showLoading) setLoading(true)
             // Load saved bots
             try {
                 const saved = localStorage.getItem('discord_saved_bots')
@@ -327,7 +362,12 @@ export const DiscordControlPanel: React.FC = () => {
             if (savedToken) setToken(savedToken)
 
             try {
-                const status = await window.ipcRenderer.invoke('discord:status')
+                const status = await withTimeout(
+                    window.ipcRenderer.invoke('discord:status'),
+                    5000,
+                    '讀取 Discord 狀態'
+                )
+                if (activeOperationRef.current !== null) return
                 if (status.isConnected) {
                     setUserInfo({
                         username: status.username || 'Bot',
@@ -356,20 +396,30 @@ export const DiscordControlPanel: React.FC = () => {
                     } else {
                         
                         
-                        const guildList = await window.ipcRenderer.invoke('discord:getGuilds')
+                        const guildList = await withTimeout(
+                            window.ipcRenderer.invoke('discord:getGuilds'),
+                            10000,
+                            '讀取伺服器'
+                        )
+                        if (activeOperationRef.current !== null) return
                         setGuilds(guildList)
                         setStep(2)
                     }
+                } else if (showLoading) {
+                    setStep(1)
+                    setUserInfo(null)
+                    setSelectedGuild(null)
+                    setActiveChannel(null)
                 }
             } catch (e) {
                 console.error("Failed to check discord status", e)
             } finally {
-                setLoading(false)
+                if (showLoading) setLoading(false)
             }
         }
-        checkStatus()
+        checkStatus(true)
         
-        const interval = setInterval(checkStatus, 5000)
+        const interval = setInterval(() => checkStatus(false), 15000)
         return () => clearInterval(interval)
     }, [])
 
@@ -637,7 +687,7 @@ export const DiscordControlPanel: React.FC = () => {
                 }}>
                     <Disc size={48} className={styles.iconSpin} />
                     <div style={{ marginTop: '16px', color: '#fff', fontWeight: 500 }}>
-                        處理中...
+                        {loadingText}
                     </div>
                 </div>
             )}
