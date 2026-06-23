@@ -58,6 +58,7 @@ function MainApp() {
   const [view, setView] = useState('all_songs')
   const [showLyrics, setShowLyrics] = useState(false)
   const [importModalData, setImportModalData] = useState<any | null>(null)
+  const [discordSyncSignal, setDiscordSyncSignal] = useState(0)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const discordStreamActiveRef = useRef(false)
 
@@ -101,6 +102,12 @@ function MainApp() {
     }
     
   }, [contextMode])
+
+  useEffect(() => {
+    const triggerDiscordSync = () => setDiscordSyncSignal(signal => signal + 1)
+    window.addEventListener('neonwave:discord-bot-state-changed', triggerDiscordSync)
+    return () => window.removeEventListener('neonwave:discord-bot-state-changed', triggerDiscordSync)
+  }, [])
 
   // Discord stream sync with debounce to prevent rapid re-initialization on quick track changes
   useEffect(() => {
@@ -200,7 +207,7 @@ function MainApp() {
       active = false
       if (debounceTimer) clearTimeout(debounceTimer)
     }
-  }, [isPlaying, currentTrack, getAudioStream, setLocalMute])
+  }, [isPlaying, currentTrack, discordSyncSignal, getAudioStream, setLocalMute])
 
   const handleImportClick = async () => {
     const data = await readImportFile()

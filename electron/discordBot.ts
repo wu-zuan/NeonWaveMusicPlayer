@@ -250,6 +250,7 @@ export class DiscordBotManager {
             });
 
             connection.subscribe(this.player);
+            await entersState(connection, VoiceConnectionStatus.Ready, 15000);
 
             this.currentGuildId = guildId;
             this.currentChannelId = channelId;
@@ -442,6 +443,7 @@ export class DiscordBotManager {
 
     async playReceiverStream(ffmpegPath?: string) {
         if (!this.currentConnection) throw new Error("Not connected");
+        await entersState(this.currentConnection, VoiceConnectionStatus.Ready, 15000);
 
         this.killCurrentProcess(); 
         if (this.streamInput && !this.streamInput.destroyed) {

@@ -28,6 +28,10 @@ const getErrorMessage = (error: unknown, fallback: string) => {
     return error instanceof Error ? error.message : fallback
 }
 
+const notifyDiscordBotStateChanged = () => {
+    window.dispatchEvent(new Event('neonwave:discord-bot-state-changed'))
+}
+
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     try {
@@ -277,6 +281,7 @@ export const DiscordControlPanel: React.FC = () => {
             )
             setActiveChannel(channel)
             setStep(4)
+            notifyDiscordBotStateChanged()
         }, 'Failed to join channel')
     }
 
@@ -299,6 +304,7 @@ export const DiscordControlPanel: React.FC = () => {
                     setGuilds([])
                     setToken('')
                     closeModal()
+                    notifyDiscordBotStateChanged()
                 }, 'Disconnect failed')
             },
             true,
@@ -325,6 +331,7 @@ export const DiscordControlPanel: React.FC = () => {
                     setGuilds([])
                     setIsAddingNew(false)
                     closeModal()
+                    notifyDiscordBotStateChanged()
                 }, 'Switch account failed')
             },
             false,
@@ -341,6 +348,7 @@ export const DiscordControlPanel: React.FC = () => {
             )
             setActiveChannel(null)
             setStep(3)
+            notifyDiscordBotStateChanged()
         }, 'Leave channel failed')
     }
 
