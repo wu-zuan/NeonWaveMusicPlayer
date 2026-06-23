@@ -450,15 +450,17 @@ export class DiscordBotManager {
             }
         }
 
-        this.streamInput = new PassThrough();
+        const streamInput = new PassThrough();
+        this.streamInput = streamInput;
 
         if (ffmpegPath) {
             const { spawn } = await import('node:child_process');
 
             const args = [
-                '-i', 'pipe:0',
                 '-analyzeduration', '0',
-                '-loglevel', '0',
+                '-probesize', '32k',
+                '-loglevel', 'error',
+                '-i', 'pipe:0',
                 '-f', 's16le',
                 '-ar', '48000',
                 '-ac', '2',
@@ -470,16 +472,16 @@ export class DiscordBotManager {
 
             ffmpegProcess.stdin.on('error', () => { });
 
-            this.streamInput.pipe(ffmpegProcess.stdin);
+            streamInput.pipe(ffmpegProcess.stdin);
 
-            this.streamInput.on('error', () => { });
+            streamInput.on('error', () => { });
 
             ffmpegProcess.on('error', () => {
-                if (this.streamInput) this.streamInput.destroy();
+                if (this.streamInput === streamInput) this.streamInput.destroy();
             });
 
             ffmpegProcess.on('close', () => {
-                if (this.streamInput) this.streamInput.destroy();
+                if (this.streamInput === streamInput) this.streamInput.destroy();
                 if (this.currentProcess === ffmpegProcess) this.currentProcess = null;
             });
 
@@ -493,7 +495,7 @@ export class DiscordBotManager {
             this.player.play(resource);
 
         } else {
-            const resource = createAudioResource(this.streamInput, {
+            const resource = createAudioResource(streamInput, {
                 inputType: StreamType.WebmOpus,
                 inlineVolume: true
             });

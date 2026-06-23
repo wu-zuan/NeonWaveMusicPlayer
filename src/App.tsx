@@ -59,6 +59,7 @@ function MainApp() {
   const [showLyrics, setShowLyrics] = useState(false)
   const [importModalData, setImportModalData] = useState<any | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const discordStreamActiveRef = useRef(false)
 
   // Listen for playback toggle commands from the mini player (PIP)
   useEffect(() => {
@@ -107,49 +108,85 @@ function MainApp() {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     const handleSync = async () => {
-      const status = await window.ipcRenderer.invoke('discord:status')
+      try {
+        const status = await window.ipcRenderer.invoke('discord:status')
 
-      if (!active) return
+        if (!active) return
 
-      if (status.isConnected && status.currentChannelId) {
-        if (isPlaying) {
-          if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
-            console.log('[App] Starting Discord Stream...')
+        if (status.isConnected && status.currentChannelId) {
+          if (isPlaying) {
+            if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+              console.log('[App] Starting Discord Stream...')
 
-            await window.ipcRenderer.invoke('discord:startStreamMode')
+              await window.ipcRenderer.invoke('discord:startStreamMode')
+              discordStreamActiveRef.current = true
 
-            const stream = getAudioStream()
-            if (stream) {
-              const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 96000 })
+              const stream = getAudioStream()
+              if (stream) {
+                const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                  ? 'audio/webm;codecs=opus'
+                  : MediaRecorder.isTypeSupported('audio/webm')
+                    ? 'audio/webm'
+                    : ''
+                const recorder = new MediaRecorder(stream, {
+                  ...(preferredMime ? { mimeType: preferredMime } : {}),
+                  audioBitsPerSecond: 96000
+                })
 
-              recorder.ondataavailable = async (e) => {
-                if (e.data.size > 0) {
-                  const buffer = await e.data.arrayBuffer()
-                  window.ipcRenderer.send('discord:audio-chunk', buffer)
+                recorder.ondataavailable = async (e) => {
+                  if (e.data.size > 0) {
+                    const buffer = await e.data.arrayBuffer()
+                    window.ipcRenderer.send('discord:audio-chunk', buffer)
+                  }
                 }
+
+                recorder.onerror = (event) => {
+                  console.error('[App] Discord MediaRecorder error:', event)
+                }
+
+                recorder.start(250)
+                mediaRecorderRef.current = recorder
+              } else {
+                console.warn('[App] Discord stream unavailable from AudioEngine')
+                discordStreamActiveRef.current = false
+                window.ipcRenderer.invoke('discord:stop').catch(console.error)
               }
 
-              recorder.start(250)
-              mediaRecorderRef.current = recorder
+              if (mediaRecorderRef.current) {
+                setLocalMute(true)
+                window.ipcRenderer.invoke('discord:setVolume', 100).catch(console.error)
+              }
+            } else {
+              if (mediaRecorderRef.current.state === 'paused') mediaRecorderRef.current.resume()
+              window.ipcRenderer.invoke('discord:resume').catch(console.error)
             }
-
-            setLocalMute(true)
-            window.ipcRenderer.invoke('discord:setVolume', 100).catch(console.error)
           } else {
-            if (mediaRecorderRef.current.state === 'paused') mediaRecorderRef.current.resume()
-            window.ipcRenderer.invoke('discord:resume').catch(console.error)
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+              mediaRecorderRef.current.pause()
+              window.ipcRenderer.invoke('discord:pause').catch(console.error)
+            }
           }
         } else {
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.pause()
-            window.ipcRenderer.invoke('discord:pause').catch(console.error)
+          if (mediaRecorderRef.current) {
+            mediaRecorderRef.current.stop()
+            mediaRecorderRef.current = null
           }
+          if (discordStreamActiveRef.current) {
+            discordStreamActiveRef.current = false
+            window.ipcRenderer.invoke('discord:stop').catch(console.error)
+          }
+          setLocalMute(false)
         }
-      } else {
+      } catch (error) {
+        console.error('[App] Discord stream sync failed:', error)
         if (mediaRecorderRef.current) {
-          mediaRecorderRef.current.stop()
+          try { mediaRecorderRef.current.stop() } catch (e) {
+            console.warn('[App] Discord recorder was already stopped:', e)
+          }
           mediaRecorderRef.current = null
         }
+        discordStreamActiveRef.current = false
+        window.ipcRenderer.invoke('discord:stop').catch(console.error)
         setLocalMute(false)
       }
     }

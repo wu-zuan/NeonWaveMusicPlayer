@@ -469,6 +469,10 @@ export function useAudioPlayer(contextMode?: string) {
         }
     }
     const seek = (time: number) => { audioRef.current.currentTime = time; setCurrentTime(time) }
+    const getAudioStream = useCallback(() => engineRef.current?.getAudioStream(), [])
+    const setLocalMute = useCallback((muted: boolean) => {
+        engineRef.current?.setLocalMute(muted)
+    }, [])
 
     return {
         isPlaying,
@@ -501,7 +505,7 @@ export function useAudioPlayer(contextMode?: string) {
         setCrowd: (enable: boolean) => engineRef.current?.setCrowd(enable),
         isMuted,
         setIsMuted,
-        getAudioStream: () => engineRef.current?.getAudioStream(),
-        setLocalMute: (muted: boolean) => engineRef.current?.setLocalMute(muted)
+        getAudioStream,
+        setLocalMute
     }
 }
