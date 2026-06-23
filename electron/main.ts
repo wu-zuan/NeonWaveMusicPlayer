@@ -52,6 +52,22 @@ if (process.platform === 'win32') {
 
 autoUpdater.allowPrerelease = true
 autoUpdater.autoInstallOnAppQuit = false
+autoUpdater.autoDownload = true
+
+let updateCheckPromise: Promise<unknown> | null = null
+let updateDownloaded = false
+
+type UpdateStatusPayload = {
+  status: string
+  error?: string
+  info?: unknown
+  progress?: unknown
+}
+
+function sendUpdateStatus(data: UpdateStatusPayload) {
+  console.log('[AutoUpdate]', data)
+  win?.webContents.send('update-status', data)
+}
 
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
@@ -280,22 +296,28 @@ app.on('activate', () => {
 })
 
 autoUpdater.on('checking-for-update', () => {
-  win?.webContents.send('update-status', { status: 'checking' })
+  sendUpdateStatus({ status: 'checking' })
 })
 autoUpdater.on('update-available', (info) => {
-  win?.webContents.send('update-status', { status: 'available', info })
+  updateDownloaded = false
+  sendUpdateStatus({ status: 'available', info })
 })
 autoUpdater.on('update-not-available', (info) => {
-  win?.webContents.send('update-status', { status: 'not-available', info })
+  updateCheckPromise = null
+  updateDownloaded = false
+  sendUpdateStatus({ status: 'not-available', info })
 })
 autoUpdater.on('error', (err) => {
-  win?.webContents.send('update-status', { status: 'error', error: err.message })
+  updateCheckPromise = null
+  sendUpdateStatus({ status: 'error', error: err.message || String(err) })
 })
 autoUpdater.on('download-progress', (progressObj) => {
-  win?.webContents.send('update-status', { status: 'downloading', progress: progressObj })
+  sendUpdateStatus({ status: 'downloading', progress: progressObj })
 })
 autoUpdater.on('update-downloaded', (info) => {
-  win?.webContents.send('update-status', { status: 'downloaded', info })
+  updateCheckPromise = null
+  updateDownloaded = true
+  sendUpdateStatus({ status: 'downloaded', info })
 
   
   const notification = new Notification({
@@ -636,21 +658,53 @@ app.whenReady().then(() => {
   })
 
   
-  ipcMain.handle('update:check', () => {
-    autoUpdater.checkForUpdatesAndNotify()
+  ipcMain.handle('update:check', async () => {
+    if (!app.isPackaged) {
+      const error = '自動更新只會在打包安裝版中運作，開發模式無法檢查 GitHub 更新。'
+      sendUpdateStatus({ status: 'error', error })
+      return { ok: false, error }
+    }
+
+    if (updateCheckPromise) {
+      await updateCheckPromise
+      return { ok: true }
+    }
+
+    updateDownloaded = false
+    updateCheckPromise = autoUpdater.checkForUpdates()
+      .then(() => ({ ok: true }))
+      .catch((err) => {
+        const error = err instanceof Error ? err.message : String(err)
+        sendUpdateStatus({ status: 'error', error })
+        return { ok: false, error }
+      })
+      .finally(() => {
+        updateCheckPromise = null
+      })
+
+    return await updateCheckPromise
   })
 
-    ipcMain.handle('update:install', () => {
-        try {
-            if (win && !win.isDestroyed()) win.destroy()
-            if (miniWin && !miniWin.isDestroyed()) miniWin.destroy()
-        } catch (e) {}
-        
-        // Give a short delay for windows to close and file handles to be released
-        setTimeout(() => {
-            autoUpdater.quitAndInstall(false, true)
-        }, 500)
+  ipcMain.handle('update:install', () => {
+    if (!app.isPackaged) {
+      const error = '開發模式不能安裝更新。'
+      sendUpdateStatus({ status: 'error', error })
+      return { ok: false, error }
+    }
+
+    if (!updateDownloaded) {
+      const error = '更新尚未下載完成，請先檢查並下載更新。'
+      sendUpdateStatus({ status: 'error', error })
+      return { ok: false, error }
+    }
+
+    sendUpdateStatus({ status: 'installing' })
+    ;(app as any).isQuitting = true
+    setImmediate(() => {
+      autoUpdater.quitAndInstall(false, true)
     })
+    return { ok: true }
+  })
 
     ipcMain.handle('window:togglePlay', () => {
         if (win && !win.isDestroyed()) {

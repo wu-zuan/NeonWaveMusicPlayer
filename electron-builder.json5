@@ -49,7 +49,7 @@
   "publish": [
     {
       "provider": "github",
-      "owner": "DM-WuzuanTW",
+      "owner": "wu-zuan",
       "repo": "NeonWaveMusicPlayer",
       "releaseType": "release"
     }

@@ -35,33 +35,101 @@ const ScanProgress = () => {
     );
 };
 
+type UpdateInvokeResult = {
+    ok: boolean
+    error?: string
+}
+
+type UpdateStatusPayload = {
+    status: string
+    error?: string
+    progress?: {
+        percent?: number
+    }
+}
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+            })
+        ])
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId)
+    }
+}
+
 export function useUpdater() {
     const [status, setStatus] = useState<string>('idle')
-    const [progress, setProgress] = useState<any>(null)
+    const [progress, setProgress] = useState<UpdateStatusPayload['progress'] | null>(null)
     const [version, setVersion] = useState<string>('...')
     const [error, setError] = useState<string>('')
 
     useEffect(() => {
         window.ipcRenderer.getAppVersion().then(setVersion)
 
-        const cleanup = window.ipcRenderer.onUpdateStatus((data) => {
+        const cleanup = window.ipcRenderer.onUpdateStatus((data: UpdateStatusPayload) => {
             console.log('Update Status:', data)
             setStatus(data.status)
-            if (data.progress) setProgress(data.progress)
-            if (data.error) setError(data.error)
+            if (data.status === 'checking' || data.status === 'available') {
+                setError('')
+            }
+            if (data.status === 'downloading') {
+                setError('')
+                setProgress(data.progress || null)
+            }
+            if (data.status === 'downloaded' || data.status === 'not-available') {
+                setProgress(null)
+            }
+            if (data.status === 'error') {
+                setProgress(null)
+                setError(data.error || '更新檢查失敗')
+            }
         })
 
         return cleanup
     }, [])
 
-    const checkForUpdates = () => {
+    const checkForUpdates = async () => {
         setStatus('checking')
         setError('')
-        window.ipcRenderer.checkUpdate()
+        setProgress(null)
+        try {
+            const result = await withTimeout<UpdateInvokeResult>(
+                window.ipcRenderer.checkUpdate(),
+                45000,
+                '檢查更新逾時，請確認網路連線後重試。'
+            )
+            if (result && result.ok === false) {
+                setStatus('error')
+                setError(result.error || '檢查更新失敗')
+            }
+        } catch (e) {
+            setStatus('error')
+            setError(e instanceof Error ? e.message : '檢查更新失敗')
+        }
     }
 
-    const installUpdate = () => {
-        window.ipcRenderer.installUpdate()
+    const installUpdate = async () => {
+        setStatus('installing')
+        setError('')
+        try {
+            const result = await withTimeout<UpdateInvokeResult>(
+                window.ipcRenderer.installUpdate(),
+                10000,
+                '啟動更新安裝逾時，請重新開啟程式後再試。'
+            )
+            if (result && result.ok === false) {
+                setStatus('error')
+                setError(result.error || '安裝更新失敗')
+            }
+        } catch (e) {
+            setStatus('error')
+            setError(e instanceof Error ? e.message : '安裝更新失敗')
+        }
     }
 
     return { status, progress, version, error, checkForUpdates, installUpdate }
@@ -276,13 +344,13 @@ export function SettingsView() {
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
                                 <span>正在下載更新...</span>
-                                <span>{Math.round(progress.percent)}%</span>
+                                <span>{Math.round(progress.percent ?? 0)}%</span>
                             </div>
                             <div style={{
                                 height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden'
                             }}>
                                 <div style={{
-                                    width: `${progress.percent}%`, height: '100%',
+                                    width: `${progress.percent ?? 0}%`, height: '100%',
                                     background: 'var(--accent-primary)',
                                     transition: 'width 0.2s ease'
                                 }}></div>
@@ -308,6 +376,13 @@ export function SettingsView() {
                             >
                                 <Download size={18} /> 重啟並安裝
                             </button>
+                        </div>
+                    )}
+
+                    {status === 'installing' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-muted)' }}>
+                            <RefreshCw size={18} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                            正在重啟並安裝更新...
                         </div>
                     )}
 

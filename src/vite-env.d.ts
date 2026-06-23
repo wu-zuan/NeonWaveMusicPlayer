@@ -9,8 +9,8 @@ interface Window {
         getAudioArtwork(path: string): Promise<string | null>
         readFileBuffer(path: string): Promise<Uint8Array | null>
 
-        checkUpdate(): Promise<void>
-        installUpdate(): Promise<void>
+        checkUpdate(): Promise<{ ok: boolean; error?: string }>
+        installUpdate(): Promise<{ ok: boolean; error?: string }>
         getAppVersion(): Promise<string>
         onUpdateStatus(callback: (status: any) => void): () => void
         searchYouTube(query: string): Promise<any[]>
