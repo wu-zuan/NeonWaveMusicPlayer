@@ -15,6 +15,7 @@ import { DiscordControlPanel } from './components/DiscordBot/DiscordControlPanel
 import { ImportChoiceModal } from './components/UI/ImportChoiceModal'
 import { DownloadProgressModal } from './components/UI/DownloadProgressModal'
 import { MiniPlayer } from './components/Player/MiniPlayer'
+import { VideoSurface } from './components/Player/VideoSurface'
 
 function App() {
   const isMini = new URLSearchParams(window.location.search).get('mini') === 'true'
@@ -52,7 +53,7 @@ function MainApp() {
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
     setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
-    getAudioStream, setLocalMute
+    getAudioStream, getMediaElement, setLocalMute
   } = useAudioPlayer(contextMode)
 
   const [view, setView] = useState('all_songs')
@@ -281,6 +282,13 @@ function MainApp() {
         } as any} />
 
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '100px' }}>
+          {currentTrack?.mediaType === 'video' && (
+            <VideoSurface
+              track={currentTrack}
+              getMediaElement={getMediaElement}
+            />
+          )}
+
           {(view === 'all_songs' || view === 'favorites' || playlists.some(p => p.id === view)) && (
             <TrackList
               title={viewTitle}

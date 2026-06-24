@@ -137,7 +137,7 @@ export class AudioEngine {
         this.convolver.buffer = impulse
     }
 
-    connect(audioElement: HTMLAudioElement) {
+    connect(audioElement: HTMLMediaElement) {
         if (this.source) return
         this.resume()
         try {

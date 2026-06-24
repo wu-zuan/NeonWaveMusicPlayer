@@ -127,7 +127,7 @@ const TrackListView: React.FC<TrackListProps> = ({
                     />
                     {matches.length > 0 && <span className={styles.searchCount}>{currentMatchIdx + 1} / {matches.length}</span>}
                 </div>
-                <span className={styles.artist}>{tracks.length} 首歌曲</span>
+                <span className={styles.artist}>{tracks.length} 個項目</span>
             </header>
             <List<{}>
                 listRef={listRef}

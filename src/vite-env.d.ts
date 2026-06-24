@@ -13,7 +13,7 @@ interface Window {
         installUpdate(): Promise<{ ok: boolean; error?: string }>
         getAppVersion(): Promise<string>
         onUpdateStatus(callback: (status: any) => void): () => void
-        searchYouTube(query: string): Promise<any[]>
+        searchYouTube(query: string, pagesToLoad?: number): Promise<any[]>
         getYouTubePreview(url: string, title?: string, artist?: string): Promise<{ url: string, startTime: number } | null>
         downloadYouTube(url: string, title: string, artist?: string, format?: string): Promise<string | null>
         downloadYouTubeToDir(url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number, format?: string): Promise<string | null>

@@ -10,6 +10,13 @@ interface FolderData {
     name: string
 }
 
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.wmv', '.avi'])
+
+function getMediaType(filePath: string): Track['mediaType'] {
+    const ext = filePath.match(/\.[^.\\/]+$/)?.[0]?.toLowerCase()
+    return ext && VIDEO_EXTENSIONS.has(ext) ? 'video' : 'audio'
+}
+
 export interface Playlist {
     id: string
     name: string
@@ -138,8 +145,10 @@ export function useLibrary() {
                     try {
                         // Optimization: Do NOT load artwork during scan. Load it on play.
                         const meta = await window.ipcRenderer.getAudioMetadata(filePath, { loadArtwork: false })
+                        const mediaType = getMediaType(filePath)
                         return {
                             path: filePath,
+                            mediaType,
                             title: meta?.title || filename,
                             artist: meta?.artist || '未知演出者',
                             album: meta?.album || '未知專輯',
@@ -150,8 +159,10 @@ export function useLibrary() {
                             sampleRate: meta?.sampleRate
                         }
                     } catch {
+                        const mediaType = getMediaType(filePath)
                         return {
                             path: filePath,
+                            mediaType,
                             title: filename,
                             artist: '未知演出者',
                             album: '未知專輯',

@@ -1021,13 +1021,14 @@ app.whenReady().then(() => {
   updateYtDlpInBackground()
 
   
-  ipcMain.handle('search:youtube', async (_, query) => {
+  ipcMain.handle('search:youtube', async (_, query, pagesToLoad = 1) => {
     try {
       const ytSearch = createRequire(import.meta.url)('yt-search')
-      const r = await ytSearch(query)
+      const pages = Math.max(1, Math.min(Number(pagesToLoad) || 1, 5))
+      const r = await ytSearch({ query, pages })
       if (!r || !r.videos) return []
       
-      const results = r.videos.slice(0, 12).map((v: any) => ({
+      const results = r.videos.map((v: any) => ({
         id: v.videoId,
         title: v.title,
         artist: v.author?.name || 'Unknown',

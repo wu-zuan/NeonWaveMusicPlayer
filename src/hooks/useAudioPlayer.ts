@@ -6,6 +6,7 @@ export interface Track {
     title: string
     artist: string
     album?: string
+    mediaType?: 'audio' | 'video'
     duration?: number
     artwork?: string
     codec?: string
@@ -16,17 +17,20 @@ export interface Track {
 type RepeatMode = 'none' | 'all' | 'one'
 
 // Module-level singletons — survive Vite HMR hot reloads.
-// An HTMLAudioElement can only be connected to ONE AudioContext ever;
+// A media element can only be connected to ONE AudioContext ever;
 // re-creating them on each hot reload would throw DOMException.
-let _sharedAudio: HTMLAudioElement | null = null
+let _sharedAudio: HTMLVideoElement | null = null
 let _sharedEngine: AudioEngine | null = null
 
-function getSharedAudio(): HTMLAudioElement {
-    if (!_sharedAudio) _sharedAudio = new Audio()
+function getSharedAudio(): HTMLVideoElement {
+    if (!_sharedAudio) {
+        _sharedAudio = document.createElement('video')
+        _sharedAudio.playsInline = true
+    }
     return _sharedAudio
 }
 
-function getSharedEngine(audio: HTMLAudioElement): AudioEngine {
+function getSharedEngine(audio: HTMLMediaElement): AudioEngine {
     if (!_sharedEngine) {
         _sharedEngine = new AudioEngine()
         _sharedEngine.connect(audio)
@@ -62,7 +66,7 @@ export function useAudioPlayer(contextMode?: string) {
     const [history, setHistory] = useState<Track[]>([])
 
     // Use module-level singletons to avoid re-connection crashes on HMR
-    const audioRef = useRef<HTMLAudioElement>(getSharedAudio())
+    const audioRef = useRef<HTMLVideoElement>(getSharedAudio())
     const engineRef = useRef<AudioEngine | null>(_sharedEngine)
 
     
@@ -470,6 +474,7 @@ export function useAudioPlayer(contextMode?: string) {
     }
     const seek = (time: number) => { audioRef.current.currentTime = time; setCurrentTime(time) }
     const getAudioStream = useCallback(() => engineRef.current?.getAudioStream(), [])
+    const getMediaElement = useCallback(() => audioRef.current, [])
     const setLocalMute = useCallback((muted: boolean) => {
         engineRef.current?.setLocalMute(muted)
     }, [])
@@ -506,6 +511,7 @@ export function useAudioPlayer(contextMode?: string) {
         isMuted,
         setIsMuted,
         getAudioStream,
+        getMediaElement,
         setLocalMute
     }
 }

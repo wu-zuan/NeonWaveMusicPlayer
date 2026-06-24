@@ -1,5 +1,5 @@
 import React from 'react'
-import { Music, AudioWaveform, Heart } from 'lucide-react'
+import { Music, AudioWaveform, Heart, Film } from 'lucide-react'
 import styles from './Playlist.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 
@@ -205,11 +205,14 @@ export const TrackItem: React.FC<TrackItemProps> = ({ id, style, track, isActive
                         }}
                     />
                 ) : (
-                    isActive ? <AudioWaveform size={20} /> : <Music size={20} />
+                    isActive ? <AudioWaveform size={20} /> : track.mediaType === 'video' ? <Film size={20} /> : <Music size={20} />
                 )}
             </div>
             <div className={styles.info}>
-                <div className={styles.title}>{track.title}</div>
+                <div className={styles.titleLine}>
+                    <span className={styles.title}>{track.title}</span>
+                    {track.mediaType === 'video' && <span className={styles.mediaBadge}>影片</span>}
+                </div>
                 <div className={styles.artist}>{track.artist || '未知演出者'}</div>
             </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Activity, Mic2 } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Activity, Mic2, Film } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 import { AudioRadar } from './AudioRadar'
@@ -315,7 +315,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     {currentTrack?.artwork ? (
                         <img src={currentTrack.artwork} alt="Album Art" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} />
                     ) : (
-                        <Music size={24} className="text-gray-400" />
+                        currentTrack?.mediaType === 'video' ? <Film size={24} className="text-gray-400" /> : <Music size={24} className="text-gray-400" />
                     )}
                 </div>
                 <div className={styles.trackInfo}>
@@ -335,6 +335,16 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                     borderColor: (currentTrack.codec.toUpperCase().includes('FLAC') || currentTrack.codec.toUpperCase().includes('WAV')) ? 'var(--accent-primary)' : 'rgba(255,255,255,0.2)'
                                 }}>
                                     {currentTrack.codec.replace('MPEG 1 Layer 3', 'MP3')}
+                                </span>
+                            )}
+                            {currentTrack.mediaType === 'video' && !currentTrack.codec && (
+                                <span style={{
+                                    border: '1px solid rgba(0,242,254,0.45)',
+                                    padding: '0 4px',
+                                    borderRadius: '3px',
+                                    color: 'var(--accent-primary)'
+                                }}>
+                                    VIDEO
                                 </span>
                             )}
                             {currentTrack.bitrate && (

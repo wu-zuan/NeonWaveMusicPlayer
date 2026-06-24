@@ -124,8 +124,11 @@ export const SearchView = () => {
     const [isLoading, setIsLoading] = useState(false)
     const [hasSearched, setHasSearched] = useState(false)
     const [page, setPage] = useState(1)
+    const [activeSearchQuery, setActiveSearchQuery] = useState('')
+    const [loadedSearchPages, setLoadedSearchPages] = useState(0)
+    const [hasMoreResults, setHasMoreResults] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState('popular')
-    const PAGE_SIZE = 15
+    const PAGE_SIZE = 5
 
     const [previewSongId, setPreviewSongId] = useState<string | null>(null)
     const [previewLoading, setPreviewLoading] = useState<string | null>(null)
@@ -220,16 +223,66 @@ export const SearchView = () => {
         setIsLoading(true)
         setHasSearched(true)
         setPage(1) // Reset to page 1
+        setActiveSearchQuery(q)
+        setLoadedSearchPages(1)
+        setHasMoreResults(false)
         if (overrideQuery) setQuery(overrideQuery)
 
         try {
-            const res = await window.ipcRenderer.searchYouTube(q)
+            const res = await window.ipcRenderer.searchYouTube(q, 1)
             setResults(res)
+            setHasMoreResults(res.length > 0)
         } catch (e) {
             console.error("Search failed:", e)
             alert("搜尋失敗，請稍後再試。")
         } finally {
             setIsLoading(false)
+        }
+    }
+
+    const mergeResults = (existing: SearchResult[], incoming: SearchResult[]) => {
+        const seen = new Set(existing.map(item => item.id))
+        const merged = [...existing]
+        incoming.forEach(item => {
+            if (!seen.has(item.id)) {
+                seen.add(item.id)
+                merged.push(item)
+            }
+        })
+        return merged
+    }
+
+    const loadMoreResults = async () => {
+        if (isLoading || !hasMoreResults) return false
+
+        const nextSearchPages = loadedSearchPages + 1
+        setIsLoading(true)
+        try {
+            const res = await window.ipcRenderer.searchYouTube(activeSearchQuery, nextSearchPages)
+            const merged = mergeResults(results, res)
+            const addedCount = merged.length - results.length
+            setResults(merged)
+            setLoadedSearchPages(nextSearchPages)
+            setHasMoreResults(addedCount > 0 && nextSearchPages < 5)
+            return addedCount > 0
+        } catch (e) {
+            console.error("Load more search results failed:", e)
+            alert("載入更多搜尋結果失敗，請稍後再試。")
+            return false
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleNextPage = async () => {
+        if (page < totalPages) {
+            setPage(p => Math.min(totalPages, p + 1))
+            return
+        }
+
+        const loadedMore = await loadMoreResults()
+        if (loadedMore) {
+            setPage(p => p + 1)
         }
     }
 
@@ -292,7 +345,7 @@ export const SearchView = () => {
     })
 
     
-    const totalPages = Math.ceil(filteredResults.length / PAGE_SIZE)
+    const totalPages = Math.max(1, Math.ceil(filteredResults.length / PAGE_SIZE))
     const currentResults = filteredResults.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
     return (
@@ -308,6 +361,10 @@ export const SearchView = () => {
                         if (e.target.value === '') {
                             setHasSearched(false)
                             setResults([])
+                            setPage(1)
+                            setActiveSearchQuery('')
+                            setLoadedSearchPages(0)
+                            setHasMoreResults(false)
                         }
                     }}
                     onKeyDown={handleKeyDown}
@@ -456,13 +513,13 @@ export const SearchView = () => {
                         >
                             <ChevronLeft size={16} /> 上一頁
                         </button>
-                        <span className={styles.pageInfo}>第 {page} 頁 / 共 {totalPages} 頁</span>
+                        <span className={styles.pageInfo}>第 {page} 頁 / 共 {totalPages}{hasMoreResults ? '+' : ''} 頁</span>
                         <button
                             className={styles.pageBtn}
-                            disabled={page === totalPages}
-                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={isLoading || (page === totalPages && !hasMoreResults)}
+                            onClick={handleNextPage}
                         >
-                            下一頁 <ChevronRight size={16} />
+                            {isLoading && page === totalPages ? <Loader2 size={16} className="animate-spin" /> : <>下一頁 <ChevronRight size={16} /></>}
                         </button>
                     </div>
                 )}

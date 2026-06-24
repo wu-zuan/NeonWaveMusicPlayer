@@ -36,7 +36,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return () => ipcRenderer.removeAllListeners('update-status')
   },
   getArtistImage: (name: string) => ipcRenderer.invoke('search:artistImage', name),
-  searchYouTube: (query: string) => ipcRenderer.invoke('search:youtube', query),
+  searchYouTube: (query: string, pagesToLoad?: number) => ipcRenderer.invoke('search:youtube', query, pagesToLoad),
   getYouTubePreview: (url: string, title?: string, artist?: string) => ipcRenderer.invoke('search:youtubePreview', url, title, artist),
   downloadYouTube: (url: string, title: string, artist?: string, format?: string) => ipcRenderer.invoke('download:youtube', url, title, artist, format),
   downloadYouTubeToDir: (url: string, title: string, artist: string, dir: string, limitRate?: string, fileTimestamp?: number, format?: string) => ipcRenderer.invoke('download:youtubeToDir', url, title, artist, dir, limitRate, fileTimestamp, format),
