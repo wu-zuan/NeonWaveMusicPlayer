@@ -239,6 +239,15 @@ export class AudioEngine {
                 targetDry = 1.0
                 targetCutoff = 12500
                 break;
+            case 'fps':
+                wetAmount = 0.08
+                duration = 0.22
+                decay = 14.0
+                preDelay = 0.002
+                lowPass = true
+                targetDry = 1.0
+                targetCutoff = 15500
+                break;
             case 'none':
             default:
                 wetAmount = 0

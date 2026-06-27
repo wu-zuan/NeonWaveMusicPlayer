@@ -79,6 +79,9 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         } else if (val === 'racing') {
             newDist = 1.5
             newPos = { x: -0.7, z: -1.2 }
+        } else if (val === 'fps') {
+            newDist = 1.0
+            newPos = { x: 0, z: -1.0 }
         } else {
             
             newDist = 0
@@ -238,7 +241,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                     {isFocus && <span style={{ fontSize: '10px', color: 'var(--accent-secondary)' }}>專注模式下不可用</span>}
                                 </div>
                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                    {['none', 'room', 'hall', 'concert', 'racing'].map(mode => (
+                                    {['none', 'room', 'hall', 'concert', 'racing', 'fps'].map(mode => (
                                         <button
                                             key={mode}
                                             onClick={() => handleSpace(mode)}
@@ -252,7 +255,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                                 whiteSpace: 'nowrap'
                                             }}
                                         >
-                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '空間' : mode === 'concert' ? '演唱會' : '賽車遊戲'}
+                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '空間' : mode === 'concert' ? '演唱會' : mode === 'racing' ? '賽車遊戲' : 'FPS'}
                                         </button>
                                     ))}
                                 </div>
