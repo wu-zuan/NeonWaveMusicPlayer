@@ -68,6 +68,7 @@ export function useAudioPlayer(contextMode?: string) {
     // Use module-level singletons to avoid re-connection crashes on HMR
     const audioRef = useRef<HTMLVideoElement>(getSharedAudio())
     const engineRef = useRef<AudioEngine | null>(_sharedEngine)
+    const isSwitchingTrackRef = useRef(false)
 
     
     useEffect(() => {
@@ -129,7 +130,8 @@ export function useAudioPlayer(contextMode?: string) {
         
         
         if (prevTrack?.path !== trackToPlay.path) {
-            if (!audio.paused) {
+            isSwitchingTrackRef.current = true
+            if (!audio.paused && !audio.ended) {
                 try { audio.pause() } catch (e) { }
             }
             audio.currentTime = 0
@@ -145,21 +147,6 @@ export function useAudioPlayer(contextMode?: string) {
             }
             
             setCurrentTrack(trackToPlay)
-            
-            audio.src = ''
-        }
-
-        
-        if (!trackToPlay.artwork && !trackToPlay.path.startsWith('shared:')) {
-            try {
-                const art = await window.ipcRenderer.getAudioArtwork(trackToPlay.path)
-                if (art) {
-                    trackToPlay.artwork = art
-                    setCurrentTrack({ ...trackToPlay }) 
-                }
-            } catch (e) {
-                console.warn("Failed to load artwork lazily", e)
-            }
         }
 
         
@@ -192,7 +179,7 @@ export function useAudioPlayer(contextMode?: string) {
                 } else throw new Error("Not found on YouTube")
             } catch (e) {
                 console.error("Failed to resolve shared track:", e)
-                
+                isSwitchingTrackRef.current = false
                 return
             }
         } else {
@@ -217,8 +204,22 @@ export function useAudioPlayer(contextMode?: string) {
         try {
             await engineRef.current?.resume()
             await audio.play()
+            setIsPlaying(true)
         } catch (e) {
             console.error("Playback failed:", e)
+        } finally {
+            isSwitchingTrackRef.current = false
+        }
+
+        if (!trackToPlay.artwork && !trackToPlay.path.startsWith('shared:')) {
+            window.ipcRenderer.getAudioArtwork(trackToPlay.path)
+                .then((art) => {
+                    if (!art) return
+                    setCurrentTrack(prev => prev?.path === trackToPlay.path ? ({ ...prev, artwork: art }) : prev)
+                })
+                .catch((e) => {
+                    console.warn("Failed to load artwork lazily", e)
+                })
         }
     }, [])
 
@@ -316,7 +317,10 @@ export function useAudioPlayer(contextMode?: string) {
             window.ipcRenderer.invoke('app:clear-memory').catch(() => {})
         }
         const onPlay = () => setIsPlaying(true)
-        const onPause = () => setIsPlaying(false)
+        const onPause = () => {
+            if (isSwitchingTrackRef.current) return
+            setIsPlaying(false)
+        }
 
         audio.addEventListener('timeupdate', onTimeUpdate)
         audio.addEventListener('durationchange', onDurationChange)
