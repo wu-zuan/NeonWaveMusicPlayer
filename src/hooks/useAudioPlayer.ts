@@ -38,6 +38,40 @@ function getSharedEngine(audio: HTMLMediaElement): AudioEngine {
     return _sharedEngine
 }
 
+function waitForPlayable(media: HTMLMediaElement, timeoutMs = 6000): Promise<void> {
+    if (media.readyState >= 3) return Promise.resolve()
+
+    return new Promise((resolve, reject) => {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const cleanup = () => {
+            if (timeoutId) clearTimeout(timeoutId)
+            media.removeEventListener('canplay', onReady)
+            media.removeEventListener('loadeddata', onReady)
+            media.removeEventListener('error', onError)
+        }
+
+        const onReady = () => {
+            cleanup()
+            resolve()
+        }
+
+        const onError = () => {
+            cleanup()
+            reject(media.error || new Error('Media failed to load'))
+        }
+
+        timeoutId = setTimeout(() => {
+            cleanup()
+            resolve()
+        }, timeoutMs)
+
+        media.addEventListener('canplay', onReady, { once: true })
+        media.addEventListener('loadeddata', onReady, { once: true })
+        media.addEventListener('error', onError, { once: true })
+    })
+}
+
 export function useAudioPlayer(contextMode?: string) {
     
     
@@ -69,6 +103,7 @@ export function useAudioPlayer(contextMode?: string) {
     const audioRef = useRef<HTMLVideoElement>(getSharedAudio())
     const engineRef = useRef<AudioEngine | null>(_sharedEngine)
     const isSwitchingTrackRef = useRef(false)
+    const playRequestIdRef = useRef(0)
 
     
     useEffect(() => {
@@ -120,6 +155,9 @@ export function useAudioPlayer(contextMode?: string) {
     const playTrack = useCallback(async (originalTrack: Track, newPlaylist?: Track[]) => {
         const audio = audioRef.current
         const prevTrack = currentTrackRef.current
+        const requestId = playRequestIdRef.current + 1
+        playRequestIdRef.current = requestId
+        const isCurrentRequest = () => playRequestIdRef.current === requestId
 
         if (newPlaylist) {
             setPlaylist(newPlaylist)
@@ -179,7 +217,10 @@ export function useAudioPlayer(contextMode?: string) {
                 } else throw new Error("Not found on YouTube")
             } catch (e) {
                 console.error("Failed to resolve shared track:", e)
-                isSwitchingTrackRef.current = false
+                if (isCurrentRequest()) {
+                    isSwitchingTrackRef.current = false
+                    setIsPlaying(false)
+                }
                 return
             }
         } else {
@@ -203,12 +244,21 @@ export function useAudioPlayer(contextMode?: string) {
 
         try {
             await engineRef.current?.resume()
+            await waitForPlayable(audio)
+            if (!isCurrentRequest()) return
             await audio.play()
-            setIsPlaying(true)
+            if (isCurrentRequest()) {
+                setIsPlaying(!audio.paused && !audio.ended)
+            }
         } catch (e) {
             console.error("Playback failed:", e)
+            if (isCurrentRequest()) {
+                setIsPlaying(false)
+            }
         } finally {
-            isSwitchingTrackRef.current = false
+            if (isCurrentRequest()) {
+                isSwitchingTrackRef.current = false
+            }
         }
 
         if (!trackToPlay.artwork && !trackToPlay.path.startsWith('shared:')) {
@@ -224,7 +274,7 @@ export function useAudioPlayer(contextMode?: string) {
     }, [])
 
     
-    const handleNext = useCallback((autoTrigger = false) => {
+    const handleNext = useCallback(async (autoTrigger = false) => {
         if (!currentTrack || playlist.length === 0) return
 
         let nextTrack: Track
@@ -233,7 +283,14 @@ export function useAudioPlayer(contextMode?: string) {
             
             nextTrack = currentTrack
             audioRef.current.currentTime = 0
-            audioRef.current.play()
+            try {
+                await engineRef.current?.resume()
+                await audioRef.current.play()
+                setIsPlaying(!audioRef.current.paused && !audioRef.current.ended)
+            } catch (e) {
+                console.error("Playback failed:", e)
+                setIsPlaying(false)
+            }
             return
         }
 
@@ -263,7 +320,7 @@ export function useAudioPlayer(contextMode?: string) {
         nextTrack = activeList[nextIdx]
 
         
-        playTrack(nextTrack)
+        await playTrack(nextTrack)
     }, [currentTrack, playlist, shuffledQueue, isShuffle, repeatMode])
 
     const handlePrev = useCallback(() => {
@@ -314,7 +371,11 @@ export function useAudioPlayer(contextMode?: string) {
         const onDurationChange = () => setDuration(audio.duration)
         const onEnded = () => {
             handleNext(true)
-            window.ipcRenderer.invoke('app:clear-memory').catch(() => {})
+                .finally(() => {
+                    setTimeout(() => {
+                        window.ipcRenderer.invoke('app:clear-memory').catch(() => {})
+                    }, 1000)
+                })
         }
         const onPlay = () => setIsPlaying(true)
         const onPause = () => {
