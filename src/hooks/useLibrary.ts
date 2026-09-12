@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Track } from './useAudioPlayer'
 
 const STORAGE_KEY_FOLDERS_V2 = 'neonwave_folders_v2' 
@@ -264,7 +264,7 @@ export function useLibrary() {
         }))
     }
 
-    const toggleFavorite = (track: Track) => {
+    const toggleFavorite = useCallback((track: Track) => {
         setFavorites(prev => {
             const exists = prev.some(t => t.path === track.path)
             let newFavs
@@ -276,7 +276,7 @@ export function useLibrary() {
             localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(newFavs))
             return newFavs
         })
-    }
+    }, [])
 
     const exportPlaylist = (playlist: Playlist) => {
         const exportData = {

@@ -6,6 +6,7 @@ import fsPromises from 'node:fs/promises'
 import crypto from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 type PlaybackSnapshot = {
   path?: string
@@ -91,9 +92,14 @@ function normalizePathname(input: string) {
 export class PartyRoomService {
   private server: http.Server | null = null
   private serverPort: number | null = null
+  private serverStartPromise: Promise<void> | null = null
   private roomId: string | null = null
   private roomToken: string | null = null
   private tunnelProcess: ChildProcess | null = null
+  private tunnelStartPromise: Promise<void> | null = null
+  private tunnelGeneration = 0
+  private tunnelTimer: NodeJS.Timeout | null = null
+  private artworkVersion = 0
   private tunnelUrl: string | null = null
   private tunnelStatus: PartyStatus['tunnelStatus'] = 'idle'
   private tunnelMessage: string | undefined
@@ -122,9 +128,14 @@ export class PartyRoomService {
   }
 
   updatePlayback(snapshot: Partial<PlaybackSnapshot>) {
+    const trackChanged = snapshot.path !== undefined && snapshot.path !== this.playback.path
     const cleanSnapshot = { ...snapshot }
     if (cleanSnapshot.artwork === undefined) {
       delete cleanSnapshot.artwork
+    }
+    if (trackChanged || (snapshot.artwork !== undefined && snapshot.artwork !== this.playback.artwork)) {
+      this.artworkVersion++
+      if (trackChanged) this.playback.artwork = undefined
     }
     this.playback = {
       ...this.playback,
@@ -135,9 +146,12 @@ export class PartyRoomService {
   }
 
   async start(options: PartySessionOptions = {}) {
+    const generation = this.tunnelGeneration
     await this.ensureServer()
+    if (generation !== this.tunnelGeneration) return this.getStatus()
     if (options.autoTunnel) {
       await this.startTunnel().catch((err) => {
+        if (generation !== this.tunnelGeneration) return
         this.tunnelStatus = 'error'
         this.tunnelMessage = err instanceof Error ? err.message : String(err)
         this.broadcastState()
@@ -197,6 +211,19 @@ export class PartyRoomService {
     }
   }
 
+  private getGuestStatus(): PartyStatus {
+    const status = this.getStatus()
+    if (status.track) {
+      status.track.path = this.playback.path
+        ? crypto.createHash('sha256').update(this.playback.path).digest('hex').slice(0, 24)
+        : undefined
+      status.track.artwork = this.playback.artwork
+        ? '/api/room/' + this.roomId + '/artwork?token=' + encodeURIComponent(this.roomToken!) + '&v=' + this.artworkVersion
+        : undefined
+    }
+    return status
+  }
+
   private getLiveCurrentTime() {
     const base = this.playback.currentTime || 0
     if (!this.playback.isPlaying) return base
@@ -208,31 +235,51 @@ export class PartyRoomService {
     return Math.max(0, next)
   }
 
-  private async ensureServer() {
+  private ensureServer(): Promise<void> {
+    if (this.serverStartPromise) return this.serverStartPromise
+    const pending = this.listenServer().finally(() => {
+      if (this.serverStartPromise === pending) this.serverStartPromise = null
+    })
+    this.serverStartPromise = pending
+    return pending
+  }
+
+  private async listenServer() {
     if (this.server) return
 
     this.roomId = randomId(8)
     this.roomToken = randomId(24)
 
     this.server = http.createServer((req, res) => {
-      void this.handleRequest(req, res)
+      void this.handleRequest(req, res).catch(() => {
+        if (!res.headersSent) this.sendJson(res, 500, { error: 'request_failed' })
+        else res.destroy()
+      })
     })
+    const server = this.server
 
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error) => {
-        this.server?.off('error', onError)
+        server.off('error', onError)
+        if (this.server === server) this.server = null
         reject(err)
       }
-      this.server?.once('error', onError)
-      this.server?.listen(0, '127.0.0.1', () => {
-        this.server?.off('error', onError)
-        const addr = this.server?.address()
+      server.once('error', onError)
+      server.listen(0, '127.0.0.1', () => {
+        server.off('error', onError)
+        if (this.server !== server) {
+          server.close()
+          resolve()
+          return
+        }
+        const addr = server.address()
         if (addr && typeof addr === 'object') {
           this.serverPort = addr.port
         }
         resolve()
       })
     })
+    if (this.server !== server) return
 
     this.keepAliveTimer = setInterval(() => {
       this.flushKeepAlive()
@@ -242,6 +289,7 @@ export class PartyRoomService {
   }
 
   private stopServer() {
+    this.serverStartPromise = null
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer)
       this.keepAliveTimer = null
@@ -257,12 +305,17 @@ export class PartyRoomService {
     if (this.server) {
       try {
         this.server.close()
+        this.server.closeAllConnections()
       } catch {}
       this.server = null
     }
   }
 
   private stopTunnel() {
+    this.tunnelGeneration++
+    this.tunnelStartPromise = null
+    if (this.tunnelTimer) clearTimeout(this.tunnelTimer)
+    this.tunnelTimer = null
     if (this.tunnelProcess) {
       try {
         this.tunnelProcess.kill('SIGTERM')
@@ -274,11 +327,21 @@ export class PartyRoomService {
     this.tunnelMessage = undefined
   }
 
-  private async startTunnel() {
+  private startTunnel(): Promise<void> {
+    if (this.tunnelStartPromise) return this.tunnelStartPromise
+    const pending = this.launchTunnel(this.tunnelGeneration).finally(() => {
+      if (this.tunnelStartPromise === pending) this.tunnelStartPromise = null
+    })
+    this.tunnelStartPromise = pending
+    return pending
+  }
+
+  private async launchTunnel(generation: number) {
     if (!this.serverPort) throw new Error('本機房間尚未啟動')
     if (this.tunnelProcess) return
 
     const cloudflared = await this.ensureCloudflared()
+    if (generation !== this.tunnelGeneration || !this.serverPort) return
     if (!cloudflared) {
       this.cloudflaredAvailable = false
       throw new Error('cloudflared 安裝失敗，請稍後再試。')
@@ -306,11 +369,32 @@ export class PartyRoomService {
 
     this.tunnelProcess = child
 
+    let output = ''
+    let registered = false
+    let candidateUrl: string | null = null
+    const fail = (message: string) => {
+      if (this.tunnelProcess !== child) return
+      if (this.tunnelTimer) clearTimeout(this.tunnelTimer)
+      this.tunnelTimer = null
+      this.tunnelProcess = null
+      this.tunnelUrl = null
+      this.tunnelStatus = 'error'
+      this.tunnelMessage = message
+      child.kill()
+      this.broadcastState()
+    }
+    this.tunnelTimer = setTimeout(() => fail('Cloudflare Tunnel 連線逾時，請重試並確認網路連線。'), 60000)
     const handleOutput = (chunk: Buffer) => {
-      const text = chunk.toString('utf8')
+      if (this.tunnelProcess !== child) return
+      output = (output + chunk.toString('utf8')).slice(-16384)
+      const text = output
       const match = text.match(/https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/i)
-      if (match) {
-        this.tunnelUrl = match[0]
+      if (match) candidateUrl = match[0]
+      if (/Registered tunnel connection/i.test(text)) registered = true
+      if (candidateUrl && registered && this.tunnelStatus !== 'connected') {
+        if (this.tunnelTimer) clearTimeout(this.tunnelTimer)
+        this.tunnelTimer = null
+        this.tunnelUrl = candidateUrl
         this.tunnelStatus = 'connected'
         this.tunnelMessage = 'Cloudflare Tunnel 已連線'
         this.broadcastState()
@@ -319,12 +403,16 @@ export class PartyRoomService {
 
     child.stdout.on('data', handleOutput)
     child.stderr.on('data', handleOutput)
+    child.on('error', (err) => fail(`Cloudflare Tunnel 啟動失敗：${err.message}`))
 
     child.on('exit', (code, signal) => {
+      if (this.tunnelProcess !== child) return
+      if (this.tunnelTimer) clearTimeout(this.tunnelTimer)
+      this.tunnelTimer = null
       this.tunnelProcess = null
       if (this.tunnelStatus !== 'idle') {
         this.tunnelStatus = 'error'
-        this.tunnelMessage = `Cloudflare Tunnel 已停止 (${signal || code || 'unknown'})`
+        this.tunnelMessage = `Cloudflare Tunnel 已停止 (${signal ?? code ?? 'unknown'})。請重試。`
         this.tunnelUrl = null
         this.broadcastState()
       }
@@ -433,7 +521,7 @@ export class PartyRoomService {
     this.cloudflaredMessage = '正在背景下載 cloudflared...'
     this.broadcastState()
 
-    const response = await fetch(releaseUrl, { redirect: 'follow' })
+    const response = await fetch(releaseUrl, { redirect: 'follow', signal: AbortSignal.timeout(180000) })
     if (!response.ok || !response.body) {
       throw new Error(`下載 cloudflared 失敗：${response.status} ${response.statusText}`)
     }
@@ -443,32 +531,22 @@ export class PartyRoomService {
     const file = fs.createWriteStream(tempPath)
     const reader = Readable.fromWeb(response.body as any)
 
-    try {
-      for await (const chunk of reader) {
-        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        received += buffer.length
-        if (!file.write(buffer)) {
-          await new Promise<void>((resolve, reject) => {
-            file.once('drain', resolve)
-            file.once('error', reject)
-          })
-        }
-        if (total > 0) {
-          this.cloudflaredProgress = Math.min(1, received / total)
-          this.broadcastState()
-        }
+    let lastProgressAt = 0
+    reader.on('data', (chunk: Buffer) => {
+      received += chunk.length
+      const now = Date.now()
+      if (total > 0 && now - lastProgressAt >= 250) {
+        this.cloudflaredProgress = Math.min(1, received / total)
+        lastProgressAt = now
+        this.broadcastState()
       }
-    } catch (err) {
-      file.destroy()
-      throw err
-    } finally {
-      file.end()
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      file.once('finish', resolve)
-      file.once('error', reject)
     })
+    try {
+      await pipeline(reader, file)
+    } catch (err) {
+      await fsPromises.rm(tempPath, { force: true }).catch(() => {})
+      throw err
+    }
 
     if (asset.archive === 'tgz') {
       await new Promise<void>((resolve, reject) => {
@@ -535,7 +613,26 @@ export class PartyRoomService {
         this.sendJson(res, 403, { error: 'forbidden' })
         return
       }
-      this.sendJson(res, 200, this.getStatus())
+      this.sendJson(res, 200, this.getGuestStatus())
+      return
+    }
+
+    if (req.method === 'GET' && pathname === `/api/room/${this.roomId}/artwork`) {
+      if (!this.validateContext(this.roomId || undefined, requestUrl.searchParams.get('token') || undefined)) {
+        this.sendText(res, 403, 'Forbidden')
+        return
+      }
+      const artwork = this.playback.artwork || ''
+      const data = /^data:(image\/[\w.+-]+);base64,(.+)$/s.exec(artwork)
+      if (data) {
+        res.writeHead(200, { 'Content-Type': data[1], 'Cache-Control': 'private, max-age=3600' })
+        res.end(Buffer.from(data[2], 'base64'))
+      } else if (/^https?:\/\//i.test(artwork)) {
+        res.writeHead(302, { Location: artwork, 'Cache-Control': 'no-store' })
+        res.end()
+      } else {
+        this.sendText(res, 404, 'No artwork')
+      }
       return
     }
 
@@ -551,7 +648,7 @@ export class PartyRoomService {
         Connection: 'keep-alive',
         'Access-Control-Allow-Origin': '*'
       })
-      res.write(`event: state\ndata: ${JSON.stringify(this.getStatus())}\n\n`)
+      res.write(`event: state\ndata: ${JSON.stringify(this.getGuestStatus())}\n\n`)
       this.sseClients.add(res)
       req.on('close', () => {
         this.sseClients.delete(res)
@@ -608,15 +705,17 @@ export class PartyRoomService {
       res.setHeader('Cache-Control', 'no-store')
 
       if (range) {
-        const match = /bytes=(\d+)-(\d*)/.exec(range)
-        if (!match) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range)
+        if (!match || (!match[1] && !match[2])) {
+          res.setHeader('Content-Range', `bytes */${fileSize}`)
           this.sendJson(res, 416, { error: 'invalid_range' })
           return
         }
 
-        const start = Number(match[1])
-        const end = match[2] ? Number(match[2]) : fileSize - 1
-        if (start >= fileSize || end >= fileSize || start > end) {
+        const start = match[1] ? Number(match[1]) : Math.max(0, fileSize - Number(match[2]))
+        const end = match[1] && match[2] ? Math.min(Number(match[2]), fileSize - 1) : fileSize - 1
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= fileSize || start > end) {
+          res.setHeader('Content-Range', `bytes */${fileSize}`)
           this.sendJson(res, 416, { error: 'range_not_satisfiable' })
           return
         }
@@ -624,14 +723,15 @@ export class PartyRoomService {
         res.statusCode = 206
         res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`)
         res.setHeader('Content-Length', end - start + 1)
-        fs.createReadStream(filePath, { start, end }).pipe(res)
+        await pipeline(fs.createReadStream(filePath, { start, end }), res)
         return
       }
 
       res.statusCode = 200
       res.setHeader('Content-Length', fileSize)
-      fs.createReadStream(filePath).pipe(res)
+      await pipeline(fs.createReadStream(filePath), res)
     } catch (err) {
+      if (res.headersSent || res.destroyed) return
       this.sendJson(res, 500, {
         error: 'stream_failed',
         message: err instanceof Error ? err.message : String(err)
@@ -685,16 +785,20 @@ export class PartyRoomService {
   }
 
   private broadcastState() {
-    const payload = `event: state\ndata: ${JSON.stringify(this.getStatus())}\n\n`
+    if (this.sseClients.size === 0) return
+    const payload = `event: state\ndata: ${JSON.stringify(this.getGuestStatus())}\n\n`
     for (const client of this.sseClients) {
       try {
-        client.write(payload)
-      } catch {}
+        if (!client.write(payload)) {
+          this.sseClients.delete(client)
+          client.destroy()
+        }
+      } catch { this.sseClients.delete(client) }
     }
   }
 
   private renderGuestPage(roomId: string, token: string) {
-    const baseState = this.getStatus()
+    const baseState = this.getGuestStatus()
     const inviteUrl = escapeHtml(this.getInviteUrl() || '')
     const title = escapeHtml(baseState.track?.title || 'Listening Party')
     const artist = escapeHtml(baseState.track?.artist || '等待主機播放中')
@@ -1005,7 +1109,7 @@ export class PartyRoomService {
     const sourceEl = document.getElementById('source');
     const volumeEl = document.getElementById('volume');
     const volumeValEl = document.getElementById('volumeVal');
-    let state = ${JSON.stringify(baseState)};
+    let state = ${JSON.stringify(baseState).replace(/</g, '\\u003c')};
     let manualSeek = false;
     let currentStreamPath = '';
     let pendingAudioTarget = null;
@@ -1072,7 +1176,8 @@ export class PartyRoomService {
 
     function syncAudioPosition(force = false) {
       if (!state.track?.streamable || !Number.isFinite(state.track.currentTime)) return;
-      const target = Math.max(0, state.track.currentTime || 0);
+      const elapsed = state.track.isPlaying && lastHostTimeReceivedAt ? (Date.now() - lastHostTimeReceivedAt) / 1000 : 0;
+      const target = Math.min(state.track.duration || Infinity, Math.max(0, (state.track.currentTime || 0) + elapsed));
       const actual = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
       if (force || Math.abs(actual - target) > 3.0) {
         try {
@@ -1117,6 +1222,8 @@ export class PartyRoomService {
       lastHostTimeReceivedAt = now;
 
       state = next;
+      seekEl.disabled = !next.track?.streamable;
+      copyBtn.disabled = !next.publicUrl;
       if (wrapEl) {
         if (next.track?.isVideo) {
           wrapEl.classList.add('has-video');
@@ -1164,7 +1271,7 @@ export class PartyRoomService {
 
       if (artworkEl) {
         if (next.track?.artwork) {
-          artworkEl.src = next.track.artwork;
+          if (artworkEl.getAttribute('src') !== next.track.artwork) artworkEl.src = next.track.artwork;
           artworkEl.style.display = next.track.isVideo ? 'none' : '';
           if (fallbackEl) fallbackEl.style.display = 'none';
         } else {
@@ -1188,16 +1295,23 @@ export class PartyRoomService {
         }
       } else if (next.track?.isPlaying) {
         syncAudioPosition(true);
-        audio.play().catch(() => {});
+        audio.play().catch(() => setError('請按播放按鈕，允許瀏覽器開始聆聽。'));
       } else if (!next.track?.isPlaying && !audio.paused) {
         audio.pause();
+        syncAudioPosition(true);
+      } else if (hostDidSeek || trackChanged) {
         syncAudioPosition(true);
       }
     }
 
     prevBtn.addEventListener('click', () => sendCommand('prev').catch(err => setError(err.message)));
     nextBtn.addEventListener('click', () => sendCommand('next').catch(err => setError(err.message)));
-    toggleBtn.addEventListener('click', () => sendCommand('toggle-play').catch(err => setError(err.message)));
+    toggleBtn.addEventListener('click', () => {
+      if (state.track?.isPlaying && audio.paused) {
+        syncAudioPosition(true);
+        audio.play().catch(err => setError(err.message));
+      } else sendCommand('toggle-play').catch(err => setError(err.message));
+    });
     syncBtn.addEventListener('click', async () => {
       try {
         const res = await fetch(apiBase + '/api/room/' + roomId + '?token=' + encodeURIComponent(token));
@@ -1253,16 +1367,37 @@ export class PartyRoomService {
       if (audio.error) setError('串流載入失敗，請確認主機仍在播放可串流的本機檔案。');
     });
 
-    const es = new EventSource(apiBase + '/api/room/' + roomId + '/events?token=' + encodeURIComponent(token));
-    es.addEventListener('state', (evt) => {
+    // Quick Tunnels do not support SSE. Keep at most one bounded request in flight.
+    let pollTimer;
+    let pollStopped = false;
+    let pollDelay = 1000;
+    async function pollState() {
       try {
-        const next = JSON.parse(evt.data);
-        render(next);
-      } catch {}
+        const res = await fetch('/api/room/' + roomId + '?token=' + encodeURIComponent(token), {
+          cache: 'no-store', signal: AbortSignal.timeout(8000)
+        });
+        if (!res.ok) {
+          if (res.status === 403 || res.status === 404) {
+            pollStopped = true;
+            audio.pause();
+            setError('房間已關閉，請向主機取得新的邀請連結。');
+          }
+          throw new Error('HTTP ' + res.status);
+        }
+        render(await res.json());
+        pollDelay = 1000;
+      } catch {
+        connEl.textContent = pollStopped ? '房間已關閉' : '連線中斷，正在重試...';
+        pollDelay = Math.min(pollDelay * 2, 10000);
+      } finally {
+        if (!pollStopped) pollTimer = setTimeout(pollState, pollDelay);
+      }
+    }
+    window.addEventListener('pagehide', () => { pollStopped = true; clearTimeout(pollTimer); });
+    window.addEventListener('pageshow', (evt) => {
+      if (evt.persisted) { pollStopped = false; pollState(); }
     });
-    es.onerror = () => {
-      connEl.textContent = '連線中斷，正在重試...';
-    };
+    pollState();
 
     render(state);
   </script>

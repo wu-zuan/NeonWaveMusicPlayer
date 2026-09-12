@@ -316,6 +316,10 @@ function MainApp() {
     return { displayedTracks: allTracks, viewTitle: '所有歌曲' }
   }, [view, allTracks, favorites, playlists])
 
+  const handlePlayFromList = useCallback((track: Parameters<typeof playTrack>[0]) => {
+    void playTrack(track, displayedTracks)
+  }, [playTrack, displayedTracks])
+
   const handleToggleLyrics = useCallback(() => {
     setShowLyrics(v => !v)
   }, [])
@@ -365,7 +369,7 @@ function MainApp() {
               title={viewTitle}
               tracks={displayedTracks}
               currentTrack={currentTrack}
-              onPlay={(track) => playTrack(track, displayedTracks)}
+              onPlay={handlePlayFromList}
               onToggleFavorite={toggleFavorite}
               favorites={favorites}
             />

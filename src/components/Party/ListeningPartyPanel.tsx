@@ -101,14 +101,18 @@ export function ListeningPartyPanel() {
 
     const linkLabel = status.publicUrl
         ? '分享連結已就緒'
-        : status.tunnelStatus === 'starting' || status.cloudflaredState === 'downloading'
-            ? '正在建立 Cloudflare Tunnel'
-            : status.active
-                ? '等待 Cloudflare 產生公開連結'
-                : '尚未建立分享房間'
+        : status.tunnelStatus === 'error'
+            ? 'Cloudflare Tunnel 連線失敗，請重試'
+            : status.tunnelStatus === 'starting' || status.cloudflaredState === 'downloading'
+                ? '正在建立 Cloudflare Tunnel'
+                : status.active
+                    ? '等待 Cloudflare 產生公開連結'
+                    : '尚未建立分享房間'
 
     const linkDescription = status.publicUrl
         ? '現在可以把公開網址分享給朋友。'
+        : status.tunnelStatus === 'error'
+            ? '請按「重試連線」重新建立公開連結。'
         : status.tunnelStatus === 'starting' || status.cloudflaredState === 'downloading'
             ? '請稍候，正在背景準備公開連結。'
             : status.active
@@ -176,7 +180,7 @@ export function ListeningPartyPanel() {
                             </div>
                         </div>
                     )}
-                    {!status.publicUrl ? (
+                    {(status.tunnelStatus === 'starting' || status.cloudflaredState === 'downloading') ? (
                         <div className={styles.linkLoading}>
                             <div className={styles.loadingBar} />
                         </div>
@@ -196,7 +200,7 @@ export function ListeningPartyPanel() {
 
                 {status.tunnelMessage ? <div className={styles.subtle}>{status.tunnelMessage}</div> : null}
                 {status.cloudflaredMessage ? <div className={styles.subtle}>{status.cloudflaredMessage}</div> : null}
-                {!status.cloudflaredAvailable && status.active ? <div className={styles.subtle}>找不到 cloudflared，請先安裝 Cloudflare Tunnel CLI。</div> : null}
+                {status.cloudflaredState === 'error' && status.active ? <div className={styles.subtle}>找不到 cloudflared，請先安裝 Cloudflare Tunnel CLI。</div> : null}
             </div>
 
             <div className={styles.actions}>
@@ -212,6 +216,11 @@ export function ListeningPartyPanel() {
                     </button>
                 )}
 
+                {status.active && status.tunnelStatus === 'error' && (
+                    <button className={styles.secondaryBtn} onClick={startParty} disabled={busy}>
+                        重試連線
+                    </button>
+                )}
                 <button className={styles.secondaryBtn} onClick={copyInvite} disabled={!status.publicUrl}>
                     <Link2 size={16} />
                     複製邀請連結

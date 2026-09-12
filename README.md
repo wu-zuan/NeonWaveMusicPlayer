@@ -39,9 +39,16 @@ Electron + React + TypeScript + Web Audio API。
 npm install
 npm run dev        # 開發模式(Vite + Electron)
 npm run typecheck  # TypeScript 檢查
+npm run test:party # 分享房間、Tunnel 生命週期與串流回歸測試
 npm run build      # 本機完整打包(electron-builder)
 npm run build:dir  # 只打包目錄不做安裝檔(快速驗證)
 ```
+
+## 分享連線排查
+
+公開連結會在 cloudflared 確認連線後顯示；若啟動逾時或程序退出，可按「重試連線」。朋友首次開啟頁面若沒有聲音，請按播放按鈕允許瀏覽器播放。
+
+分享頁使用約每秒一次的狀態輪詢，失敗時逐步延長重試間隔，封面另行快取，避免反覆傳送圖片。[Cloudflare Quick Tunnel 不支援 SSE](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/)，且有服務端並行請求限制；目前仍適合少量朋友臨時分享。
 
 ## 發佈
 

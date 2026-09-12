@@ -22,5 +22,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Listening Party regression tests
+        run: npm run test:party
+
       - name: Build (renderer + electron main)
         run: npx vite build

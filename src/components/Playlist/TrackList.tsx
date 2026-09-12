@@ -16,6 +16,38 @@ interface TrackListProps {
 
 const ITEM_HEIGHT = 56
 
+type TrackRowProps = Pick<TrackListProps, 'tracks' | 'currentTrack' | 'onPlay' | 'onToggleFavorite'> & {
+    favoritePaths: Set<string>
+    highlightedIndex: number | undefined
+}
+
+const TrackRow = ({ index, style, tracks, currentTrack, favoritePaths, highlightedIndex, onPlay, onToggleFavorite }: TrackRowProps & { index: number; style: React.CSSProperties }) => {
+        const track = tracks[index]
+        const isFav = favoritePaths.has(track.path)
+        const isActive = currentTrack?.path === track.path
+
+        // Optimization: Use currentTrack's artwork for the active item
+        const displayTrack = (isActive && currentTrack?.artwork)
+            ? { ...track, artwork: currentTrack.artwork }
+            : track
+
+        return (
+            <TrackItem
+                style={style}
+                key={track.path}
+                id={`track-item-${index}`}
+                track={displayTrack}
+                isActive={isActive}
+                isHighlighted={highlightedIndex === index}
+                onClick={() => onPlay(track)}
+                isFavorite={isFav}
+                onToggleFavorite={() => onToggleFavorite && onToggleFavorite(track)}
+                trackIndex={index + 1}
+            />
+        )
+    }
+
+
 const TrackListView: React.FC<TrackListProps> = ({
     title = '音樂庫', tracks, currentTrack, onPlay, onToggleFavorite, favorites = []
 }) => {
@@ -87,31 +119,6 @@ const TrackListView: React.FC<TrackListProps> = ({
         )
     }
 
-    const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
-        const track = tracks[index]
-        const isFav = favoritePaths.has(track.path)
-        const isActive = currentTrack?.path === track.path
-
-        // Optimization: Use currentTrack's artwork for the active item
-        const displayTrack = (isActive && currentTrack?.artwork)
-            ? { ...track, artwork: currentTrack.artwork }
-            : track
-
-        return (
-            <TrackItem
-                style={style}
-                key={track.path}
-                id={`track-item-${index}`}
-                track={displayTrack}
-                isActive={isActive}
-                isHighlighted={matches.length > 0 && matches[currentMatchIdx] === index}
-                onClick={() => onPlay(track)}
-                isFavorite={isFav}
-                onToggleFavorite={() => onToggleFavorite && onToggleFavorite(track)}
-                trackIndex={index + 1}
-            />
-        )
-    }
 
     return (
         <div className={styles.container} ref={containerRef}>
@@ -152,13 +159,13 @@ const TrackListView: React.FC<TrackListProps> = ({
                     <span className={styles.artist}>{tracks.length} 個項目</span>
                 </header>
             </div>
-            <List<{}>
+            <List<TrackRowProps>
                 listRef={listRef}
                 style={{ height: listHeight, width: '100%' }}
                 rowCount={tracks.length}
                 rowHeight={ITEM_HEIGHT}
-                rowComponent={Row}
-                rowProps={{}}
+                rowComponent={TrackRow}
+                rowProps={{ tracks, currentTrack, favoritePaths, highlightedIndex: matches[currentMatchIdx], onPlay, onToggleFavorite }}
                 overscanCount={10}
             />
         </div>
