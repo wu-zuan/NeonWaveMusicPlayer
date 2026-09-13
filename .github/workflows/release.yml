@@ -50,11 +50,13 @@ jobs:
           node scripts/e2e-native.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: node scripts/collect-release.mjs
+        id: collect
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.os }}
-          path: release/*/*
+          path: ${{ steps.collect.outputs.directory }}
           if-no-files-found: error
+          compression-level: 0
 
   publish:
     needs: build
