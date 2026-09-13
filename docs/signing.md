@@ -1,70 +1,47 @@
-# 程式碼簽名(Code Signing)設定指南
+# 簽署與更新發佈
 
-這裡講的都是**檔案簽名**(安裝檔/執行檔的數位簽章),與上架商店無關。
-Release workflow 已內建簽名支援 — **只要把憑證放進 GitHub Secrets 就會自動簽名**,不需要改任何程式或 workflow。
+## Tauri 更新簽章（必須）
 
-## 先懂一件事:為什麼「免費簽名」沒有用
+Tauri 更新器會驗證每個更新檔的 Ed25519 簽章。這與 Windows Authenticode／Apple Developer ID 是不同的金鑰；不能用 PFX 或 Apple 憑證取代。
 
-簽名要能消除系統警告,憑證必須由**作業系統信任的機構**簽發:
+此次遷移已建立本機更新金鑰，公開金鑰已寫入 `src-tauri/tauri.conf.json`。私鑰位於 `.local/updater.key`，由 `.gitignore` 排除；不要加入版本控制或放進 release。請安全備份它，未來的更新必須用同一把私鑰簽署。
 
-- Windows 自簽(self-signed)憑證 → SmartScreen 照樣顯示「未知的發行者」,與未簽名幾乎無異
-- macOS 沒有 Developer ID 的簽名 → Gatekeeper 照樣攔
+`npm run build` 自動使用這個本機私鑰；其他開發環境可設定 `TAURI_SIGNING_PRIVATE_KEY`（私鑰內容或檔案路徑）與 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。沒有金鑰時可用 `npm run build:dir` 產出 production executable。
 
-**唯一的免費例外**:macOS 的 **ad-hoc 簽名**(已內建於本專案 `scripts/afterPack.cjs`,自動套用)。
-它不能消除警告,但在 Apple Silicon 上能把「App 已損毀,無法打開」硬擋降級為
-「無法驗證開發者」→ 使用者右鍵 → 打開即可,不需要終端機指令。
+GitHub repository Secrets 必須設定：
 
-## macOS(必須付費,無免費方案)
+| Secret | 內容 |
+| --- | --- |
+| TAURI_SIGNING_PRIVATE_KEY | 與設定檔 public key 配對的完整私鑰文字 |
+| TAURI_SIGNING_PRIVATE_KEY_PASSWORD | 私鑰密碼；目前本機金鑰無密碼，留空 |
 
-1. 加入 [Apple Developer Program](https://developer.apple.com/programs/) — **99 美元/年**
-2. 在 Xcode 或 developer.apple.com 建立 **Developer ID Application** 憑證,匯出成 `.p12`(設定密碼)
-3. 把 `.p12` 轉成 base64:
-   ```bash
-   base64 -i certificate.p12 | pbcopy        # macOS
-   certutil -encode certificate.p12 out.txt  # Windows
-   ```
-4. 到 GitHub repo → Settings → Secrets and variables → Actions,新增:
+此儲存庫已設定 `TAURI_SIGNING_PRIVATE_KEY` Actions Secret，使用與本機相同的更新金鑰。其他 fork 或儲存庫仍需自行設定上述 Secret。可使用原有 `npm run release` 標籤流程，或在 GitHub Actions 手動執行 Release workflow：後者會使用所選 commit 的版號建置，待所有平台與驗證通過後建立標籤、上傳草稿附件，再公開 Release。
 
-   | Secret | 內容 |
-   |--------|------|
-   | `MAC_CSC_LINK` | `.p12` 的 base64 字串 |
-   | `MAC_CSC_KEY_PASSWORD` | `.p12` 的密碼 |
+## Windows 安裝檔簽署（選用）
 
-5. (建議)公證 Notarization — 沒公證的話使用者仍會看到 Gatekeeper 警告:
+目前與原版相同，未配置受信任的程式碼簽署憑證時會產生 unsigned installer。更新檔仍有 Tauri 簽章，但作業系統發行者身分不會因此變成受信任。
 
-   | Secret | 內容 |
-   |--------|------|
-   | `APPLE_ID` | Apple ID 帳號 |
-   | `APPLE_APP_SPECIFIC_PASSWORD` | 在 [appleid.apple.com](https://appleid.apple.com/account/manage) 產生的 App 專用密碼 |
-   | `APPLE_TEAM_ID` | 開發者帳號的 Team ID |
+需要 Authenticode 時，在 CI 設定 `WINDOWS_SIGN_COMMAND`（Tauri signCommand，檔案佔位符為 `%1`），指向機構使用的 SignTool、SignPath 或雲端簽署腳本。腳本負責保護並載入憑證，不能將密碼寫入 repository。舊版的 `WIN_CSC_LINK` 不會直接套用到 Tauri，需移至組織的簽署命令。
 
-   設定好後在 `electron-builder.json5` 的 `mac` 區塊加上 `"notarize": true` 即可。
+## macOS 簽署與公證（選用）
 
-## Windows
+沒有 Developer ID 時沿用 ad-hoc signing；設定真實身分時 build script 會取代 ad-hoc 設定。
 
-三種途徑,擇一:
+| GitHub Secret | 對應 Tauri 環境變數 |
+| --- | --- |
+| MAC_CSC_LINK | APPLE_CERTIFICATE（base64 P12） |
+| MAC_CSC_KEY_PASSWORD | APPLE_CERTIFICATE_PASSWORD |
+| APPLE_SIGNING_IDENTITY | APPLE_SIGNING_IDENTITY |
+| APPLE_ID | APPLE_ID |
+| APPLE_APP_SPECIFIC_PASSWORD | APPLE_PASSWORD |
+| APPLE_TEAM_ID | APPLE_TEAM_ID |
 
-| 方案 | 費用 | 適合 |
-|------|------|------|
-| **[SignPath.io](https://signpath.io/open-source)** | **開源專案免費** | 本專案 ✅(需線上申請,審核通過後按其文件整合) |
-| OV 程式碼簽名憑證(Sectigo / DigiCert 等) | 約 USD 100–400/年 | 一般;SmartScreen 信譽需累積下載量後才消失 |
-| EV 憑證 / Azure Trusted Signing | 較貴 / 約 USD 10/月 | SmartScreen 立即信任 |
+## 發佈格式與既有使用者
 
-拿到 `.pfx` 憑證後(SignPath 除外,它走自己的流程):
+`scripts/collect-release.mjs` 保留原有 Windows／Mac／Linux 人類可讀檔名，收集 Tauri 簽章並產生每個平台的 manifest。Workflow 合併成 `latest.json`，同時產生舊更新器的 `latest.yml`、`latest-mac.yml`、`latest-linux.yml`。Windows installer 保留舊 NSIS registry identity 與安裝目錄；macOS 另產生原更新器需要的 zip。
 
-1. 轉 base64(同上)
-2. 新增 Secrets:
+Tauri host 的更新檢查包含 prerelease，並只採用含 `latest.json` 的 release。保留「檢查 → 自動下載 → 使用者立即安裝」以及原本的進度／錯誤 events；一般退出不安裝更新。這與原始 `autoInstallOnAppQuit=false` 一致。
 
-   | Secret | 內容 |
-   |--------|------|
-   | `WIN_CSC_LINK` | `.pfx` 的 base64 字串 |
-   | `WIN_CSC_KEY_PASSWORD` | `.pfx` 的密碼 |
+首次發佈必須使用高於 7.0.8 的版號。未發佈簽署的新版前，不能宣稱已驗證線上升級；macOS／Linux 舊 runtime 到新 runtime 的更新切換也需要各平台實機驗證。
 
-> ⚠️ 2023 年後 CA 規定憑證私鑰必須存在硬體(HSM/USB Token),雲端簽名服務
-> (Azure Trusted Signing、SignPath、SSL.com eSigner)通常比買實體 Token 更適合 CI。
-
-## 沒簽名時的行為
-
-- workflow 完全正常,產出未簽名安裝檔(現況)
-- Windows:SmartScreen「其他資訊 → 仍要執行」
-- macOS:App 右鍵 → 打開,或 `xattr -cr /Applications/NeonWave.app`
+參考：[Tauri updater](https://v2.tauri.app/plugin/updater/)、[Windows installer](https://v2.tauri.app/distribute/windows-installer/)。

@@ -10,7 +10,6 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-dist-electron
 *.local
 
 # Editor directories and files
@@ -46,3 +45,13 @@ scratch/
 *.pfx
 *.mobileprovision
 *.keychain
+
+# Tauri / sidecar generated resources
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/resources/
+src-tauri/gen/
+.local/
+artifacts/
+src-tauri/icons/android/
+src-tauri/icons/ios/

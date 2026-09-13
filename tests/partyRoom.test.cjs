@@ -22,11 +22,11 @@ before(async () => {
   }
   const outfile = path.join(tempDir, 'party.cjs')
   await build({
-    entryPoints: ['electron/partyRoom.ts'], bundle: true, platform: 'node', format: 'cjs', outfile,
+    entryPoints: ['sidecar/partyRoom.ts'], bundle: true, platform: 'node', format: 'cjs', outfile,
     plugins: [{ name: 'test-process-boundaries', setup(build) {
-      build.onResolve({ filter: /^(electron|node:child_process)$/ }, args => ({ path: args.path, namespace: 'stub' }))
-      build.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: args.path === 'electron'
-        ? `export const app = { getPath: () => ${JSON.stringify(tempDir)} }`
+      build.onResolve({ filter: /^(\.\/paths|node:child_process)$/ }, args => ({ path: args.path, namespace: 'stub' }))
+      build.onLoad({ filter: /.*/, namespace: 'stub' }, args => ({ contents: args.path === './paths'
+        ? `export const userData = ${JSON.stringify(tempDir)}`
         : 'export const spawn = (...args) => globalThis.__partyTestSpawn(...args)' }))
     } }]
   })

@@ -1,3 +1,4 @@
+import { mediaUrl, remoteMediaUrl } from '../desktop'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AudioEngine } from '../utils/AudioEngine'
 
@@ -262,10 +263,8 @@ export function useAudioPlayer(contextMode?: string) {
                     setCurrentTrack({ ...trackToPlay })
 
                     if (streamInfo && streamInfo.url) {
-                        // Remote stream URLs (googlevideo) carry no CORS headers, which
-                        // would taint Web Audio under webSecurity. Proxy them through the
-                        // main process via the media:// scheme, which adds the headers.
-                        finalUrl = `media://remote/?u=${encodeURIComponent(streamInfo.url)}`
+                        // Authenticated loopback proxy keeps Web Audio samples untainted.
+                        finalUrl = remoteMediaUrl(streamInfo.url)
                         audioRef.current.crossOrigin = "anonymous"
                     } else throw new Error("No stream URL")
                 } else throw new Error("Not found on YouTube")
@@ -280,12 +279,8 @@ export function useAudioPlayer(contextMode?: string) {
             }
         } else {
             audioRef.current.crossOrigin = "anonymous"
-            // Local files go through the privileged media:// scheme (CORS-enabled
-            // by the main-process handler) so webSecurity can stay on. A custom
-            // standard scheme needs a non-empty host, so use media://local/<path>
-            // (the empty-host media:/// form fails to parse in the renderer).
-            const encodedPath = trackToPlay.path.split(/[\\/]/).filter(Boolean).map(encodeURIComponent).join('/')
-            finalUrl = `media://local/${encodedPath}`
+            // Native media transport preserves local Range requests and CORS.
+            finalUrl = mediaUrl(trackToPlay.path)
         }
 
         // Apply Final URL for new track

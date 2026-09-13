@@ -7,26 +7,41 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Listening Party regression tests
-        run: npm run test:party
+      - name: Build Windows production executable and sidecar
+        run: npm run build:dir
 
-      - name: Performance and resource lifecycle regression tests
-        run: npm run test:performance
+      - name: Regression and native service tests
+        run: npm test
 
-      - name: Build (renderer + electron main)
-        run: npx vite build
+      - name: WebView2 playback and UI regression
+        run: npm run e2e:performance
+
+      - name: Native permissions, playlist files and shutdown
+        run: node scripts/e2e-native.cjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-validation
+          path: artifacts/

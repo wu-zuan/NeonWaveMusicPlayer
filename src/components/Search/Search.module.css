@@ -27,7 +27,7 @@
     font-size: 16px;
     outline: none;
     transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
-    -webkit-app-region: no-drag;
+    --nw-app-region: no-drag;
     min-width: 0;
 }
 
@@ -282,7 +282,7 @@
     margin-bottom: 20px;
     overflow-x: auto;
     padding: 4px;
-    -webkit-app-region: no-drag;
+    --nw-app-region: no-drag;
 }
 
 .tab {

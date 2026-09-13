@@ -67,6 +67,14 @@ try {
         fs.writeFileSync(packageLockPath, JSON.stringify(packageLock, null, 2) + '\n');
     }
 
+    const cargoTomlPath = path.resolve(__dirname, '../src-tauri/Cargo.toml');
+    const cargoLockPath = path.resolve(__dirname, '../src-tauri/Cargo.lock');
+    const cargoToml = fs.readFileSync(cargoTomlPath, 'utf8');
+    fs.writeFileSync(cargoTomlPath, cargoToml.replace(/^version = "[^"]+"/m, `version = "${newVersion}"`));
+    if (fs.existsSync(cargoLockPath)) {
+        const cargoLock = fs.readFileSync(cargoLockPath, 'utf8');
+        fs.writeFileSync(cargoLockPath, cargoLock.replace(/(name = "neonwave"\r?\nversion = ")[^"]+/, `$1${newVersion}`));
+    }
     console.log(newVersion);
 
 } catch (err) {

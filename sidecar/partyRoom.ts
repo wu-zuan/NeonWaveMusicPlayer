@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { userData } from './paths'
 import http, { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -460,7 +460,7 @@ export class PartyRoomService {
       return this.cloudflaredPath
     }
 
-    const localPath = path.join(app.getPath('userData'), 'cloudflared', process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared')
+    const localPath = path.join(userData, 'cloudflared', process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared')
     if (fs.existsSync(localPath)) {
       this.cloudflaredPath = localPath
       return localPath
@@ -513,7 +513,7 @@ export class PartyRoomService {
     }
 
     const releaseUrl = asset.url
-    const installDir = path.join(app.getPath('userData'), 'cloudflared')
+    const installDir = path.join(userData, 'cloudflared')
     const targetPath = path.join(installDir, process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared')
     const tempPath = `${targetPath}.download`
 

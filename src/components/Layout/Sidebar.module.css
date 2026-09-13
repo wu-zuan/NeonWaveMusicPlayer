@@ -10,7 +10,7 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--glass-border);
-    -webkit-app-region: drag;
+    --nw-app-region: drag;
 }
 
 .brand {
@@ -19,7 +19,7 @@
     gap: 12px;
     margin-bottom: 40px;
     padding-left: 8px;
-    -webkit-app-region: drag;
+    --nw-app-region: drag;
     user-select: none;
 }
 
@@ -109,7 +109,7 @@
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
-    -webkit-app-region: no-drag;
+    --nw-app-region: no-drag;
 }
 
 .navItem:hover {
@@ -157,7 +157,7 @@
     align-items: center;
     justify-content: center;
     transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
-    -webkit-app-region: no-drag;
+    --nw-app-region: no-drag;
 }
 
 .actionBtn:hover {
@@ -177,7 +177,7 @@
     color: var(--text-muted);
     cursor: pointer;
     transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
-    -webkit-app-region: no-drag;
+    --nw-app-region: no-drag;
 }
 
 .miniAddBtn:hover {

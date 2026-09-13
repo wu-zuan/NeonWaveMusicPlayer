@@ -1,3 +1,4 @@
+import { openDeveloperPortal } from '../../desktop'
 
 import React, { useState, useEffect, useRef } from 'react'
 import { Disc, Server, Volume2, LogOut, Power, Radio, Plus, Trash2, User, ChevronDown, Check } from 'lucide-react'
@@ -590,7 +591,7 @@ export const DiscordControlPanel: React.FC = () => {
                     </div>
 
                     <p className={styles.footerText}>
-                        還沒有機器人？前往 <a href="#" onClick={() => window.open('https://discord.com/developers/applications')} className={styles.link}>Discord Developer Portal</a> 建立一個。
+                        還沒有機器人？前往 <a href="#" onClick={() => void openDeveloperPortal()} className={styles.link}>Discord Developer Portal</a> 建立一個。
                     </p>
                 </div>
             </div>

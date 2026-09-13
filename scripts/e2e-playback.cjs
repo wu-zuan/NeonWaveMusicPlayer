@@ -1,6 +1,6 @@
 // E2E playback smoke test over Chrome DevTools Protocol.
 // Prereq: NW_REMOTE_DEBUG=9223 npm run dev   (dev app running)
-// Verifies: media://local playback advances with webSecurity enabled.
+// Verifies: authenticated media local playback advances with webSecurity enabled.
 const http = require('http');
 const os = require('os');
 const path = require('path');
@@ -67,7 +67,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
             page = targets.find(t =>
                 t.type === 'page' &&
                 !t.url.includes('mini=true') &&
-                (t.url.includes('localhost:5173') || t.url.startsWith('file:'))
+                (t.url.includes('localhost:5173') || t.url.includes('tauri.localhost') || t.url.includes('127.0.0.1:5173'))
             ) || null;
         } catch { /* app still booting */ }
         if (!page) await sleep(1000);
@@ -133,9 +133,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
         s1 && s2 && afterSeek && seekRequested &&
         !s1.err && !s2.err && !afterSeek.err &&
         s2.t > s1.t && afterSeek.t >= 4 &&
-        (s1.src.startsWith('media://') || s1.src === 'ui')
+        (s1.src.startsWith('http://127.0.0.1:') || s1.src === 'ui')
     );
-    console.log(pass ? 'E2E PASS: media:// playback advances and seeks with webSecurity ON' : 'E2E FAIL');
+    console.log(pass ? 'E2E PASS: authenticated media  playback advances and seeks with webSecurity ON' : 'E2E FAIL');
     ws.close();
     process.exit(pass ? 0 : 1);
 })().catch(e => { console.error('E2E ERROR:', e.message); process.exit(1); });

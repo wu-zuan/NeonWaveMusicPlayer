@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { remoteMediaUrl } from '../../desktop'
 import { Search, Download, Loader2, ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react'
 import styles from './Search.module.css'
 
@@ -172,7 +173,7 @@ export const SearchView = () => {
         try {
             const data = await window.ipcRenderer.getYouTubePreview(item.url, item.title, item.artist)
             if (data && data.url) {
-                const audio = new Audio(data.url)
+                const audio = new Audio(remoteMediaUrl(data.url))
                 audio.currentTime = data.startTime
                 audio.volume = 0.5 // Default preview volume
                 

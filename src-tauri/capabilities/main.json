@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Bundled main UI only; native commands independently validate the channel. No renderer shell, filesystem, process, network or arbitrary window APIs.",
+  "windows": ["main"],
+  "permissions": ["allow-desktop-invoke", "allow-desktop-send", "allow-desktop-ready", "core:event:allow-listen", "core:event:allow-unlisten"]
+}

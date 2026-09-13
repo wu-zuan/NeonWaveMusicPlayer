@@ -1,5 +1,5 @@
-// Build first with `npx vite build`, then `node scripts/e2e-performance.cjs`.
-// Runs the real built app in a hidden, isolated Electron profile. All fixtures
+// Build first with `npm run build:dir`, then `node scripts/e2e-performance.cjs`.
+// Runs the real built app in an isolated Tauri profile (NW_HIDDEN=1 hides it). All fixtures
 // are local; the bootstrap blocks external HTTP requests and never downloads.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -13,7 +13,7 @@ const { setTimeout: sleep } = require('node:timers/promises');
 const WebSocket = require('ws');
 
 const workspace = path.resolve(__dirname, '..');
-const builtMain = path.join(workspace, 'dist-electron', 'main.js');
+const builtMain = process.env.NW_E2E_BINARY || path.join(workspace, 'src-tauri', 'target', 'release', 'NeonWave.exe');
 const rowsSelector = '[id^="track-item-"]';
 
 async function unusedPort() {
@@ -148,34 +148,15 @@ function instrumentation(tone, fixtureRoot) {
 }
 
 async function main() {
-    assert.ok(fs.existsSync(builtMain), 'Run npx vite build first');
+    assert.ok(fs.existsSync(builtMain), 'Run npm run build:dir first');
     const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'neonwave-performance-'));
     const profile = path.join(fixtureRoot, 'profile');
     fs.mkdirSync(profile);
     const tone = path.join(fixtureRoot, 'tone.m4a');
     execFileSync(require('ffmpeg-static'), ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=30', '-c:a', 'aac', tone], { windowsHide: true, stdio: 'ignore' });
-    const bootstrap = path.join(fixtureRoot, 'bootstrap.mjs');
-    fs.writeFileSync(bootstrap, `
-        import { app, session } from 'electron';
-        app.setPath('userData', ${JSON.stringify(profile)});
-        app.setPath('sessionData', ${JSON.stringify(profile)});
-        app.on('browser-window-created', (_event, window) => {
-            window.show = () => {};
-            window.focus = () => {};
-            window.setAlwaysOnTop = () => {};
-        });
-        app.whenReady().then(() => session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-            callback({ cancel: /^https?:/.test(details.url) && !/^https?:\\/\\/(localhost|127\\.0\\.0\\.1)(:|\\/)/.test(details.url) });
-        }));
-        await import(${JSON.stringify(pathToFileURL(builtMain).href)});
-    `);
     const port = await unusedPort();
-    const childEnvironment = { ...process.env, NW_REMOTE_DEBUG: String(port) };
-    delete childEnvironment.ELECTRON_RUN_AS_NODE;
-    delete childEnvironment.VITE_DEV_SERVER_URL;
-    const child = spawn(require('electron'), [bootstrap, `--user-data-dir=${profile}`], {
-        cwd: workspace, env: childEnvironment, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']
-    });
+    const childEnvironment = { ...process.env, NW_REMOTE_DEBUG: String(port), NW_USER_DATA: profile, NW_OFFLINE: '1', NW_HIDDEN: process.env.NW_HIDDEN || '0' };
+    const child = spawn(builtMain, [], { cwd: workspace, env: childEnvironment, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
     const exited = new Promise(resolve => child.once('exit', resolve));
     let processOutput = '';
     child.stdout.on('data', data => { processOutput = (processOutput + data).slice(-16000); });
@@ -185,19 +166,33 @@ async function main() {
     try {
         let target;
         await waitFor(async () => {
-            if (child.exitCode !== null) throw new Error(`Electron exited: ${processOutput}`);
-            target = (await getJson(`http://127.0.0.1:${port}/json/list`)).find(item => item.type === 'page' && item.url.startsWith('file:') && !item.url.includes('mini=true'));
+            if (child.exitCode !== null) throw new Error(`Tauri exited: ${processOutput}`);
+            target = (await getJson(`http://127.0.0.1:${port}/json/list`)).find(item => item.type === 'page' && item.url.includes('tauri.localhost') && !item.url.includes('mini=true'));
             return !!target;
-        }, 'isolated Electron target', 20000);
+        }, 'isolated Tauri target', 20000);
         const socket = new WebSocket(target.webSocketDebuggerUrl, { maxPayload: 64 * 1024 * 1024 });
         await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
         cdp = new CDP(socket);
         await cdp.send('Runtime.enable');
         await cdp.send('Page.enable');
+        // WebView2's hidden native surface may omit compositor layers from
+        // screenshots. Give CDP a complete fixed viewport for visual checks.
+        await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+        await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false });
+        // WebView2 advertises the pending navigation URL before its first
+        // document commits. Reloading then cancels it and reloads about:blank.
+        await waitFor(() => cdp.eval(`location.href.includes('tauri.localhost') && !!window.ipcRenderer && !!document.querySelector('aside')`), 'initial WebView2 document and services', 60000);
         await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: instrumentation(tone, fixtureRoot) });
-        await cdp.send('Page.reload', { ignoreCache: true });
+        await cdp.send('Page.navigate', { url: 'http://tauri.localhost/?validation=performance' });
         await waitFor(() => cdp.eval(`document.querySelectorAll(${JSON.stringify(rowsSelector)}).length > 0 && !!window.__nwPerf`), '20,000-track library');
 
+        await sleep(350);
+        const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+        fs.mkdirSync(path.join(workspace,'artifacts'),{recursive:true});
+        fs.writeFileSync(path.join(workspace,'artifacts/tauri-main.png'),Buffer.from(screenshot.data,'base64'));
+        const layout = await cdp.eval(`({width:innerWidth,height:innerHeight,dpr:devicePixelRatio,body:getComputedStyle(document.body).fontFamily,aside:(()=>{const r=document.querySelector('aside').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}})()})`);
+        fs.writeFileSync(path.join(workspace,'artifacts/tauri-layout.json'),JSON.stringify(layout,null,2));
+        assert.equal(layout.width,1200); assert.equal(layout.height,800); assert.equal(layout.aside.width,260);
         const clickPlaylist = async name => {
             assert.equal(await cdp.eval(`(() => {
                 const label = [...document.querySelectorAll('aside span')].find(node => node.textContent === ${JSON.stringify(name)});
@@ -252,7 +247,9 @@ async function main() {
         await cdp.eval(`document.getElementById('track-item-0').click()`);
         await waitFor(() => cdp.eval(`window.__nwPerf.videos[0].currentTime > 0.4 && !window.__nwPerf.videos[0].paused`), 'local media playback');
         await waitFor(() => cdp.eval(`[...window.__nwPerf.intervals.values()].filter(delay => delay === 16).length === 1`), '8D rotation during playback');
-        await sleep(500);
+        // Let the existing 2-second foreground detector publish its initial
+        // process name before measuring renders caused by the playback clock.
+        await sleep(2500);
         const before = await cdp.eval(`({ time: window.__nwPerf.videos[0].currentTime, commits: window.__nwPerf.commits, mainRenders: window.__nwPerf.mainRenders, mainSeen: window.__nwPerf.mainSeen })`);
         await sleep(1400);
         const after = await cdp.eval(`({ time: window.__nwPerf.videos[0].currentTime, commits: window.__nwPerf.commits, mainRenders: window.__nwPerf.mainRenders })`);
@@ -288,24 +285,30 @@ async function main() {
         await waitFor(() => cdp.eval(`!window.__nwPerf.videos[0].paused && [...window.__nwPerf.intervals.values()].filter(delay => delay === 16).length === 1`), '8D timer restarts on resume');
         assert.deepEqual(cdp.exceptions, [], 'no uncaught renderer exceptions');
 
-        console.log(JSON.stringify({ result: 'PASS', libraryTracks: 20000, mountedRows: mountedCounts, searchAndPlaylistSwitch: true, playbackAdvanceSeconds: +(after.time - before.time).toFixed(3), clockCommits: after.commits - before.commits, mainAppClockRenders: after.mainRenders - before.mainRenders, seekAnd8DPauseResume: true, pausedMiniSnapshot: true, profile }, null, 2));
+        const result = { result: 'PASS', libraryTracks: 20000, mountedRows: mountedCounts, searchAndPlaylistSwitch: true, playbackAdvanceSeconds: +(after.time - before.time).toFixed(3), clockCommits: after.commits - before.commits, mainAppClockRenders: after.mainRenders - before.mainRenders, seekAnd8DPauseResume: true, pausedMiniSnapshot: true, profile };
+        fs.writeFileSync(path.join(workspace, 'artifacts/performance-validation.json'), JSON.stringify(result, null, 2));
+        console.log(JSON.stringify(result, null, 2));
     } catch (error) {
+        if (cdp) {
+            try { console.error('Renderer diagnostic:', await cdp.eval(`({text:document.body.innerText.slice(0,3000),url:location.href,ready:document.readyState,bridge:!!window.ipcRenderer,fixture:!!window.__nwPerf,exceptions:0})`), cdp.exceptions); } catch {}
+        }
         console.error(processOutput);
         throw error;
     } finally {
         miniCdp?.close();
         if (cdp) {
-            try { await cdp.send('Browser.close'); } catch {}
+            try { await cdp.eval("window.ipcRenderer.invoke('window:close')"); } catch {}
             cdp.close();
         }
-        const closed = await Promise.race([exited.then(() => true), sleep(2500).then(() => false)]);
+        const closed = await Promise.race([exited.then(() => true), sleep(8000).then(() => false)]);
         if (!closed) {
             child.kill();
             await Promise.race([exited, sleep(2500)]);
         }
         // Preserve the uniquely named profile/logs for inspection after failures.
-        fs.writeFileSync(path.join(fixtureRoot, 'electron-output.log'), processOutput);
+        fs.writeFileSync(path.join(fixtureRoot, 'tauri-output.log'), processOutput);
     }
 }
 
-main().catch(error => { console.error('PERFORMANCE E2E FAIL:', error); process.exitCode = 1; });
+if (require.main === module) main().catch(error => { console.error('PERFORMANCE E2E FAIL:', error); process.exitCode = 1; });
+module.exports = { CDP, getJson, waitFor, unusedPort };

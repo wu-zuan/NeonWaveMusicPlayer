@@ -6,7 +6,7 @@ import path from 'node:path'
 import { setImmediate } from 'node:timers/promises'
 import type { parseFile, IAudioMetadata } from 'music-metadata'
 import { BoundedCache, createConcurrencyLimit, mapConcurrent } from '../shared/boundedCache.ts'
-import { MediaMetadataService } from '../electron/utils/mediaMetadata.ts'
+import { MediaMetadataService } from '../sidecar/utils/mediaMetadata.ts'
 
 test('cache enforces byte and entry budgets, refreshes recency, and releases replacements', () => {
   const cache = new BoundedCache<string, string | null>(3, 8, value => value?.length || 1)

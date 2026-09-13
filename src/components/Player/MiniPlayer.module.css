@@ -24,11 +24,11 @@
     color: #fff;
     font-family: 'Outfit', 'Inter', sans-serif;
     user-select: none;
-    -webkit-app-region: no-drag;
+    --nw-app-region: no-drag;
 }
 
 .shell, .shell * { box-sizing: border-box; }
-.shell button, .shell img, .shell svg, .content, .artwork { -webkit-app-region: no-drag; }
+.shell button, .shell img, .shell svg, .content, .artwork { --nw-app-region: no-drag; }
 
 .dragHandle {
     position: absolute;
@@ -43,7 +43,7 @@
     border-radius: 0 0 9px 9px;
     color: rgba(255, 255, 255, .38);
     cursor: grab;
-    -webkit-app-region: drag;
+    --nw-app-region: drag;
 }
 
 .dragHandle:active { cursor: grabbing; }

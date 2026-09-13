@@ -14,7 +14,7 @@ if (-not $version) {
 Write-Host "Releasing NeonWave v$version..." -ForegroundColor Cyan
 
 # 2. Commit and push
-git add package.json package-lock.json
+git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock
 try {
     git commit -m "chore: release v$version"
 }

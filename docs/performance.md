@@ -26,13 +26,16 @@
 npm run typecheck
 npm run test:performance
 npm run test:party
-npm run clean
-npx vite build
+npm run build:dir
 npm run e2e:performance
 ```
 
 效能回歸測試涵蓋快取淘汰、取消佇列、並行上限、資料更新、播放時鐘取消訂閱與音效資源釋放。桌面測試會使用獨立的臨時設定檔與合成音訊，驗證兩萬首歌曲列表、搜尋、播放與暫停。它不使用個人音樂庫或登入資訊。
 
-2026-09-13 的 Windows 本機測試：21 項效能／回收測試與 23 項既有回歸測試通過。桌面版載入 20,000 筆合成歌曲資料時，列表起點、中段、末端分別掛載 22、33、23 列；播放時鐘觀察期間進度介面更新 9 次，MainApp 重繪 0 次。搜尋後按 Enter、切換歌單、播放跳轉、8D 暫停／繼續與暫停中開啟迷你播放器的完整快照均通過。這是列表與播放行為測試，並非讀取兩萬個真實音檔的啟動速度基準。
+原 Electron 版本在 2026-09-13 留存的歷史測試：21 項效能／回收測試與 23 項既有回歸測試通過。載入 20,000 筆合成歌曲資料時，列表起點、中段、末端分別掛載 22、33、23 列；播放時鐘觀察期間進度介面更新 9 次，MainApp 重繪 0 次。
+
+同日最終 Tauri production / WebView2 在 Windows 10 LTSC 的驗證：上述 44 項測試及 3 項新增 native service / transport 測試通過。20,000 筆歌曲桌面測試的列表掛載數為 48、63、54，仍低於 80；1.4 秒觀察期間播放前進 1.401 秒，播放介面 commits 173 次，MainApp 重繪 0 次。搜尋後按 Enter、切換歌單、播放跳轉、8D 暫停／繼續、暫停中開啟迷你播放器的完整快照均通過。完整記錄位於 `artifacts/performance-validation.json`。
+
+Tauri 截圖驗證透過 CDP 固定 viewport / focus，避免隱藏 WebView2 surface 遺漏 compositor layers；原歷史資料使用不同的 visibility / focus 條件。因此不能把兩次的列數或 commits 差值解讀成效能改善或退步。這是列表與播放行為測試，並非讀取兩萬個真實音檔的啟動速度基準。
 
 這些測試驗證資源管理與操作行為，不能推算每台電腦的 CPU 或記憶體改善百分比。長時間使用與真實封面、歌詞校正、Discord 串流的負載仍需依實際使用情境量測。

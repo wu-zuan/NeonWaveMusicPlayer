@@ -1,4 +1,3 @@
-import { net } from 'electron'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
@@ -162,7 +161,7 @@ async function downloadFile(url: string, destination: string, expectedBytes: num
         inactivityTimer = setTimeout(() => controller.abort(new Error('下載超過 45 秒沒有收到資料，請重試')), 45000)
     }
     resetInactivityTimer()
-    const response = await net.fetch(url, {
+    const response = await fetch(url, {
         signal: controller.signal,
         headers: existingBytes > 0 ? { Range: `bytes=${existingBytes}-` } : undefined
     })

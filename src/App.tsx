@@ -379,7 +379,7 @@ function MainApp() {
           top: 0,
           left: 0,
           zIndex: 90,
-          WebkitAppRegion: 'drag'
+          '--nw-app-region': 'drag'
         } as any} />
 
         <div className="theme-chrome" aria-hidden="true">

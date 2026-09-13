@@ -1,12 +1,9 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification, screen, protocol, net, powerSaveBlocker } from 'electron'
 import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
 import { Readable } from 'node:stream'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import os from 'node:os'
-import { autoUpdater } from 'electron-updater'
 import { spawn } from 'node:child_process'
 import extract from 'extract-zip'
 import * as mm from 'music-metadata'
@@ -22,560 +19,29 @@ import { getGpuCalibrationStatus, runGpuLyricsCalibration, type GpuCalibrationMo
 import { mapConcurrent } from '../shared/boundedCache'
 import { MediaMetadataService } from './utils/mediaMetadata'
 
-// Register custom standard protocol for local media playback to bypass CORS restrictions for Web Audio API
-protocol.registerSchemesAsPrivileged([
-  { scheme: 'media', privileges: { bypassCSP: true, standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
-])
-
-// Opt-in Chrome DevTools Protocol endpoint for automated smoke tests:
-//   NW_REMOTE_DEBUG=9223 npm run dev
-if (process.env.NW_REMOTE_DEBUG) {
-  app.commandLine.appendSwitch('remote-debugging-port', process.env.NW_REMOTE_DEBUG)
-}
-
-// Music capture must keep running while the player is minimized, covered by
-// Discord, or otherwise not the foreground window. BrowserWindow's
-// backgroundThrottling option covers most cases; these switches also protect
-// Chromium's renderer, timer and occlusion paths on Windows.
-app.commandLine.appendSwitch('disable-background-timer-throttling')
-app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
-app.commandLine.appendSwitch('disable-renderer-backgrounding')
+import { rpc, emit, native, onShutdown } from './transport'
+import { userData } from './paths'
+import { startActiveWindowMonitor, gpuInfo as queryGpuInfo } from './platform/windows'
 
 const require = createRequire(import.meta.url)
-let ffmpegPath = require('ffmpeg-static')
-if (app.isPackaged) {
-  ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
-}
+const ffmpegPath = require('ffmpeg-static')
 
-
-// Disable hardware acceleration to prevent GPU TDR crashes (nvlddmkm Event 153)
-// We will conditionally enable/disable it below based on system libraries
-if (process.platform === 'win32') {
-  const system32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32')
-  const hasMfplat = fsSync.existsSync(path.join(system32, 'mfplat.dll'))
-  const hasVcruntime = fsSync.existsSync(path.join(system32, 'vcruntime140.dll'))
-
-  if (!hasMfplat || !hasVcruntime) {
-    // Fallback: System lacks media features or C++ runtime, disable GPU entirely to prevent startup crashes
-    app.disableHardwareAcceleration()
-    app.commandLine.appendSwitch('disable-gpu')
-    app.commandLine.appendSwitch('disable-software-rasterizer')
-    app.commandLine.appendSwitch('disable-gpu-sandbox')
-    app.commandLine.appendSwitch('no-sandbox')
-  } else {
-    // Normal Windows environment: Keep GPU acceleration enabled, but disable sandbox to prevent AMD GPU / LTSC driver conflicts
-    app.commandLine.appendSwitch('disable-gpu-sandbox')
-    app.commandLine.appendSwitch('no-sandbox')
+export async function startServices() {
+  const dialog = {
+    showOpenDialog: (...args: any[]) => native('dialog:open', args[args.length - 1]),
+    showSaveDialog: (...args: any[]) => native('dialog:save', args[args.length - 1])
   }
-}
-// macOS/Linux: keep hardware acceleration enabled — the TDR workaround above
-// only targets Windows driver crashes.
-
-
-
-
-autoUpdater.allowPrerelease = true
-autoUpdater.autoInstallOnAppQuit = false
-autoUpdater.autoDownload = true
-
-let updateCheckPromise: Promise<unknown> | null = null
-let updateDownloaded = false
-
-type UpdateStatusPayload = {
-  status: string
-  error?: string
-  info?: unknown
-  progress?: unknown
-}
-
-function sendUpdateStatus(data: UpdateStatusPayload) {
-  console.log('[AutoUpdate]', data)
-  win?.webContents.send('update-status', data)
-}
-
-const gotTheLock = app.requestSingleInstanceLock()
-if (!gotTheLock) {
-  app.quit()
-} else {
-  app.on('second-instance', () => {
-    
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.show()
-      win.focus()
-      win.setAlwaysOnTop(true)
-      win.focus()
-      win.setAlwaysOnTop(false)
-    }
+  const activeWindowName = startActiveWindowMonitor()
+  const startDiscordPowerSaveBlocker = () => { void native('power:set', true) }
+  const stopDiscordPowerSaveBlocker = () => { void native('power:set', false) }
+  const partyRoomService = new PartyRoomService((command: PartyCommand) => emit('main', 'party:command', command))
+  const discordBot = new DiscordBotManager()
+  onShutdown(async () => {
+    await partyRoomService.stop()
+    discordBot.stop()
+    await discordBot.disconnect()
+    stopDiscordPowerSaveBlocker()
   })
-}
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-Object.defineProperty(globalThis, '__filename', { value: __filename })
-Object.defineProperty(globalThis, '__dirname', { value: __dirname })
-
-process.env.APP_ROOT = path.join(__dirname, '..')
-
-let logStream: fsSync.WriteStream | null = null
-
-export function writeLog(type: string, ...args: any[]) {
-  if (!logStream) return
-  const timestamp = new Date().toISOString()
-  const message = args.map(arg => {
-    if (typeof arg === 'object') {
-      try { return JSON.stringify(arg) } catch (e) { return String(arg) }
-    }
-    return String(arg)
-  }).join(' ')
-  logStream.write(`[${timestamp}] [${type}] ${message}\n`)
-}
-
-function setupFileLogging() {
-  const logPath = path.join(app.getPath('userData'), 'debug.log')
-  try {
-    fsSync.writeFileSync(logPath, `=== NeonWave Debug Session Started at ${new Date().toLocaleString()} ===\n`)
-    logStream = fsSync.createWriteStream(logPath, { flags: 'a' })
-
-    const originalLog = console.log
-    const originalError = console.error
-    const originalWarn = console.warn
-
-    console.log = (...args) => {
-      originalLog(...args)
-      writeLog('INFO', ...args)
-    }
-    console.error = (...args) => {
-      originalError(...args)
-      writeLog('ERROR', ...args)
-    }
-    console.warn = (...args) => {
-      originalWarn(...args)
-      writeLog('WARN', ...args)
-    }
-
-    process.on('uncaughtException', (error) => {
-      writeLog('CRITICAL', 'Uncaught Exception:', error.message, error.stack)
-      originalError('Uncaught Exception:', error)
-    })
-
-    process.on('unhandledRejection', (reason) => {
-      writeLog('CRITICAL', 'Unhandled Rejection:', reason)
-      originalError('Unhandled Rejection:', reason)
-    })
-  } catch (e) {
-    console.error('Failed to setup file logging:', e)
-  }
-}
-
-setupFileLogging()
-
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
-export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
-
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
-
-let win: BrowserWindow | null
-let miniWin: BrowserWindow | null = null
-let activeWindowName = "unknown"
-let monitorProcess: any = null
-let discordBot: any = null
-let partyRoomService: PartyRoomService | null = null
-let discordPowerSaveBlockerId: number | null = null
-
-function startDiscordPowerSaveBlocker() {
-  if (discordPowerSaveBlockerId !== null && powerSaveBlocker.isStarted(discordPowerSaveBlockerId)) return
-  discordPowerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension')
-  console.log('[DiscordBot] Background playback protection enabled')
-}
-
-function stopDiscordPowerSaveBlocker() {
-  if (discordPowerSaveBlockerId !== null && powerSaveBlocker.isStarted(discordPowerSaveBlockerId)) {
-    powerSaveBlocker.stop(discordPowerSaveBlockerId)
-  }
-  discordPowerSaveBlockerId = null
-}
-
-function createWindow() {
-  // Frameless title bar with overlay controls works on Windows/macOS.
-  // Linux has no overlay window controls, so keep the native frame there.
-  const frameOptions: Electron.BrowserWindowConstructorOptions =
-    process.platform === 'linux'
-      ? {}
-      : {
-          titleBarStyle: 'hidden',
-          titleBarOverlay: {
-            color: '#00000000',
-            symbolColor: '#ffffff',
-            height: 30
-          }
-        }
-
-  win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
-    icon: path.join(process.env.VITE_PUBLIC!, 'logo.png'),
-    ...frameOptions,
-    show: false,
-    backgroundColor: '#020617',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
-      backgroundThrottling: false,
-      devTools: true
-    },
-  })
-
-  win.webContents.on('console-message', (_, level, message, line, sourceId) => {
-    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR']
-    const levelStr = levels[level] || 'INFO'
-    writeLog(`RENDERER-MAIN-${levelStr}`, `[${path.basename(sourceId)}:${line}] ${message}`)
-  })
-
-  
-  win.once('ready-to-show', () => {
-    if (win) {
-      win.show()
-      win.focus()
-      win.setAlwaysOnTop(true)
-      win.focus()
-      win.setAlwaysOnTop(false)
-    }
-  })
-
-  
-  win.on('unresponsive', () => {
-    console.warn('Renderer unresponsive')
-    dialog.showMessageBox(win!, {
-      type: 'warning',
-      title: 'NeonWave 無回應',
-      message: '應用程式似乎沒有回應，是否重新載入？',
-      buttons: ['重新載入', '稍候'],
-      defaultId: 0
-    }).then(({ response }) => {
-      if (response === 0) win?.reload()
-    })
-  })
-
-  
-  // Handle GPU process crash (TDR recovery)
-  win.webContents.on('render-process-gone', (_event, details) => {
-    console.error('Renderer process gone:', details.reason)
-    if (details.reason === 'crashed' || details.reason === 'killed') {
-      // GPU TDR or crash — silently reload after a short delay
-      console.warn('[GPU Recovery] Renderer crashed/killed, auto-reloading in 2s...', details.reason)
-      setTimeout(() => {
-        if (win && !win.isDestroyed()) {
-          win.reload()
-        }
-      }, 2000)
-    } else if (details.reason !== 'clean-exit') {
-      dialog.showMessageBox(win!, {
-        type: 'error',
-        title: 'NeonWave 錯誤',
-        message: '渲染進程意外終止，應用程式將嘗試重新載入。',
-        detail: `原因: ${details.reason}`
-      }).then(() => {
-        win?.reload()
-      })
-    }
-  })
-
-  // Handle child GPU process crashes specifically
-  app.on('child-process-gone', (_event, details) => {
-    if (details.type === 'GPU') {
-      console.warn('[GPU Recovery] GPU child process gone:', details.reason)
-      // Electron will restart the GPU process automatically;
-      // we just log and let it recover
-    }
-  })
-
-  
-  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-    console.warn(`Page failed to load: ${errorCode} ${errorDescription}`)
-    
-    if (VITE_DEV_SERVER_URL) {
-      setTimeout(() => {
-        win?.loadURL(VITE_DEV_SERVER_URL)
-      }, 1000)
-    }
-  })
-
-  
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', (new Date).toLocaleString())
-  })
-
-  win.on('closed', () => {
-    win = null
-    if (miniWin && !miniWin.isDestroyed()) {
-      try { miniWin.close() } catch (e) {}
-      miniWin = null
-    }
-    app.quit()
-  })
-
-  if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL)
-  } else {
-    
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
-  }
-}
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
-  }
-})
-
-app.on('activate', () => {
-  
-  
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
-  }
-})
-
-autoUpdater.on('checking-for-update', () => {
-  sendUpdateStatus({ status: 'checking' })
-})
-autoUpdater.on('update-available', (info) => {
-  updateDownloaded = false
-  sendUpdateStatus({ status: 'available', info })
-})
-autoUpdater.on('update-not-available', (info) => {
-  updateCheckPromise = null
-  updateDownloaded = false
-  sendUpdateStatus({ status: 'not-available', info })
-})
-autoUpdater.on('error', (err) => {
-  updateCheckPromise = null
-  sendUpdateStatus({ status: 'error', error: err.message || String(err) })
-})
-autoUpdater.on('download-progress', (progressObj) => {
-  sendUpdateStatus({ status: 'downloading', progress: progressObj })
-})
-autoUpdater.on('update-downloaded', (info) => {
-  updateCheckPromise = null
-  updateDownloaded = true
-  sendUpdateStatus({ status: 'downloaded', info })
-
-  
-  const notification = new Notification({
-    title: 'NeonWave 更新',
-    body: '新版本已下載完成，將於重啟後自動安裝。',
-    icon: path.join(process.env.VITE_PUBLIC!, 'logo.png')
-  })
-  notification.show()
-})
-
-app.whenReady().then(() => {
-  // media:// protocol — serves audio/video to the renderer with CORS headers
-  // so Web Audio (MediaElementAudioSourceNode) gets un-tainted samples while
-  // webSecurity stays enabled.
-  //   media:///<abs path>        → local file (Range supported)
-  //   media://remote/?u=<url>    → main-process proxy for remote streams
-  //                                (e.g. googlevideo URLs without CORS headers)
-  protocol.handle('media', async (request) => {
-    const { host, pathname, searchParams } = new URL(request.url)
-    const range = request.headers.get('range')
-    const fetchInit: RequestInit = range ? { headers: { Range: range } } : {}
-
-    let upstream: Response
-    if (host === 'remote') {
-      const target = searchParams.get('u')
-      if (!target || !/^https?:\/\//i.test(target)) {
-        return new Response('bad remote url', { status: 400 })
-      }
-      upstream = await net.fetch(target, { ...fetchInit, redirect: 'follow', signal: request.signal })
-    } else {
-      let decodedPath = decodeURIComponent(pathname)
-      // Windows paths arrive as "/D:/dir/file" — strip the leading slash.
-      // POSIX paths ("/home/user/file") must keep it.
-      if (process.platform === 'win32') decodedPath = decodedPath.replace(/^\/+/, '')
-      const filePath = path.normalize(decodedPath)
-      const stat = await fs.stat(filePath)
-      const fileSize = stat.size
-      const extension = path.extname(filePath).toLowerCase()
-      const contentTypes: Record<string, string> = {
-        '.mp3': 'audio/mpeg',
-        '.m4a': 'audio/mp4',
-        '.aac': 'audio/aac',
-        '.flac': 'audio/flac',
-        '.wav': 'audio/wav',
-        '.ogg': 'audio/ogg',
-        '.oga': 'audio/ogg',
-        '.mp4': 'video/mp4',
-        '.mkv': 'video/x-matroska',
-        '.webm': 'video/webm'
-      }
-      const headers = new Headers({
-        'Accept-Ranges': 'bytes',
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': contentTypes[extension] || 'application/octet-stream'
-      })
-
-      let start = 0
-      let end = Math.max(0, fileSize - 1)
-      let status = 200
-
-      if (range) {
-        const match = /^bytes=(\d*)-(\d*)$/i.exec(range.trim())
-        if (!match || (!match[1] && !match[2])) {
-          headers.set('Content-Range', `bytes */${fileSize}`)
-          return new Response(null, { status: 416, headers })
-        }
-
-        if (!match[1]) {
-          const suffixLength = Number(match[2])
-          start = Math.max(0, fileSize - suffixLength)
-        } else {
-          start = Number(match[1])
-        }
-        if (match[2] && match[1]) end = Math.min(Number(match[2]), fileSize - 1)
-
-        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start >= fileSize || end < start) {
-          headers.set('Content-Range', `bytes */${fileSize}`)
-          return new Response(null, { status: 416, headers })
-        }
-
-        status = 206
-        headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`)
-      }
-
-      headers.set('Content-Length', String(fileSize === 0 ? 0 : end - start + 1))
-      if (request.method === 'HEAD' || fileSize === 0) {
-        return new Response(null, { status, headers })
-      }
-
-      const body = Readable.toWeb(fsSync.createReadStream(filePath, { start, end, signal: request.signal })) as ReadableStream<Uint8Array>
-      return new Response(body, { status, headers })
-    }
-
-    const headers = new Headers(upstream.headers)
-    headers.set('Access-Control-Allow-Origin', '*')
-    return new Response(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers
-    })
-  })
-  
-  if (process.platform === 'win32') {
-    app.setAppUserModelId('NeonWave')
-  }
-
-  // PowerShell polling loop that prints the foreground process name whenever
-  // it changes. Embedded (not shipped as a file) so it also works when the
-  // app is packaged into app.asar.
-  const ACTIVE_WINDOW_MONITOR_PS = `
-$code = @"
-    using System;
-    using System.Runtime.InteropServices;
-
-    public class User32 {
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll")]
-        public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
-    }
-"@
-
-if (-not ([System.Management.Automation.PSTypeName]'User32').Type) {
-    try { Add-Type $code -ErrorAction SilentlyContinue } catch {}
-}
-
-$lastProcessName = ""
-
-while ($true) {
-    try {
-        $hwnd = [User32]::GetForegroundWindow()
-        if ($hwnd -ne [System.IntPtr]::Zero) {
-            $pidOut = 0
-            [void][User32]::GetWindowThreadProcessId($hwnd, [ref]$pidOut)
-            if ($pidOut -gt 0) {
-                $process = Get-Process -Id $pidOut -ErrorAction SilentlyContinue
-                if ($process) {
-                    $name = $process.ProcessName
-                    if ($name -ne $lastProcessName) {
-                        $lastProcessName = $name
-                        Write-Output $name
-                    }
-                }
-            }
-        }
-    } catch {}
-    Start-Sleep -Seconds 2
-}
-`
-
-  function startActiveWindowMonitor() {
-    if (process.platform !== 'win32') return
-
-    try {
-      monitorProcess = spawn('powershell.exe', [
-        '-ExecutionPolicy', 'Bypass',
-        '-NoProfile',
-        '-EncodedCommand', Buffer.from(ACTIVE_WINDOW_MONITOR_PS, 'utf16le').toString('base64')
-      ], {
-        stdio: ['ignore', 'pipe', 'ignore'],
-        windowsHide: true
-      })
-
-      monitorProcess.stdout.on('data', (data: Buffer) => {
-        // A chunk may contain several lines; the last one is the newest.
-        const lines = data.toString().split(/\r?\n/).map(s => s.trim()).filter(Boolean)
-        if (lines.length > 0) {
-          activeWindowName = lines[lines.length - 1]
-        }
-      })
-
-      monitorProcess.on('error', (err: Error) => {
-        console.warn('Active window monitor failed to start:', err.message)
-      })
-
-      monitorProcess.on('close', () => {
-        if ((app as any).isQuitting) return
-        setTimeout(startActiveWindowMonitor, 5000)
-      })
-    } catch (e) {
-      console.error('Failed to start active window monitor:', e)
-    }
-  }
-
-  startActiveWindowMonitor()
-
-  partyRoomService = new PartyRoomService((command: PartyCommand) => {
-    if (!win || win.isDestroyed()) return
-    win.webContents.send('party:command', command)
-  })
-
-  app.on('will-quit', () => {
-    (app as any).isQuitting = true
-    if (monitorProcess) {
-      try { monitorProcess.kill() } catch (e) {}
-    }
-    if (partyRoomService) {
-      try { partyRoomService.stop() } catch (e) {}
-    }
-    if (discordBot) {
-      try { discordBot.stop() } catch (e) {}
-      try { discordBot.leaveChannel() } catch (e) {}
-      if (discordBot.client) {
-        try { discordBot.client.destroy() } catch (e) {}
-      }
-    }
-  })
-  
-  createWindow()
-
-  
   const discordRPC = new DiscordRPCManager()
 
   
@@ -604,7 +70,7 @@ while ($true) {
     imageCache.set(key, value);
   }
 
-  ipcMain.handle('discord:updatePresence', async (_, data) => {
+  rpc.handle('discord:updatePresence', async (_, data) => {
     const cacheKey = `${data.title}-${data.artist}`;
     let artworkUrl = 'logo';
 
@@ -639,12 +105,12 @@ while ($true) {
     return true;
   })
 
-  ipcMain.handle('discord:clearCache', () => {
+  rpc.handle('discord:clearCache', () => {
     imageCache.clear();
     return true;
   })
 
-  ipcMain.handle('discord:scanAndUpload', async () => {
+  rpc.handle('discord:scanAndUpload', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'multiSelections']
     });
@@ -690,7 +156,7 @@ while ($true) {
       }
 
 
-      win?.webContents.send('discord:scanProgress', {
+      emit('main', 'discord:scanProgress', {
         current: i + 1,
         total: files.length,
         success: successCount
@@ -700,71 +166,71 @@ while ($true) {
     return { status: 'completed', total: files.length, success: successCount };
   });
 
-  ipcMain.handle('discord:clearPresence', () => {
+  rpc.handle('discord:clearPresence', () => {
     return discordRPC.clearActivity()
   })
 
   
-  discordBot = new DiscordBotManager()
 
-  ipcMain.handle('discord:login', async (_, token) => {
+
+  rpc.handle('discord:login', async (_, token) => {
     return await discordBot.login(token)
   })
 
-  ipcMain.handle('discord:getGuilds', () => {
+  rpc.handle('discord:getGuilds', () => {
     return discordBot.getGuilds()
   })
 
-  ipcMain.handle('discord:getChannels', (_, guildId) => {
+  rpc.handle('discord:getChannels', (_, guildId) => {
     return discordBot.getChannels(guildId)
   })
 
-  ipcMain.handle('discord:join', async (_, guildId, channelId) => {
+  rpc.handle('discord:join', async (_, guildId, channelId) => {
     const joined = await discordBot.joinChannel(guildId, channelId)
     if (joined) startDiscordPowerSaveBlocker()
     return joined
   })
 
-  ipcMain.handle('discord:leave', async () => {
+  rpc.handle('discord:leave', async () => {
     const left = await discordBot.leaveChannel()
     stopDiscordPowerSaveBlocker()
     return left
   })
 
-  ipcMain.handle('discord:disconnect', async () => {
+  rpc.handle('discord:disconnect', async () => {
     const result = await discordBot.disconnect()
     stopDiscordPowerSaveBlocker()
     return result
   })
 
-  ipcMain.handle('discord:play', async (_, filePath, startTime = 0) => {
+  rpc.handle('discord:play', async (_, filePath, startTime = 0) => {
     
     
     return await discordBot.playFile(filePath, ffmpegPath, startTime)
   })
 
-  ipcMain.handle('discord:stop', () => {
+  rpc.handle('discord:stop', () => {
     return discordBot.stop()
   })
 
-  ipcMain.handle('discord:pause', () => {
+  rpc.handle('discord:pause', () => {
     return discordBot.pause()
   })
 
-  ipcMain.handle('discord:resume', () => {
+  rpc.handle('discord:resume', () => {
     return discordBot.resume()
   })
 
-  ipcMain.handle('discord:setVolume', (_, volume) => {
+  rpc.handle('discord:setVolume', (_, volume) => {
     return discordBot.setVolume(volume)
   })
 
-  ipcMain.handle('discord:status', () => {
+  rpc.handle('discord:status', () => {
     return discordBot.getStatus()
   })
 
   
-  ipcMain.handle('discord:startStreamMode', async () => {
+  rpc.handle('discord:startStreamMode', async () => {
     return await discordBot.playReceiverStream(ffmpegPath)
   })
 
@@ -772,95 +238,12 @@ while ($true) {
   
   
   
-  ipcMain.on('discord:audio-chunk', (_, buffer) => {
+  rpc.on('discord:audio-chunk', (_, buffer) => {
     discordBot.writeAudioChunk(new Uint8Array(buffer))
   })
 
   
-  ipcMain.handle('update:check', async () => {
-    if (!app.isPackaged) {
-      const error = '自動更新只會在打包安裝版中運作，開發模式無法檢查 GitHub 更新。'
-      sendUpdateStatus({ status: 'error', error })
-      return { ok: false, error }
-    }
-
-    if (updateCheckPromise) {
-      await updateCheckPromise
-      return { ok: true }
-    }
-
-    updateDownloaded = false
-    updateCheckPromise = autoUpdater.checkForUpdates()
-      .then(() => ({ ok: true }))
-      .catch((err) => {
-        const error = err instanceof Error ? err.message : String(err)
-        sendUpdateStatus({ status: 'error', error })
-        return { ok: false, error }
-      })
-      .finally(() => {
-        updateCheckPromise = null
-      })
-
-    return await updateCheckPromise
-  })
-
-  ipcMain.handle('update:install', () => {
-    if (!app.isPackaged) {
-      const error = '開發模式不能安裝更新。'
-      sendUpdateStatus({ status: 'error', error })
-      return { ok: false, error }
-    }
-
-    if (!updateDownloaded) {
-      const error = '更新尚未下載完成，請先檢查並下載更新。'
-      sendUpdateStatus({ status: 'error', error })
-      return { ok: false, error }
-    }
-
-    sendUpdateStatus({ status: 'installing' })
-    ;(app as any).isQuitting = true
-    setImmediate(() => {
-      autoUpdater.quitAndInstall(false, true)
-    })
-    return { ok: true }
-  })
-
-    ipcMain.handle('window:togglePlay', () => {
-        if (win && !win.isDestroyed()) {
-            win.webContents.send('player:togglePlay')
-        }
-    })
-
-    ipcMain.handle('window:previousTrack', () => {
-        if (win && !win.isDestroyed()) win.webContents.send('player:previousTrack')
-    })
-
-    ipcMain.handle('window:nextTrack', () => {
-        if (win && !win.isDestroyed()) win.webContents.send('player:nextTrack')
-    })
-
-    ipcMain.handle('window:restoreMain', () => {
-        if (win && !win.isDestroyed()) {
-            if (win.isMinimized()) win.restore()
-            win.show()
-            win.focus()
-            win.setAlwaysOnTop(true)
-            win.focus()
-            win.setAlwaysOnTop(false)
-        }
-    })
-
-    ipcMain.handle('app:version', () => {
-        try {
-            const version = app.getVersion()
-            if (version && version !== '0.0.0') return version
-            return require('../package.json').version || version
-        } catch (e) {
-            return app.getVersion()
-        }
-    })
-
-    ipcMain.handle('party:status', () => {
+    rpc.handle('party:status', () => {
         return partyRoomService?.getStatus() ?? {
             active: false,
             roomId: null,
@@ -877,35 +260,27 @@ while ($true) {
         }
     })
 
-    ipcMain.handle('party:start', async (_event, options?: { autoTunnel?: boolean }) => {
+    rpc.handle('party:start', async (_event, options?: { autoTunnel?: boolean }) => {
         if (!partyRoomService) throw new Error('Party service unavailable')
         return await partyRoomService.start(options)
     })
 
-    ipcMain.handle('party:stop', async () => {
+    rpc.handle('party:stop', async () => {
         if (!partyRoomService) return false
         await partyRoomService.stop()
         return true
     })
 
     
-    let lastIgnoreMouseEvents: boolean | null = null
     let latestPlayerSnapshot: Record<string, any> | null = null
-    ipcMain.handle('player:getSnapshot', () => latestPlayerSnapshot)
-    ipcMain.on('player:sync', (_, data) => {
+    rpc.handle('player:getSnapshot', () => latestPlayerSnapshot)
+    rpc.on('player:sync', (_, data) => {
         const artwork = data?.artwork !== undefined
             ? data.artwork
             : data?.path && data.path === latestPlayerSnapshot?.path ? latestPlayerSnapshot?.artwork : null
         latestPlayerSnapshot = { ...data, artwork }
-        if (miniWin && !miniWin.isDestroyed()) {
-            miniWin.webContents.send('player:sync', data)
-            
-            const shouldIgnore = !!(data && data.isGameModeActive)
-            if (lastIgnoreMouseEvents !== shouldIgnore) {
-                lastIgnoreMouseEvents = shouldIgnore
-                miniWin.setIgnoreMouseEvents(shouldIgnore, { forward: true })
-            }
-        }
+        emit('mini', 'player:sync', data)
+        void native('mini:passthrough', !!data?.isGameModeActive)
         if (partyRoomService) {
             partyRoomService.updatePlayback({
                 path: data?.path,
@@ -927,102 +302,7 @@ while ($true) {
         }
     })
 
-    const createMiniPlayer = () => {
-        if (miniWin && !miniWin.isDestroyed()) return miniWin
-        const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize
-        const miniWidth = 356
-        const miniHeight = 132
-        const margin = 20
-
-        miniWin = new BrowserWindow({
-            width: miniWidth,
-            height: miniHeight,
-            x: screenWidth - miniWidth - margin,
-            y: margin,
-            frame: false,
-            transparent: true,
-            alwaysOnTop: true,
-            resizable: false,
-            skipTaskbar: true,
-            thickFrame: false, 
-            hasShadow: false, 
-            backgroundColor: '#00000000',
-            webPreferences: {
-                preload: path.join(__dirname, 'preload.mjs'),
-                backgroundThrottling: false,
-            }
-        })
-
-        // A newly-created window must always receive its own hit-test state.
-        // Reusing the previous window's cached value can leave the replacement
-        // permanently click-through until the game mode changes again.
-        lastIgnoreMouseEvents = null
-
-        miniWin.webContents.on('console-message', (_, level, message, line, sourceId) => {
-            const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR']
-            const levelStr = levels[level] || 'INFO'
-            writeLog(`RENDERER-MINI-${levelStr}`, `[${path.basename(sourceId)}:${line}] ${message}`)
-        })
-
-        const createdWindow = miniWin
-        createdWindow.webContents.on('did-finish-load', () => {
-            if (createdWindow.isDestroyed() || !latestPlayerSnapshot) return
-            createdWindow.webContents.send('player:sync', latestPlayerSnapshot)
-            const shouldIgnore = !!latestPlayerSnapshot.isGameModeActive
-            createdWindow.setIgnoreMouseEvents(shouldIgnore, { forward: true })
-            lastIgnoreMouseEvents = shouldIgnore
-        })
-
-        if (VITE_DEV_SERVER_URL) {
-            miniWin.loadURL(`${VITE_DEV_SERVER_URL}?mini=true`)
-        } else {
-            miniWin.loadFile(path.join(RENDERER_DIST, 'index.html'), { query: { mini: 'true' } })
-        }
-
-        miniWin.on('closed', () => {
-            miniWin = null
-            lastIgnoreMouseEvents = null
-        })
-
-        return miniWin
-    }
-
-    ipcMain.handle('window:setMiniPlayer', (_event, enabled: boolean) => {
-        if (!enabled) {
-            if (miniWin && !miniWin.isDestroyed()) miniWin.close()
-            miniWin = null
-            lastIgnoreMouseEvents = null
-            return false
-        }
-        createMiniPlayer()
-        return true
-    })
-
-    // Backward-compatible entrypoint for older renderer builds.
-    ipcMain.handle('window:toggleMiniPlayer', () => {
-        const enabled = !(miniWin && !miniWin.isDestroyed())
-        if (!enabled) {
-            miniWin?.close()
-            miniWin = null
-            lastIgnoreMouseEvents = null
-            return false
-        }
-        createMiniPlayer()
-        return true
-    })
-
-  
-  ipcMain.handle('dialog:openDirectory', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
-      properties: ['openDirectory']
-    })
-    if (canceled) {
-      return null
-    }
-    return filePaths[0]
-  })
-
-  ipcMain.handle('files:listMusic', async (_, folderPath) => {
+  rpc.handle('files:listMusic', async (_, folderPath) => {
     if (!folderPath) return []
     try {
       const files = await fs.readdir(folderPath)
@@ -1055,14 +335,12 @@ while ($true) {
     }
   })
 
-  const metadataService = new MediaMetadataService(path.join(app.getPath('userData'), 'metadata-cache.json'))
-  app.on('will-quit', () => {
-    void metadataService.close().catch(error => console.warn('[MetaCache] shutdown flush failed:', error))
-  })
+  const metadataService = new MediaMetadataService(path.join(userData, 'metadata-cache.json'))
+  onShutdown(() => metadataService.close())
 
   // Batch metadata read for a folder scan. Returns lightweight metadata for
   // every path, hitting the disk parser only for new/changed files.
-  ipcMain.handle('files:getMetadataBatch', async (_, filePaths: string[]) => {
+  rpc.handle('files:getMetadataBatch', async (_, filePaths: string[]) => {
     const results = await mapConcurrent(filePaths || [], 4, async (filePath) => {
       try {
         const { artwork: _artwork, ...metadata } = await metadataService.get(filePath, false)
@@ -1075,7 +353,7 @@ while ($true) {
     return results.filter(Boolean)
   })
 
-  ipcMain.handle('files:readBufferPartial', async (_, filePath, maxBytes) => {
+  rpc.handle('files:readBufferPartial', async (_, filePath, maxBytes) => {
     try {
       const fd = await fs.open(filePath, 'r')
       try {
@@ -1092,14 +370,14 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('files:readBuffer', async (_, filePath, maxBytes = 128 * 1024 * 1024) => {
+  rpc.handle('files:readBuffer', async (_, filePath, maxBytes = 128 * 1024 * 1024) => {
     try {
       const stat = await fs.stat(filePath)
       if (stat.size > maxBytes) {
         throw new Error(`Audio file is too large for in-memory calibration (${stat.size} bytes)`)
       }
       const buffer = await fs.readFile(filePath)
-      // Electron's structured clone does not guarantee that a Node Buffer
+      // The transport preserves the exact byte range of a Node Buffer
       // arrives in the renderer as an ArrayBuffer. Return an exact standalone
       // ArrayBuffer so decodeAudioData always receives the browser-native type.
       return buffer.byteOffset === 0 && buffer.byteLength === buffer.buffer.byteLength
@@ -1111,7 +389,7 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('files:getArtwork', async (_, filePath) => {
+  rpc.handle('files:getArtwork', async (_, filePath) => {
     try {
       return (await metadataService.get(filePath, true)).artwork
     } catch (e) {
@@ -1119,7 +397,7 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('files:getMetadata', async (_, filePath, options = { loadArtwork: true }) => {
+  rpc.handle('files:getMetadata', async (_, filePath, options = { loadArtwork: true }) => {
     try {
       return await metadataService.get(filePath, !!options.loadArtwork)
     } catch (e) {
@@ -1128,10 +406,7 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('app:active-window', () => {
-    return activeWindowName
-  })
-
+  rpc.handle('app:active-window', () => activeWindowName())
 
   const YtDlpWrap = createRequire(import.meta.url)('yt-dlp-wrap').default
 
@@ -1151,7 +426,7 @@ while ($true) {
     const asset = getDenoReleaseAsset()
     if (!asset) throw new Error(`Unsupported Deno platform: ${process.platform}/${process.arch}`)
 
-    const installDir = path.join(app.getPath('userData'), 'deno-runtime')
+    const installDir = path.join(userData, 'deno-runtime')
     const executablePath = path.join(installDir, process.platform === 'win32' ? 'deno.exe' : 'deno')
     try {
       await fs.access(executablePath)
@@ -1166,7 +441,7 @@ while ($true) {
     await fs.mkdir(installDir, { recursive: true })
     await fs.rm(stagingDir, { recursive: true, force: true })
 
-    const response = await net.fetch(releaseUrl, { redirect: 'follow' })
+    const response = await fetch(releaseUrl, { redirect: 'follow' })
     if (!response.ok || !response.body) {
       throw new Error(`Deno download failed: HTTP ${response.status}`)
     }
@@ -1200,7 +475,7 @@ while ($true) {
           // Node is not enabled by default in yt-dlp. It is a useful fallback on
           // developer machines or systems where GitHub cannot be reached.
           console.warn('[Main] Failed to prepare managed Deno; falling back to Node:', error)
-          return ['--js-runtimes', 'node']
+          return ['--js-runtimes', `node:${process.execPath}`]
         })
     }
     return youtubeRuntimePromise
@@ -1209,7 +484,7 @@ while ($true) {
   
   const updateYtDlpInBackground = async () => {
     const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
-    const binaryPath = path.join(app.getPath('userData'), binaryName)
+    const binaryPath = path.join(userData, binaryName)
     try {
       const wrapper = new YtDlpWrap(binaryPath)
       console.log("[Main] Checking for yt-dlp updates in background...")
@@ -1224,7 +499,7 @@ while ($true) {
   
   const getYtDlp = async () => {
     const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
-    const binaryPath = path.join(app.getPath('userData'), binaryName)
+    const binaryPath = path.join(userData, binaryName)
 
     
     try {
@@ -1284,10 +559,10 @@ while ($true) {
   }
 
   
-  updateYtDlpInBackground()
+  if (process.env.NW_OFFLINE !== '1') updateYtDlpInBackground()
 
   
-  ipcMain.handle('search:youtube', async (_, query, pagesToLoad = 1) => {
+  rpc.handle('search:youtube', async (_, query, pagesToLoad = 1) => {
     try {
       const ytSearch = createRequire(import.meta.url)('yt-search')
       const pages = Math.max(1, Math.min(Number(pagesToLoad) || 1, 5))
@@ -1310,7 +585,7 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('search:youtubePreview', async (_, url, title?: string, artist?: string) => {
+  rpc.handle('search:youtubePreview', async (_, url, title?: string, artist?: string) => {
     try {
       const yt = await getYtDlp()
       const runtimeArgs = await getYoutubeRuntimeArgs()
@@ -1425,13 +700,12 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('download:youtube', async (_, url, inputTitle, inputArtist, format = 'm4a') => {
+  rpc.handle('download:youtube', async (_, url, inputTitle, inputArtist, format = 'm4a') => {
     try {
       const yt = await getYtDlp()
 
       
       const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
-        .replace('app.asar', 'app.asar.unpacked') 
 
       
       
@@ -1439,7 +713,7 @@ while ($true) {
 
       // 2. Pick path
       const defaultExt = format === 'mp4' ? 'mp4' : 'm4a'
-      const { filePath } = await dialog.showSaveDialog(win!, {
+      const { filePath } = await dialog.showSaveDialog({
         title: '下載歌曲',
         defaultPath: `${safeTitle}.${defaultExt}`,
         filters: format === 'mp4' ? [
@@ -1511,13 +785,12 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('download:youtubeToDir', async (_, url, inputTitle, inputArtist, outputDir, limitRate, fileTimestamp, format = 'm4a') => {
+  rpc.handle('download:youtubeToDir', async (_, url, inputTitle, inputArtist, outputDir, limitRate, fileTimestamp, format = 'm4a') => {
     try {
       const yt = await getYtDlp()
 
       // Get ffmpeg path
       const ffmpegPath = createRequire(import.meta.url)('ffmpeg-static')
-        .replace('app.asar', 'app.asar.unpacked') // Fix for production builds
 
       let safeTitle = inputTitle.replace(/[\\/:*?"<>|]/g, '_').trim()
       const basePath = path.join(outputDir, safeTitle)
@@ -1573,8 +846,8 @@ while ($true) {
 
       const onProgress = (progress: YtDlpProgress) => {
           // Send progress updates to renderer
-          if (win && progress && progress.currentSpeed) {
-            win.webContents.send('download:progress', {
+          if (progress && progress.currentSpeed) {
+            emit('main', 'download:progress', {
               url: url,
               speed: progress.currentSpeed,
               percent: progress.percent
@@ -1586,8 +859,8 @@ while ($true) {
       const onEvent = (eventType: string, eventData: string) => {
           if (eventType === 'download' && eventData.includes('at')) {
             const speedMatch = eventData.match(/at\s+([0-9.]+[a-zA-Z]+\/s)/)
-            if (speedMatch && win) {
-              win.webContents.send('download:progress', { url: url, speed: speedMatch[1] })
+            if (speedMatch) {
+              emit('main', 'download:progress', { url: url, speed: speedMatch[1] })
             }
           }
       }
@@ -1629,18 +902,18 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('search:artistImage', async (_, artistName) => {
+  rpc.handle('search:artistImage', async (_, artistName) => {
     return searchArtistImage(artistName)
   })
 
-  ipcMain.handle('search:lyrics', async (_, title, artist, filePath, duration, aiConfig) => {
+  rpc.handle('search:lyrics', async (_, title, artist, filePath, duration, aiConfig) => {
     return searchLyrics({ title, artist, filePath, duration, aiConfig })
   })
 
-  const gpuLyricsRoot = path.join(app.getPath('userData'), 'gpu-lyrics')
-  ipcMain.handle('lyrics:gpuStatus', async () => {
+  const gpuLyricsRoot = path.join(userData, 'gpu-lyrics')
+  rpc.handle('lyrics:gpuStatus', async () => {
     const status = await getGpuCalibrationStatus(gpuLyricsRoot)
-    const gpuInfo = await app.getGPUInfo('basic').catch(() => null)
+    const gpuInfo = await queryGpuInfo()
     const devices = Array.isArray((gpuInfo as any)?.gpuDevice) ? (gpuInfo as any).gpuDevice : []
     return {
       ...status,
@@ -1648,7 +921,7 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('lyrics:computeDevices', async () => {
+  rpc.handle('lyrics:computeDevices', async () => {
     const gpus = await new Promise<Array<{ index: number; name: string; memoryMb: number }>>(resolve => {
       const child = spawn('nvidia-smi', ['--query-gpu=index,name,memory.total', '--format=csv,noheader,nounits'], { windowsHide: true })
       let output = ''
@@ -1672,7 +945,7 @@ while ($true) {
     }
   })
 
-  ipcMain.handle('lyrics:gpuCalibrate', async (event, audioPath: string, rawLyrics: string | undefined, mode: GpuCalibrationMode, force = false, computeConfig?: any) => {
+  rpc.handle('lyrics:gpuCalibrate', async (event, audioPath: string, rawLyrics: string | undefined, mode: GpuCalibrationMode, force = false, computeConfig?: any) => {
     return runGpuLyricsCalibration({
       audioPath,
       rawLyrics,
@@ -1686,4 +959,4 @@ while ($true) {
       }
     })
   })
-})
+}

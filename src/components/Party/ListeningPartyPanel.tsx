@@ -1,3 +1,4 @@
+import { writeClipboard } from '../../desktop'
 import { useEffect, useState } from 'react'
 import { Link2, Radio, Square, Play } from 'lucide-react'
 import styles from './ListeningPartyPanel.module.css'
@@ -90,7 +91,7 @@ export function ListeningPartyPanel() {
             setMessage('請等 Cloudflare 公開網址建立完成後再複製')
             return
         }
-        await navigator.clipboard.writeText(text)
+        await writeClipboard(text)
         setMessage('已複製邀請連結')
         setTimeout(() => setMessage(''), 2000)
     }
