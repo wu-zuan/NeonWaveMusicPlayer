@@ -5,6 +5,7 @@ import {
     type CalibrationPrecision, type TrackCalibration
 } from '../../lyricsCalibration'
 import { stabilizeInterludeGaps } from '../../utils/lyricsTimelineStability'
+import { BoundedCache } from '../../../shared/boundedCache'
 
 interface LyricsOverlayProps {
     visible: boolean
@@ -983,7 +984,8 @@ const CYBERPUNK_MAP: Record<string, string> = {
     '#ffffff': '#ffe600', '#f8fafc': '#ffe600', '#00fff2': '#ffe600'
 }
 const MAX_CONCURRENT = 6
-const lyricsCache = new Map<string, LyricLine[]>()
+const lyricsCache = new BoundedCache<string, LyricLine[]>(64, 4 * 1024 * 1024,
+    (lines, key) => key.length * 2 + lines.reduce((bytes, line) => bytes + line.text.length * 2 + 32, 0))
 
 function buildLyricsCacheKey(trackTitle: string, trackArtist: string, trackPath?: string, trackDuration?: number) {
     const calibration = localStorage.getItem('neonwave_lyrics_calibration_enabled') === 'true'
@@ -998,9 +1000,14 @@ function buildLyricsCacheKey(trackTitle: string, trackArtist: string, trackPath?
 }
 
 function toArrayBuffer(value: unknown): ArrayBuffer | null {
-    if (value instanceof ArrayBuffer) return value.slice(0)
+    // IPC already gives this renderer its own buffer; decodeAudioData consumes
+    // it, so copying a complete song here only doubles peak encoded-audio memory.
+    if (value instanceof ArrayBuffer) return value
     if (ArrayBuffer.isView(value)) {
         const view = value as ArrayBufferView
+        if (view.buffer instanceof ArrayBuffer && view.byteOffset === 0 && view.byteLength === view.buffer.byteLength) {
+            return view.buffer
+        }
         const copy = new Uint8Array(view.byteLength)
         copy.set(new Uint8Array(view.buffer, view.byteOffset, view.byteLength))
         return copy.buffer
@@ -1234,7 +1241,10 @@ const LyricsOverlayView: React.FC<LyricsOverlayProps> = ({
 
         const cached = lyricsCache.get(cacheKey)
         if (cached && cached.length > 0) {
-            applyLyrics(cached)
+            setLyrics(cached)
+            setLoading(false)
+            setError(false)
+            setActiveIndex(-1)
             showStatus("已載入同步歌詞")
             return
         }

@@ -1,11 +1,12 @@
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, type ComponentProps } from 'react'
 import { Sidebar } from './components/Layout/Sidebar'
 import { TrackList } from './components/Playlist/TrackList'
 import { PlayerBar } from './components/Player/PlayerBar'
 import { SettingsView } from './components/Layout/SettingsView'
 import { SearchView } from './components/Search/SearchView'
 import { useAudioPlayer } from './hooks/useAudioPlayer'
+import { usePlaybackTime } from './hooks/usePlaybackTime'
 import { useLibrary } from './hooks/useLibrary'
 import { useAppDetection } from './hooks/useAppDetection'
 import './index.css'
@@ -16,6 +17,18 @@ import { ImportChoiceModal } from './components/UI/ImportChoiceModal'
 import { DownloadProgressModal } from './components/UI/DownloadProgressModal'
 import { MiniPlayer } from './components/Player/MiniPlayer'
 import { VideoSurface } from './components/Player/VideoSurface'
+
+type MediaClockProps = { getMediaElement: () => HTMLMediaElement | null }
+
+function PlaybackBar({ getMediaElement, ...props }: Omit<ComponentProps<typeof PlayerBar>, 'currentTime'> & MediaClockProps) {
+  const currentTime = usePlaybackTime(getMediaElement)
+  return <PlayerBar {...props} currentTime={currentTime} />
+}
+
+function PlaybackLyrics({ getMediaElement, ...props }: Omit<ComponentProps<typeof LyricsOverlay>, 'currentTime'> & MediaClockProps) {
+  const currentTime = usePlaybackTime(getMediaElement, props.visible)
+  return <LyricsOverlay {...props} currentTime={currentTime} />
+}
 
 function App() {
   const isMini = new URLSearchParams(window.location.search).get('mini') === 'true'
@@ -48,7 +61,7 @@ function MainApp() {
   const { contextMode } = useAppDetection()
 
   const {
-    isPlaying, currentTrack, currentTime, duration, volume, is8D,
+    isPlaying, currentTrack, duration, volume, is8D,
     isShuffle, repeatMode,
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
@@ -115,12 +128,24 @@ function MainApp() {
       setFocusMode(false)
     }
     
-  }, [contextMode])
+  }, [contextMode, setFocusMode])
 
   useEffect(() => {
     const triggerDiscordSync = () => setDiscordSyncSignal(signal => signal + 1)
     window.addEventListener('neonwave:discord-bot-state-changed', triggerDiscordSync)
     return () => window.removeEventListener('neonwave:discord-bot-state-changed', triggerDiscordSync)
+  }, [])
+
+  useEffect(() => () => {
+    const recorder = mediaRecorderRef.current
+    mediaRecorderRef.current = null
+    discordStreamActiveRef.current = false
+    if (recorder) {
+      recorder.ondataavailable = null
+      recorder.onerror = null
+      if (recorder.state !== 'inactive') recorder.stop()
+      void window.ipcRenderer.invoke('discord:stop').catch(console.error)
+    }
   }, [])
 
   // Keep the renderer capture, FFmpeg decoder and Discord player healthy as one
@@ -151,6 +176,10 @@ function MainApp() {
 
     const startDiscordPipeline = async () => {
       await window.ipcRenderer.invoke('discord:startStreamMode')
+      if (!active) {
+        await window.ipcRenderer.invoke('discord:stop').catch(console.error)
+        return
+      }
 
       const stream = getAudioStream()
       if (!stream) throw new Error('Discord stream unavailable from AudioEngine')
@@ -217,6 +246,7 @@ function MainApp() {
               })
               setLocalMute(false)
               await stopDiscordPipeline()
+              if (!active) return
 
               const recentRestarts = discordRestartHistoryRef.current.filter(time => now - time < 60_000)
               discordRestartHistoryRef.current = recentRestarts
@@ -235,12 +265,14 @@ function MainApp() {
                 return
               }
               await startDiscordPipeline()
+              if (!active) return
               startedNow = true
             } else if (mediaRecorderRef.current.state === 'paused') {
               mediaRecorderRef.current.resume()
             }
 
             await window.ipcRenderer.invoke('discord:resume')
+            if (!active) return
             // Keep local playback audible during startup/recovery. Mute it only
             // after Discord confirms that packets are actually playing.
             setLocalMute(!startedNow && status.playbackStatus === 'playing' && !backendFailed)
@@ -254,7 +286,7 @@ function MainApp() {
             await window.ipcRenderer.invoke('discord:pause')
           }
         } else {
-          await stopDiscordPipeline()
+          if (mediaRecorderRef.current || discordStreamActiveRef.current) await stopDiscordPipeline()
           setLocalMute(false)
         }
       } catch (error) {
@@ -389,7 +421,8 @@ function MainApp() {
 
         </div>
 
-        <LyricsOverlay
+        <PlaybackLyrics
+          getMediaElement={getMediaElement}
           visible={showLyrics}
           onClose={() => setShowLyrics(false)}
           trackTitle={currentTrack?.title || ''}
@@ -397,13 +430,12 @@ function MainApp() {
           trackPath={currentTrack?.path}
           trackArtwork={currentTrack?.artwork || undefined}
           trackDuration={duration}
-          currentTime={currentTime}
         />
 
-        <PlayerBar
+        <PlaybackBar
+          getMediaElement={getMediaElement}
           isPlaying={isPlaying}
           currentTrack={currentTrack}
-          currentTime={currentTime}
           duration={duration}
           volume={volume}
           is8D={is8D}

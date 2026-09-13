@@ -16,29 +16,54 @@ export interface Track {
 
 type RepeatMode = 'none' | 'all' | 'one'
 
-// Module-level singletons — survive Vite HMR hot reloads.
-// A media element can only be connected to ONE AudioContext ever;
-// re-creating them on each hot reload would throw DOMException.
-let _sharedAudio: HTMLVideoElement | null = null
-let _sharedEngine: AudioEngine | null = null
+// Preserve the pair across Fast Refresh: a media element can only be attached
+// to one MediaElementAudioSourceNode during its lifetime.
+interface SharedPlayback {
+    audio: HTMLVideoElement | null
+    engine: AudioEngine | null
+    owners: number
+    disposeTimer: ReturnType<typeof setTimeout> | null
+}
+const sharedPlayback: SharedPlayback = import.meta.hot?.data.neonWavePlayback ?? {
+    audio: null, engine: null, owners: 0, disposeTimer: null
+}
+if (import.meta.hot) import.meta.hot.data.neonWavePlayback = sharedPlayback
 
 function getSharedAudio(): HTMLVideoElement {
-    if (!_sharedAudio) {
-        _sharedAudio = document.createElement('video')
-        _sharedAudio.playsInline = true
+    if (!sharedPlayback.audio) {
+        sharedPlayback.audio = document.createElement('video')
+        sharedPlayback.audio.playsInline = true
     }
-    return _sharedAudio
+    return sharedPlayback.audio
 }
 
 function getSharedEngine(audio: HTMLMediaElement): AudioEngine {
-    if (!_sharedEngine) {
-        _sharedEngine = new AudioEngine()
-        _sharedEngine.connect(audio)
+    if (!sharedPlayback.engine) {
+        sharedPlayback.engine = new AudioEngine()
+        sharedPlayback.engine.connect(audio)
     }
-    return _sharedEngine
+    return sharedPlayback.engine
 }
 
-function waitForPlayable(media: HTMLMediaElement, timeoutMs = 6000): Promise<void> {
+function releaseSharedPlayback() {
+    sharedPlayback.owners--
+    if (sharedPlayback.owners !== 0) return
+    // StrictMode and Fast Refresh re-run effects immediately. Let that owner
+    // retain the graph before tearing down media decoding and audio resources.
+    sharedPlayback.disposeTimer = setTimeout(() => {
+        sharedPlayback.disposeTimer = null
+        if (sharedPlayback.owners !== 0) return
+        sharedPlayback.audio?.pause()
+        sharedPlayback.audio?.removeAttribute('src')
+        sharedPlayback.audio?.load()
+        sharedPlayback.engine?.dispose()
+        sharedPlayback.audio = null
+        sharedPlayback.engine = null
+    }, 0)
+}
+
+function waitForPlayable(media: HTMLMediaElement, signal: AbortSignal, timeoutMs = 6000): Promise<void> {
+    if (signal.aborted) return Promise.reject(new DOMException('Playback superseded', 'AbortError'))
     if (media.readyState >= 3) return Promise.resolve()
 
     return new Promise((resolve, reject) => {
@@ -49,6 +74,7 @@ function waitForPlayable(media: HTMLMediaElement, timeoutMs = 6000): Promise<voi
             media.removeEventListener('canplay', onReady)
             media.removeEventListener('loadeddata', onReady)
             media.removeEventListener('error', onError)
+            signal.removeEventListener('abort', onAbort)
         }
 
         const onReady = () => {
@@ -61,6 +87,11 @@ function waitForPlayable(media: HTMLMediaElement, timeoutMs = 6000): Promise<voi
             reject(media.error || new Error('Media failed to load'))
         }
 
+        const onAbort = () => {
+            cleanup()
+            reject(new DOMException('Playback superseded', 'AbortError'))
+        }
+
         timeoutId = setTimeout(() => {
             cleanup()
             resolve()
@@ -69,6 +100,7 @@ function waitForPlayable(media: HTMLMediaElement, timeoutMs = 6000): Promise<voi
         media.addEventListener('canplay', onReady, { once: true })
         media.addEventListener('loadeddata', onReady, { once: true })
         media.addEventListener('error', onError, { once: true })
+        signal.addEventListener('abort', onAbort, { once: true })
     })
 }
 
@@ -78,7 +110,6 @@ export function useAudioPlayer(contextMode?: string) {
     
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
-    const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
 
     
@@ -103,15 +134,32 @@ export function useAudioPlayer(contextMode?: string) {
 
     // Use module-level singletons to avoid re-connection crashes on HMR
     const audioRef = useRef<HTMLVideoElement>(getSharedAudio())
-    const engineRef = useRef<AudioEngine | null>(_sharedEngine)
+    const engineRef = useRef<AudioEngine | null>(sharedPlayback.engine)
     const isSwitchingTrackRef = useRef(false)
     const isPlaybackPendingRef = useRef(false)
     const playRequestIdRef = useRef(0)
+    const playAbortRef = useRef<AbortController | null>(null)
+    const loadedTrackPathRef = useRef<string | null>(null)
+    const mountedRef = useRef(false)
+
+    useEffect(() => {
+        mountedRef.current = true
+        return () => {
+            mountedRef.current = false
+            playRequestIdRef.current++
+            playAbortRef.current?.abort()
+        }
+    }, [])
 
     // Expose the shared media element for automated smoke tests (dev only)
     useEffect(() => {
         if (import.meta.env.DEV) {
-            ;(window as unknown as Record<string, unknown>).__nwAudio = audioRef.current
+            const debugWindow = window as unknown as Record<string, unknown>
+            const audio = audioRef.current
+            debugWindow.__nwAudio = audio
+            return () => {
+                if (debugWindow.__nwAudio === audio) delete debugWindow.__nwAudio
+            }
         }
     }, [])
 
@@ -155,7 +203,11 @@ export function useAudioPlayer(contextMode?: string) {
         const prevTrack = currentTrackRef.current
         const requestId = playRequestIdRef.current + 1
         playRequestIdRef.current = requestId
+        playAbortRef.current?.abort()
+        const controller = new AbortController()
+        playAbortRef.current = controller
         const isCurrentRequest = () => playRequestIdRef.current === requestId
+        isPlaybackPendingRef.current = true
 
         if (newPlaylist) {
             setPlaylist(newPlaylist)
@@ -171,6 +223,7 @@ export function useAudioPlayer(contextMode?: string) {
                 try { audio.pause() } catch (e) { }
             }
             audio.currentTime = 0
+            setDuration(0)
             
             
             if (prevTrack) {
@@ -182,6 +235,7 @@ export function useAudioPlayer(contextMode?: string) {
                 })
             }
             
+            currentTrackRef.current = trackToPlay
             setCurrentTrack(trackToPlay)
         }
 
@@ -191,9 +245,11 @@ export function useAudioPlayer(contextMode?: string) {
             try {
                 const query = trackToPlay.path.replace('shared:', '')
                 const results = await window.ipcRenderer.searchYouTube(query)
+                if (!isCurrentRequest()) return
                 if (results && results.length > 0) {
                     
                     const streamInfo = await window.ipcRenderer.getYouTubePreview(results[0].url)
+                    if (!isCurrentRequest()) return
                     
                     if (!trackToPlay.artwork && results[0].thumbnail) {
                         trackToPlay.artwork = results[0].thumbnail
@@ -217,6 +273,7 @@ export function useAudioPlayer(contextMode?: string) {
                 console.error("Failed to resolve shared track:", e)
                 if (isCurrentRequest()) {
                     isSwitchingTrackRef.current = false
+                    isPlaybackPendingRef.current = false
                     setIsPlaying(false)
                 }
                 return
@@ -236,6 +293,7 @@ export function useAudioPlayer(contextMode?: string) {
             audio.src = finalUrl
             audio.load()
         }
+        loadedTrackPathRef.current = trackToPlay.path
 
         // Same track: If we just loaded artwork (and it wasn't there before), update state
         const curTrack = currentTrackRef.current
@@ -243,22 +301,34 @@ export function useAudioPlayer(contextMode?: string) {
             setCurrentTrack(prev => prev ? ({ ...prev, artwork: trackToPlay.artwork }) : trackToPlay)
         }
 
+        // Cover parsing belongs to the selected track, independently of whether
+        // its pending playback is subsequently paused or resumed.
+        if (mountedRef.current && currentTrackRef.current?.path === trackToPlay.path &&
+            !trackToPlay.artwork && !trackToPlay.path.startsWith('shared:')) {
+            window.ipcRenderer.getAudioArtwork(trackToPlay.path)
+                .then((art) => {
+                    if (!art || !mountedRef.current) return
+                    setCurrentTrack(prev => prev?.path === trackToPlay.path ? ({ ...prev, artwork: art }) : prev)
+                })
+                .catch((e) => {
+                    console.warn("Failed to load artwork lazily", e)
+                })
+        }
+
         try {
             isPlaybackPendingRef.current = true
             await engineRef.current?.resume()
-            await waitForPlayable(audio)
-            if (!isCurrentRequest()) {
-                isPlaybackPendingRef.current = false
-                return
-            }
+            if (!isCurrentRequest()) return
+            await waitForPlayable(audio, controller.signal)
+            if (!isCurrentRequest()) return
             await audio.play()
             if (isCurrentRequest()) {
                 isPlaybackPendingRef.current = false
                 setIsPlaying(!audio.paused && !audio.ended)
             }
         } catch (e) {
-            console.error("Playback failed:", e)
             if (isCurrentRequest()) {
+                console.error("Playback failed:", e)
                 isPlaybackPendingRef.current = false
                 setIsPlaying(false)
             }
@@ -268,16 +338,6 @@ export function useAudioPlayer(contextMode?: string) {
             }
         }
 
-        if (!trackToPlay.artwork && !trackToPlay.path.startsWith('shared:')) {
-            window.ipcRenderer.getAudioArtwork(trackToPlay.path)
-                .then((art) => {
-                    if (!art) return
-                    setCurrentTrack(prev => prev?.path === trackToPlay.path ? ({ ...prev, artwork: art }) : prev)
-                })
-                .catch((e) => {
-                    console.warn("Failed to load artwork lazily", e)
-                })
-        }
     }, [])
 
     
@@ -287,19 +347,23 @@ export function useAudioPlayer(contextMode?: string) {
         let nextTrack: Track
 
         if (repeatMode === 'one' && autoTrigger) {
-            
-            nextTrack = currentTrack
+            const requestId = playRequestIdRef.current
             audioRef.current.currentTime = 0
             try {
                 isPlaybackPendingRef.current = true
                 await engineRef.current?.resume()
+                if (playRequestIdRef.current !== requestId) return
                 await audioRef.current.play()
-                isPlaybackPendingRef.current = false
-                setIsPlaying(!audioRef.current.paused && !audioRef.current.ended)
+                if (playRequestIdRef.current === requestId) {
+                    isPlaybackPendingRef.current = false
+                    setIsPlaying(!audioRef.current.paused && !audioRef.current.ended)
+                }
             } catch (e) {
-                console.error("Playback failed:", e)
-                isPlaybackPendingRef.current = false
-                setIsPlaying(false)
+                if (playRequestIdRef.current === requestId) {
+                    console.error("Playback failed:", e)
+                    isPlaybackPendingRef.current = false
+                    setIsPlaying(false)
+                }
             }
             return
         }
@@ -331,7 +395,7 @@ export function useAudioPlayer(contextMode?: string) {
 
         
         await playTrack(nextTrack)
-    }, [currentTrack, playlist, shuffledQueue, isShuffle, repeatMode])
+    }, [currentTrack, playlist, shuffledQueue, isShuffle, repeatMode, playTrack])
 
     const handlePrev = useCallback(() => {
         if (audioRef.current.currentTime > 3) {
@@ -357,12 +421,18 @@ export function useAudioPlayer(contextMode?: string) {
         const prevIdx = (idx - 1 + activeList.length) % activeList.length
         playTrack(activeList[prevIdx])
 
-    }, [currentTrack, playlist, shuffledQueue, isShuffle, history])
+    }, [currentTrack, playlist, shuffledQueue, isShuffle, history, playTrack])
 
     
     useEffect(() => {
         // Get (or create) the shared engine — safe across HMR reloads
-        const audio = audioRef.current
+        sharedPlayback.owners++
+        if (sharedPlayback.disposeTimer !== null) {
+            clearTimeout(sharedPlayback.disposeTimer)
+            sharedPlayback.disposeTimer = null
+        }
+        const audio = getSharedAudio()
+        audioRef.current = audio
         const engine = getSharedEngine(audio)
         engineRef.current = engine
         try {
@@ -372,14 +442,15 @@ export function useAudioPlayer(contextMode?: string) {
         } catch (e) {
             console.warn("Engine init error", e)
         }
+        return releaseSharedPlayback
     }, [])
 
     
     useEffect(() => {
         const audio = audioRef.current
-        const onTimeUpdate = () => setCurrentTime(audio.currentTime)
-        const onDurationChange = () => setDuration(audio.duration)
+        const onDurationChange = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0)
         const onEnded = () => {
+            setIsPlaying(false)
             handleNext(true)
         }
         const onPlay = () => {
@@ -392,14 +463,12 @@ export function useAudioPlayer(contextMode?: string) {
             setIsPlaying(false)
         }
 
-        audio.addEventListener('timeupdate', onTimeUpdate)
         audio.addEventListener('durationchange', onDurationChange)
         audio.addEventListener('ended', onEnded)
         audio.addEventListener('play', onPlay)
         audio.addEventListener('pause', onPause)
 
         return () => {
-            audio.removeEventListener('timeupdate', onTimeUpdate)
             audio.removeEventListener('durationchange', onDurationChange)
             audio.removeEventListener('ended', onEnded)
             audio.removeEventListener('play', onPlay)
@@ -426,7 +495,9 @@ export function useAudioPlayer(contextMode?: string) {
 
         
         navigator.mediaSession.setActionHandler('play', () => {
-            audioRef.current.play()
+            void engineRef.current?.resume().then(() => audioRef.current.play()).catch(error => {
+                console.warn('Media-session playback failed:', error)
+            })
         })
         navigator.mediaSession.setActionHandler('pause', () => {
             audioRef.current.pause()
@@ -438,11 +509,17 @@ export function useAudioPlayer(contextMode?: string) {
             handleNext()
         })
         navigator.mediaSession.setActionHandler('seekto', (details) => {
-            if (details.seekTime && duration) {
+            if (details.seekTime !== undefined && duration) {
                 audioRef.current.currentTime = details.seekTime
-                setCurrentTime(details.seekTime)
             }
         })
+
+        return () => {
+            for (const action of ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto'] as const) {
+                navigator.mediaSession.setActionHandler(action, null)
+            }
+            navigator.mediaSession.metadata = null
+        }
 
     }, [currentTrack, handlePrev, handleNext, duration, defaultArtwork]) 
 
@@ -461,7 +538,7 @@ export function useAudioPlayer(contextMode?: string) {
                 artist: currentTrack.artist,
                 album: currentTrack.album,
                 duration: duration,
-                elapsed: currentTime,
+                elapsed: audioRef.current.currentTime,
                 artworkUrl: currentTrack.artwork,
                 isPaused: false 
             }).catch(() => {});
@@ -471,17 +548,12 @@ export function useAudioPlayer(contextMode?: string) {
     }, [currentTrack?.path, isPlaying]);
 
     
-    // Use refs for frequently-changing values to avoid tearing down the interval on every timeupdate
-    const syncCurrentTimeRef = useRef(currentTime)
-    syncCurrentTimeRef.current = currentTime
-    const syncDurationRef = useRef(duration)
-    syncDurationRef.current = duration
-    const syncIsPlayingRef = useRef(isPlaying)
-    syncIsPlayingRef.current = isPlaying
+    // Keep large cover images out of recurring IPC messages, including across
+    // pause/resume and metadata effect restarts. The main process caches the snapshot.
+    const lastSyncedTrackRef = useRef({ path: '', artwork: '' })
 
     useEffect(() => {
-        let lastSyncedPath = ''
-        let lastSyncedArtwork = ''
+        const audio = audioRef.current
 
         const sync = () => {
             // Click-through is opt-in. Defaulting to automatic can make a new
@@ -491,7 +563,8 @@ export function useAudioPlayer(contextMode?: string) {
 
             const currentPath = currentTrack ? currentTrack.path : '';
             const currentArtwork = currentTrack ? currentTrack.artwork || '' : '';
-            const shouldSendArtwork = (currentPath !== lastSyncedPath) || (currentArtwork !== lastSyncedArtwork);
+            const shouldSendArtwork = (currentPath !== lastSyncedTrackRef.current.path) ||
+                (currentArtwork !== lastSyncedTrackRef.current.artwork);
 
             window.ipcRenderer.send('player:sync', {
                 path: currentPath,
@@ -499,15 +572,14 @@ export function useAudioPlayer(contextMode?: string) {
                 artist: currentTrack ? currentTrack.artist : '',
                 album: currentTrack ? currentTrack.album : undefined,
                 artwork: shouldSendArtwork ? (currentTrack ? currentTrack.artwork : undefined) : undefined,
-                currentTime: syncCurrentTimeRef.current,
-                duration: syncDurationRef.current,
-                isPlaying: syncIsPlayingRef.current,
+                currentTime: audio.currentTime,
+                duration,
+                isPlaying,
                 isGameModeActive
             });
 
             if (shouldSendArtwork) {
-                lastSyncedPath = currentPath;
-                lastSyncedArtwork = currentArtwork;
+                lastSyncedTrackRef.current = { path: currentPath, artwork: currentArtwork };
             }
         };
 
@@ -515,39 +587,52 @@ export function useAudioPlayer(contextMode?: string) {
 
         const handleSettingsChange = () => sync();
         window.addEventListener('neonwave:settings-changed', handleSettingsChange);
-
-        let stopped = false
-        let timer: ReturnType<typeof setTimeout> | null = null
-
-        const loop = () => {
-            if (stopped) return
-            sync()
-            timer = setTimeout(loop, syncIsPlayingRef.current ? 250 : 1000)
-        }
-
-        loop()
+        audio.addEventListener('seeked', sync)
+        // The media clock does not change while paused; events cover seeks and
+        // state/settings changes without waking an idle renderer every second.
+        const timer = isPlaying ? setInterval(sync, 250) : null
         return () => {
-            stopped = true
-            if (timer) clearTimeout(timer)
+            if (timer !== null) clearInterval(timer)
+            audio.removeEventListener('seeked', sync)
             window.removeEventListener('neonwave:settings-changed', handleSettingsChange);
         };
-    }, [currentTrack, contextMode]);
+    }, [currentTrack, contextMode, duration, isPlaying]);
 
-    const togglePlay = async () => {
-        if (!audioRef.current) return;
+    const togglePlay = useCallback(async () => {
+        const audio = audioRef.current
+        let requestId = playRequestIdRef.current
         try {
-            if (isPlaying) {
-                audioRef.current.pause();
+            if (!audio.paused || isPlaybackPendingRef.current) {
+                playRequestIdRef.current++
+                playAbortRef.current?.abort()
+                isPlaybackPendingRef.current = false
+                isSwitchingTrackRef.current = false
+                audio.pause();
                 setIsPlaying(false);
             } else {
+                const track = currentTrackRef.current
+                if (track && loadedTrackPathRef.current !== track.path) {
+                    await playTrack(track)
+                    return
+                }
+                if (!audio.src) return
+                requestId = ++playRequestIdRef.current
+                isPlaybackPendingRef.current = true
                 await engineRef.current?.resume()  // Resume AudioContext if suspended
-                await audioRef.current.play();
-                setIsPlaying(true);
+                if (playRequestIdRef.current !== requestId) return
+                await audio.play();
+                if (playRequestIdRef.current === requestId) {
+                    isPlaybackPendingRef.current = false
+                    setIsPlaying(!audio.paused && !audio.ended);
+                }
             }
         } catch (e) {
-            console.warn("[Audio] Playback was slightly interrupted or blocked:", e);
+            if (playRequestIdRef.current === requestId) {
+                isPlaybackPendingRef.current = false
+                console.warn("[Audio] Playback was slightly interrupted or blocked:", e);
+            }
         }
-    }
+    }, [playTrack])
     const seek = useCallback((time: number) => {
         const audio = audioRef.current
         if (!Number.isFinite(time) || audio.readyState === HTMLMediaElement.HAVE_NOTHING) return
@@ -555,7 +640,6 @@ export function useAudioPlayer(contextMode?: string) {
         const mediaDuration = Number.isFinite(audio.duration) ? audio.duration : duration
         const nextTime = Math.min(Math.max(time, 0), mediaDuration > 0 ? mediaDuration : time)
         audio.currentTime = nextTime
-        setCurrentTime(nextTime)
     }, [duration])
     const getAudioStream = useCallback(() => engineRef.current?.getAudioStream(), [])
     const startPcmCapture = useCallback((onChunk: (chunk: ArrayBuffer) => void) => {
@@ -569,11 +653,26 @@ export function useAudioPlayer(contextMode?: string) {
     const setLocalMute = useCallback((muted: boolean) => {
         engineRef.current?.setLocalMute(muted)
     }, [])
+    const toggleShuffle = useCallback(() => setIsShuffle(value => !value), [])
+    const toggleRepeat = useCallback(() => setRepeatMode(mode => mode === 'none' ? 'all' : mode === 'all' ? 'one' : 'none'), [])
+    const playNext = useCallback(() => handleNext(false), [handleNext])
+    const setDistance = useCallback((meters: number) => engineRef.current?.setDistance(meters), [])
+    const setSpaceMode = useCallback((mode: string) => engineRef.current?.setSpaceMode(mode), [])
+    const setPosition = useCallback((x: number, y: number, z: number) => {
+        engineRef.current?.toggle8D(false)
+        setIs8D(false)
+        engineRef.current?.setPosition(x, y, z)
+    }, [])
+    const setFocusMode = useCallback((enable: boolean) => {
+        if (enable) setIs8D(false)
+        engineRef.current?.setFocusMode(enable)
+    }, [])
+    const setNormalization = useCallback((enable: boolean) => engineRef.current?.setNormalization(enable), [])
+    const setCrowd = useCallback((enable: boolean) => engineRef.current?.setCrowd(enable), [])
 
     return {
         isPlaying,
         currentTrack,
-        currentTime,
         duration,
         volume,
         is8D,
@@ -584,21 +683,18 @@ export function useAudioPlayer(contextMode?: string) {
         togglePlay,
         setVolume,
         setIs8D,
-        toggleShuffle: () => setIsShuffle(!isShuffle),
-        toggleRepeat: () => setRepeatMode(m => m === 'none' ? 'all' : m === 'all' ? 'one' : 'none'),
+        toggleShuffle,
+        toggleRepeat,
         seek,
-        handleNext: () => handleNext(false),
-        handlePrev: () => handlePrev(),
+        handleNext: playNext,
+        handlePrev,
         
-        setDistance: (meters: number) => engineRef.current?.setDistance(meters),
-        setSpaceMode: (mode: string) => engineRef.current?.setSpaceMode(mode),
-        setPosition: (x: number, y: number, z: number) => {
-            setIs8D(false)
-            engineRef.current?.setPosition(x, y, z)
-        },
-        setFocusMode: (enable: boolean) => engineRef.current?.setFocusMode(enable),
-        setNormalization: (enable: boolean) => engineRef.current?.setNormalization(enable),
-        setCrowd: (enable: boolean) => engineRef.current?.setCrowd(enable),
+        setDistance,
+        setSpaceMode,
+        setPosition,
+        setFocusMode,
+        setNormalization,
+        setCrowd,
         isMuted,
         setIsMuted,
         getAudioStream,

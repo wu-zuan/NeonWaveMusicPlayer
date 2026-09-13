@@ -25,5 +25,8 @@ jobs:
       - name: Listening Party regression tests
         run: npm run test:party
 
+      - name: Performance and resource lifecycle regression tests
+        run: npm run test:performance
+
       - name: Build (renderer + electron main)
         run: npx vite build

@@ -1,7 +1,7 @@
 {
   "name": "neon-wave-music-player",
   "private": true,
-  "version": "7.0.7",
+  "version": "7.0.8",
   "description": "A modern, high-fidelity music player with 8D spatial audio effects.",
   "author": "wu-zuan",
   "license": "MIT",
@@ -19,9 +19,11 @@
     "test:party": "node --test tests/partyRoom.test.cjs",
     "test:filenames": "node --experimental-strip-types --test tests/youtubeFilename.test.ts",
     "test:lyrics-timeline": "node --experimental-strip-types --test tests/lyricsTimelineStability.test.ts",
+    "test:performance": "node --experimental-strip-types --test tests/artworkLoader.test.ts tests/audioEngine.test.ts tests/mediaMetadata.test.ts tests/playbackClock.test.ts",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "e2e": "node scripts/e2e-playback.cjs",
+    "e2e:performance": "node scripts/e2e-performance.cjs",
     "release": "powershell -ExecutionPolicy Bypass -File ./scripts/publish.ps1"
   },
   "dependencies": {

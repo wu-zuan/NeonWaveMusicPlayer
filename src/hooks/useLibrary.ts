@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Track } from './useAudioPlayer'
 
 const STORAGE_KEY_FOLDERS_V2 = 'neonwave_folders_v2' 
@@ -526,7 +526,7 @@ export function useLibrary() {
     }
 
     // Flatten all tracks for "All Songs" view
-    const allTracks = playlists.flatMap(p => p.tracks)
+    const allTracks = useMemo(() => playlists.flatMap(p => p.tracks), [playlists])
 
     return {
         playlists,

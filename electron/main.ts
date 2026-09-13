@@ -19,6 +19,8 @@ import { searchTrackArtwork } from './utils/artworkSearch'
 import { PartyRoomService, type PartyCommand } from './partyRoom'
 import { searchLyrics } from './lyrics'
 import { getGpuCalibrationStatus, runGpuLyricsCalibration, type GpuCalibrationMode } from './lyrics/gpuCalibration'
+import { mapConcurrent } from '../shared/boundedCache'
+import { MediaMetadataService } from './utils/mediaMetadata'
 
 // Register custom standard protocol for local media playback to bypass CORS restrictions for Web Audio API
 protocol.registerSchemesAsPrivileged([
@@ -390,7 +392,7 @@ app.whenReady().then(() => {
       if (!target || !/^https?:\/\//i.test(target)) {
         return new Response('bad remote url', { status: 400 })
       }
-      upstream = await net.fetch(target, { ...fetchInit, redirect: 'follow' })
+      upstream = await net.fetch(target, { ...fetchInit, redirect: 'follow', signal: request.signal })
     } else {
       let decodedPath = decodeURIComponent(pathname)
       // Windows paths arrive as "/D:/dir/file" — strip the leading slash.
@@ -451,7 +453,7 @@ app.whenReady().then(() => {
         return new Response(null, { status, headers })
       }
 
-      const body = Readable.toWeb(fsSync.createReadStream(filePath, { start, end })) as ReadableStream<Uint8Array>
+      const body = Readable.toWeb(fsSync.createReadStream(filePath, { start, end, signal: request.signal })) as ReadableStream<Uint8Array>
       return new Response(body, { status, headers })
     }
 
@@ -888,7 +890,13 @@ while ($true) {
 
     
     let lastIgnoreMouseEvents: boolean | null = null
+    let latestPlayerSnapshot: Record<string, any> | null = null
+    ipcMain.handle('player:getSnapshot', () => latestPlayerSnapshot)
     ipcMain.on('player:sync', (_, data) => {
+        const artwork = data?.artwork !== undefined
+            ? data.artwork
+            : data?.path && data.path === latestPlayerSnapshot?.path ? latestPlayerSnapshot?.artwork : null
+        latestPlayerSnapshot = { ...data, artwork }
         if (miniWin && !miniWin.isDestroyed()) {
             miniWin.webContents.send('player:sync', data)
             
@@ -956,6 +964,15 @@ while ($true) {
             writeLog(`RENDERER-MINI-${levelStr}`, `[${path.basename(sourceId)}:${line}] ${message}`)
         })
 
+        const createdWindow = miniWin
+        createdWindow.webContents.on('did-finish-load', () => {
+            if (createdWindow.isDestroyed() || !latestPlayerSnapshot) return
+            createdWindow.webContents.send('player:sync', latestPlayerSnapshot)
+            const shouldIgnore = !!latestPlayerSnapshot.isGameModeActive
+            createdWindow.setIgnoreMouseEvents(shouldIgnore, { forward: true })
+            lastIgnoreMouseEvents = shouldIgnore
+        })
+
         if (VITE_DEV_SERVER_URL) {
             miniWin.loadURL(`${VITE_DEV_SERVER_URL}?mini=true`)
         } else {
@@ -1011,13 +1028,14 @@ while ($true) {
       const files = await fs.readdir(folderPath)
       const supportedExtensions = ['.mp3', '.wav', '.wma', '.m4a', '.flac', '.ogg', '.mp4', '.mov', '.wmv', '.avi']
 
-      const fileStats = await Promise.all(files.map(async file => {
+      const fileStats = await mapConcurrent(files, 16, async file => {
         const fullPath = path.join(folderPath, file)
         const ext = path.extname(file).toLowerCase()
         if (!supportedExtensions.includes(ext)) return null
 
         try {
           const stats = await fs.stat(fullPath)
+          if (!stats.isFile()) return null
           return {
             fullPath,
             mtime: stats.mtime.getTime()
@@ -1025,7 +1043,7 @@ while ($true) {
         } catch (e) {
           return null
         }
-      }))
+      })
 
       return fileStats
         .filter((f): f is { fullPath: string, mtime: number } => f !== null)
@@ -1037,87 +1055,37 @@ while ($true) {
     }
   })
 
-  // Persistent metadata cache (userData/metadata-cache.json), keyed by
-  // "path\0mtime" so an edited/replaced file is re-scanned automatically.
-  // Avoids re-parsing every track's tags on every app launch.
-  const metaCachePath = path.join(app.getPath('userData'), 'metadata-cache.json')
-  let metaCache: Record<string, any> = {}
-  let metaCacheLoaded = false
-  let metaCacheDirty = false
-  let metaCacheFlushTimer: NodeJS.Timeout | null = null
-
-  const loadMetaCache = async () => {
-    if (metaCacheLoaded) return
-    metaCacheLoaded = true
-    try {
-      metaCache = JSON.parse(await fs.readFile(metaCachePath, 'utf8'))
-    } catch {
-      metaCache = {}
-    }
-  }
-
-  const scheduleMetaFlush = () => {
-    metaCacheDirty = true
-    if (metaCacheFlushTimer) return
-    metaCacheFlushTimer = setTimeout(async () => {
-      metaCacheFlushTimer = null
-      if (!metaCacheDirty) return
-      metaCacheDirty = false
-      try {
-        await fs.writeFile(metaCachePath, JSON.stringify(metaCache))
-      } catch (e) {
-        console.warn('[MetaCache] flush failed:', e)
-      }
-    }, 1500)
-  }
+  const metadataService = new MediaMetadataService(path.join(app.getPath('userData'), 'metadata-cache.json'))
+  app.on('will-quit', () => {
+    void metadataService.close().catch(error => console.warn('[MetaCache] shutdown flush failed:', error))
+  })
 
   // Batch metadata read for a folder scan. Returns lightweight metadata for
   // every path, hitting the disk parser only for new/changed files.
   ipcMain.handle('files:getMetadataBatch', async (_, filePaths: string[]) => {
-    await loadMetaCache()
-    const results = await Promise.all((filePaths || []).map(async (filePath) => {
-      let mtime = 0
+    const results = await mapConcurrent(filePaths || [], 4, async (filePath) => {
       try {
-        mtime = (await fs.stat(filePath)).mtimeMs
-      } catch {
-        return null
-      }
-      const key = `${filePath}\0${Math.round(mtime)}`
-      const cached = metaCache[key]
-      if (cached) return { path: filePath, ...cached }
-
-      try {
-        const metadata = await mm.parseFile(filePath, { skipCovers: true })
-        const entry = {
-          title: metadata.common.title || null,
-          artist: metadata.common.artist || null,
-          album: metadata.common.album || null,
-          duration: metadata.format.duration || 0,
-          codec: metadata.format.codec || null,
-          bitrate: metadata.format.bitrate || null,
-          sampleRate: metadata.format.sampleRate || null
-        }
-        // Drop any older entry for this path (different mtime) before caching
-        for (const k of Object.keys(metaCache)) {
-          if (k.startsWith(`${filePath}\0`)) delete metaCache[k]
-        }
-        metaCache[key] = entry
-        scheduleMetaFlush()
-        return { path: filePath, ...entry }
-      } catch {
+        const { artwork: _artwork, ...metadata } = await metadataService.get(filePath, false)
+        return { path: filePath, ...metadata }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
         return { path: filePath, title: null, artist: null, album: null, duration: 0 }
       }
-    }))
+    })
     return results.filter(Boolean)
   })
 
   ipcMain.handle('files:readBufferPartial', async (_, filePath, maxBytes) => {
     try {
       const fd = await fs.open(filePath, 'r')
-      const buffer = Buffer.alloc(maxBytes)
-      const { bytesRead } = await fd.read(buffer, 0, maxBytes, 0)
-      await fd.close()
-      return buffer.subarray(0, bytesRead)
+      try {
+        const byteLimit = Math.min(Math.max(0, Number(maxBytes) || 0), 128 * 1024 * 1024)
+        const buffer = Buffer.alloc(Math.min(Math.floor(byteLimit), (await fd.stat()).size))
+        const { bytesRead } = await fd.read(buffer, 0, buffer.length, 0)
+        return buffer.subarray(0, bytesRead)
+      } finally {
+        await fd.close()
+      }
     } catch (error) {
       console.error('Error reading partial file:', error)
       return null
@@ -1134,32 +1102,18 @@ while ($true) {
       // Electron's structured clone does not guarantee that a Node Buffer
       // arrives in the renderer as an ArrayBuffer. Return an exact standalone
       // ArrayBuffer so decodeAudioData always receives the browser-native type.
-      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      return buffer.byteOffset === 0 && buffer.byteLength === buffer.buffer.byteLength
+        ? buffer.buffer
+        : buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
     } catch (error) {
       console.error('Error reading audio file for calibration:', error)
       return null
     }
   })
 
-  const fileArtworkCache = new Map<string, string | null>()
-
   ipcMain.handle('files:getArtwork', async (_, filePath) => {
-    if (fileArtworkCache.has(filePath)) {
-      return fileArtworkCache.get(filePath)
-    }
     try {
-      const metadata = await mm.parseFile(filePath, { skipCovers: false }) 
-      let result: string | null = null
-      if (metadata.common.picture && metadata.common.picture.length > 0) {
-        const pic = metadata.common.picture[0]
-        result = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
-      }
-      if (fileArtworkCache.size >= 500) {
-        const firstKey = fileArtworkCache.keys().next().value
-        if (firstKey) fileArtworkCache.delete(firstKey)
-      }
-      fileArtworkCache.set(filePath, result)
-      return result
+      return (await metadataService.get(filePath, true)).artwork
     } catch (e) {
       return null
     }
@@ -1167,36 +1121,7 @@ while ($true) {
 
   ipcMain.handle('files:getMetadata', async (_, filePath, options = { loadArtwork: true }) => {
     try {
-      const parseOptions = options.loadArtwork ? {} : { skipCovers: true }
-      const metadata = await mm.parseFile(filePath, parseOptions)
-
-      let artwork = null
-      if (options.loadArtwork) {
-        if (fileArtworkCache.has(filePath)) {
-          artwork = fileArtworkCache.get(filePath) || null
-        } else if (metadata.common.picture && metadata.common.picture.length > 0) {
-          const pic = metadata.common.picture[0]
-          artwork = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
-          if (fileArtworkCache.size >= 500) {
-            const firstKey = fileArtworkCache.keys().next().value
-            if (firstKey) fileArtworkCache.delete(firstKey)
-          }
-          fileArtworkCache.set(filePath, artwork)
-        } else {
-          fileArtworkCache.set(filePath, null)
-        }
-      }
-
-      return {
-        title: metadata.common.title,
-        artist: metadata.common.artist,
-        album: metadata.common.album,
-        artwork: artwork,
-        duration: metadata.format.duration,
-        codec: metadata.format.codec,
-        bitrate: metadata.format.bitrate,
-        sampleRate: metadata.format.sampleRate
-      }
+      return await metadataService.get(filePath, !!options.loadArtwork)
     } catch (e) {
       
       return null

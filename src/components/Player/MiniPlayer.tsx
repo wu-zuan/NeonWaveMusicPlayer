@@ -3,9 +3,10 @@ import { GripHorizontal, Maximize2, Pause, Play, SkipBack, SkipForward, X } from
 import styles from './MiniPlayer.module.css'
 
 interface TrackInfo {
+    path?: string
     title: string
     artist: string
-    artwork?: string
+    artwork?: string | null
     currentTime: number
     duration: number
     isPlaying: boolean
@@ -21,12 +22,27 @@ const formatTime = (seconds: number) => {
 export function MiniPlayer() {
     const [track, setTrack] = useState<TrackInfo | null>(null)
 
-    useEffect(() => window.ipcRenderer.on('player:sync', (_event, data: TrackInfo) => {
-        setTrack(previous => ({
-            ...data,
-            artwork: data.artwork !== undefined ? data.artwork : previous?.artwork
-        }))
-    }), [])
+    useEffect(() => {
+        let active = true
+        let receivedUpdate = false
+        const unsubscribe = window.ipcRenderer.on('player:sync', (_event, data: TrackInfo) => {
+            receivedUpdate = true
+            setTrack(previous => ({
+                ...data,
+                artwork: data.artwork !== undefined ? data.artwork
+                    : data.path === previous?.path ? previous?.artwork : null
+            }))
+        })
+        // Playback can remain paused indefinitely, so request the initial state
+        // after subscribing instead of waiting for the next playback tick.
+        void window.ipcRenderer.invoke<TrackInfo | null>('player:getSnapshot').then(snapshot => {
+            if (active && !receivedUpdate && snapshot) setTrack(snapshot)
+        }).catch(console.error)
+        return () => {
+            active = false
+            unsubscribe()
+        }
+    }, [])
 
     const progress = useMemo(() => {
         if (!track?.duration) return 0

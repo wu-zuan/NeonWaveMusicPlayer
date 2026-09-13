@@ -40,9 +40,12 @@ npm install
 npm run dev        # 開發模式(Vite + Electron)
 npm run typecheck  # TypeScript 檢查
 npm run test:party # 分享房間、Tunnel 生命週期與串流回歸測試
+npm run test:performance # 快取容量、工作佇列、播放時鐘與音效資源回收
 npm run build      # 本機完整打包(electron-builder)
 npm run build:dir  # 只打包目錄不做安裝檔(快速驗證)
 ```
+
+效能設計與大型音樂庫測試方式見 [效能與資源管理](docs/performance.md)。
 
 ## 分享連線排查
 

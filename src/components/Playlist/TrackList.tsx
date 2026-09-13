@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback, useDeferredValue } from 'react'
 import { List, useListRef } from 'react-window'
 import { Music, Search } from 'lucide-react'
 import { TrackItem } from './TrackItem'
@@ -15,6 +15,7 @@ interface TrackListProps {
 }
 
 const ITEM_HEIGHT = 56
+const EMPTY_FAVORITES: Track[] = []
 
 type TrackRowProps = Pick<TrackListProps, 'tracks' | 'currentTrack' | 'onPlay' | 'onToggleFavorite'> & {
     favoritePaths: Set<string>
@@ -27,9 +28,12 @@ const TrackRow = ({ index, style, tracks, currentTrack, favoritePaths, highlight
         const isActive = currentTrack?.path === track.path
 
         // Optimization: Use currentTrack's artwork for the active item
-        const displayTrack = (isActive && currentTrack?.artwork)
-            ? { ...track, artwork: currentTrack.artwork }
-            : track
+        const activeArtwork = isActive ? currentTrack?.artwork : undefined
+        const displayTrack = useMemo(() => activeArtwork
+            ? { ...track, artwork: activeArtwork }
+            : track, [track, activeArtwork])
+        const handlePlay = useCallback(() => onPlay(track), [onPlay, track])
+        const handleToggleFavorite = useCallback(() => onToggleFavorite?.(track), [onToggleFavorite, track])
 
         return (
             <TrackItem
@@ -39,9 +43,9 @@ const TrackRow = ({ index, style, tracks, currentTrack, favoritePaths, highlight
                 track={displayTrack}
                 isActive={isActive}
                 isHighlighted={highlightedIndex === index}
-                onClick={() => onPlay(track)}
+                onClick={handlePlay}
                 isFavorite={isFav}
-                onToggleFavorite={() => onToggleFavorite && onToggleFavorite(track)}
+                onToggleFavorite={handleToggleFavorite}
                 trackIndex={index + 1}
             />
         )
@@ -49,16 +53,31 @@ const TrackRow = ({ index, style, tracks, currentTrack, favoritePaths, highlight
 
 
 const TrackListView: React.FC<TrackListProps> = ({
-    title = '音樂庫', tracks, currentTrack, onPlay, onToggleFavorite, favorites = []
+    title = '音樂庫', tracks, currentTrack, onPlay, onToggleFavorite, favorites = EMPTY_FAVORITES
 }) => {
     const [searchQuery, setSearchQuery] = useState('')
-    const [matches, setMatches] = useState<number[]>([])
+    const deferredQuery = useDeferredValue(searchQuery.toLowerCase())
     const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
     const containerRef = useRef<HTMLDivElement>(null)
     const headerAreaRef = useRef<HTMLDivElement>(null)
-    const listRef = useListRef() as any
+    const listRef = useListRef(null)
     const [listHeight, setListHeight] = useState(600)
     const favoritePaths = useMemo(() => new Set(favorites.map(f => f.path)), [favorites])
+    const searchIndex = useMemo(() => tracks.map(track => ({
+        title: track.title.toLowerCase(), artist: track.artist?.toLowerCase() || ''
+    })), [tracks])
+    const matches = useMemo(() => {
+        if (!deferredQuery) return []
+        const result: number[] = []
+        searchIndex.forEach((track, index) => {
+            if (track.title.includes(deferredQuery) || track.artist.includes(deferredQuery)) result.push(index)
+        })
+        return result
+    }, [deferredQuery, searchIndex])
+    const hasTracks = tracks.length > 0
+    const rowProps = useMemo(() => ({
+        tracks, currentTrack, favoritePaths, highlightedIndex: matches[currentMatchIdx], onPlay, onToggleFavorite
+    }), [tracks, currentTrack, favoritePaths, matches, currentMatchIdx, onPlay, onToggleFavorite])
 
     // Measure container height for virtualized list
     useEffect(() => {
@@ -70,39 +89,25 @@ const TrackListView: React.FC<TrackListProps> = ({
             }
         }
         measure()
-        window.addEventListener('resize', measure)
-        return () => window.removeEventListener('resize', measure)
-    }, [])
+        const observer = new ResizeObserver(measure)
+        if (containerRef.current) observer.observe(containerRef.current)
+        if (headerAreaRef.current) observer.observe(headerAreaRef.current)
+        return () => observer.disconnect()
+    }, [hasTracks])
 
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const q = e.target.value.toLowerCase()
-        setSearchQuery(q)
-        if (!q) {
-            setMatches([])
-            return
-        }
-
-        const newMatches: number[] = []
-        tracks.forEach((t, i) => {
-            if (t.title.toLowerCase().includes(q) || (t.artist && t.artist.toLowerCase().includes(q))) {
-                newMatches.push(i)
-            }
-        })
-
-        setMatches(newMatches)
+    // Refresh navigation when the query or playlist changes. Search work runs
+    // behind input updates, and normalization is reused across keystrokes.
+    useEffect(() => {
         setCurrentMatchIdx(0)
-
-        if (newMatches.length > 0) {
-            scrollToMatch(newMatches[0])
-        }
-    }
+        if (matches.length > 0) listRef.current?.scrollToRow({ index: matches[0], align: 'center' })
+    }, [matches, listRef])
 
     const scrollToMatch = (index: number) => {
         listRef.current?.scrollToRow({ index, align: 'center' })
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter' && matches.length > 0) {
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing && deferredQuery === searchQuery.toLowerCase() && matches.length > 0) {
             const nextIdx = (currentMatchIdx + 1) % matches.length
             setCurrentMatchIdx(nextIdx)
             scrollToMatch(matches[nextIdx])
@@ -150,7 +155,7 @@ const TrackListView: React.FC<TrackListProps> = ({
                             type="text"
                             placeholder="在列表中跳轉尋找...(可按Enter換首)"
                             value={searchQuery}
-                            onChange={handleSearch}
+                            onChange={e => setSearchQuery(e.target.value)}
                             onKeyDown={handleKeyDown}
                             className={styles.searchInput}
                         />
@@ -165,7 +170,7 @@ const TrackListView: React.FC<TrackListProps> = ({
                 rowCount={tracks.length}
                 rowHeight={ITEM_HEIGHT}
                 rowComponent={TrackRow}
-                rowProps={{ tracks, currentTrack, favoritePaths, highlightedIndex: matches[currentMatchIdx], onPlay, onToggleFavorite }}
+                rowProps={rowProps}
                 overscanCount={10}
             />
         </div>

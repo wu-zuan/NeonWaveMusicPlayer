@@ -1,6 +1,7 @@
 export class AudioEngine {
     private context: AudioContext
     private source: MediaElementAudioSourceNode | null = null
+    private mediaElement: HTMLMediaElement | null = null
 
     
     private panner: PannerNode
@@ -10,9 +11,13 @@ export class AudioEngine {
     private compressor: DynamicsCompressorNode 
     private crowdGain: GainNode
     private crowdSource: AudioBufferSourceNode | null = null
+    private crowdFilter: BiquadFilterNode | null = null
+    private crowdBuffer: AudioBuffer | null = null
+    private crowdVoices = new Map<AudioBufferSourceNode, BiquadFilterNode>()
+    private disposed = false
 
     
-    private streamDestination: MediaStreamAudioDestinationNode
+    private streamDestination: MediaStreamAudioDestinationNode | null = null
     private isLocalMuted: boolean = false
     private pcmCaptureNode: ScriptProcessorNode | null = null
     private pcmCaptureSink: GainNode | null = null
@@ -21,6 +26,9 @@ export class AudioEngine {
     private convolver: ConvolverNode
     private reverbGain: GainNode
     private dryGain: GainNode
+    private impulseCache = new Map<string, AudioBuffer>()
+    private reverbConnected = false
+    private reverbDisconnectTimer: ReturnType<typeof setTimeout> | null = null
 
     
     private is8DEnabled: boolean = false
@@ -79,7 +87,6 @@ export class AudioEngine {
         this.crowdGain.connect(this.masterGain) 
 
         
-        this.streamDestination = this.context.createMediaStreamDestination()
 
         
         
@@ -93,7 +100,6 @@ export class AudioEngine {
         this.dryGain.connect(this.masterGain)
 
         
-        this.panner.connect(this.convolver)
         this.convolver.connect(this.reverbGain)
         this.reverbGain.connect(this.masterGain)
 
@@ -101,13 +107,16 @@ export class AudioEngine {
         
         this.masterGain.connect(this.compressor)
         this.compressor.connect(this.context.destination)
-        this.compressor.connect(this.streamDestination)
-
-        
-        this.generateImpulse(2, 3)
+        this.context.addEventListener('statechange', this.updateRotation)
     }
 
     private generateImpulse(duration: number, decay: number, preDelaySeconds: number = 0, lowPass: boolean = false) {
+        const key = `${duration}:${decay}:${preDelaySeconds}:${lowPass}`
+        const cached = this.impulseCache.get(key)
+        if (cached) {
+            if (this.convolver.buffer !== cached) this.convolver.buffer = cached
+            return
+        }
         const rate = this.context.sampleRate
         const length = rate * duration
         const preDelaySamples = Math.floor(rate * preDelaySeconds)
@@ -138,7 +147,29 @@ export class AudioEngine {
             left[i] = L
             right[i] = R
         }
+        this.impulseCache.set(key, impulse)
         this.convolver.buffer = impulse
+    }
+
+    private setReverb(amount: number, timeConstant: number) {
+        if (this.reverbDisconnectTimer !== null) {
+            clearTimeout(this.reverbDisconnectTimer)
+            this.reverbDisconnectTimer = null
+        }
+        if (amount > 0 && !this.reverbConnected) {
+            this.panner.connect(this.convolver)
+            this.reverbConnected = true
+        }
+        this.reverbGain.gain.setTargetAtTime(amount, this.context.currentTime, timeConstant)
+        if (amount === 0 && this.reverbConnected) {
+            // Preserve the fade before retiring the expensive convolution branch.
+            this.reverbDisconnectTimer = setTimeout(() => {
+                this.reverbGain.gain.setValueAtTime(0, this.context.currentTime)
+                this.panner.disconnect(this.convolver)
+                this.reverbConnected = false
+                this.reverbDisconnectTimer = null
+            }, timeConstant * 8000)
+        }
     }
 
     connect(audioElement: HTMLMediaElement) {
@@ -146,14 +177,20 @@ export class AudioEngine {
         this.resume()
         try {
             this.source = this.context.createMediaElementSource(audioElement)
+            this.mediaElement = audioElement
+            audioElement.addEventListener('play', this.updateRotation)
+            audioElement.addEventListener('pause', this.updateRotation)
+            audioElement.addEventListener('ended', this.updateRotation)
             
             this.source.connect(this.panner)
+            this.updateRotation()
         } catch (e) {
             console.warn("Audio source connect error:", e)
         }
     }
 
     async resume() {
+        if (this.disposed) return
         if (this.context.state === 'suspended') {
             await this.context.resume()
         }
@@ -259,11 +296,11 @@ export class AudioEngine {
         }
 
         
-        if (type !== 'none') {
+        if (wetAmount > 0) {
             this.generateImpulse(duration, decay, preDelay, lowPass)
         }
 
-        this.reverbGain.gain.setTargetAtTime(wetAmount, t, 0.5)
+        this.setReverb(wetAmount, 0.5)
 
         
         this.dryGain.gain.setTargetAtTime(targetDry, t, 0.5)
@@ -280,27 +317,31 @@ export class AudioEngine {
             if (this.crowdSource) return
 
             
-            const rate = this.context.sampleRate
-            const buf = this.context.createBuffer(2, rate * 5, rate)
-            for (let c = 0; c < 2; c++) {
-                const data = buf.getChannelData(c)
-                let lastOut = 0;
-                for (let i = 0; i < buf.length; i++) {
-                    const white = Math.random() * 2 - 1
-                    
-                    lastOut = (lastOut + white) / 2
-                    data[i] = lastOut * 0.1
+            if (!this.crowdBuffer) {
+                const rate = this.context.sampleRate
+                const buf = this.context.createBuffer(2, rate * 5, rate)
+                for (let c = 0; c < 2; c++) {
+                    const data = buf.getChannelData(c)
+                    let lastOut = 0
+                    for (let i = 0; i < buf.length; i++) {
+                        const white = Math.random() * 2 - 1
+                        lastOut = (lastOut + white) / 2
+                        data[i] = lastOut * 0.1
+                    }
                 }
+                this.crowdBuffer = buf
             }
 
             this.crowdSource = this.context.createBufferSource()
-            this.crowdSource.buffer = buf
+            this.crowdSource.buffer = this.crowdBuffer
             this.crowdSource.loop = true
 
             
             const filter = this.context.createBiquadFilter()
             filter.type = 'lowpass'
             filter.frequency.value = 500
+            this.crowdFilter = filter
+            this.crowdVoices.set(this.crowdSource, filter)
 
             this.crowdSource.connect(filter)
             filter.connect(this.crowdGain)
@@ -314,11 +355,16 @@ export class AudioEngine {
                 
                 this.crowdGain.gain.setTargetAtTime(0, this.context.currentTime, 0.5)
                 const oldSource = this.crowdSource
+                const oldFilter = this.crowdFilter
                 this.crowdSource = null
-                setTimeout(() => {
-                    oldSource.stop()
+                this.crowdFilter = null
+                oldSource.onended = () => {
                     oldSource.disconnect()
-                }, 1000)
+                    oldFilter?.disconnect()
+                    this.crowdVoices.delete(oldSource)
+                    oldSource.onended = null
+                }
+                oldSource.stop(this.context.currentTime + 1)
             }
         }
     }
@@ -346,7 +392,7 @@ export class AudioEngine {
             this.stopRotation()
 
             
-            this.reverbGain.gain.setTargetAtTime(0, t, 0.2)
+            this.setReverb(0, 0.2)
             
             this.setDistance(0.5)
             
@@ -362,17 +408,27 @@ export class AudioEngine {
 
     
     toggle8D(enable: boolean) {
+        if (this.is8DEnabled === enable) return
         this.is8DEnabled = enable
         if (enable) {
-            this.startRotation()
+            this.updateRotation()
         } else {
             this.stopRotation()
             this.setPosition(0, 0, 0)
         }
     }
 
+    private updateRotation = () => {
+        if (this.is8DEnabled && this.mediaElement && !this.mediaElement.paused &&
+            !this.mediaElement.ended && this.context.state === 'running') {
+            this.startRotation()
+        } else {
+            this.stopRotation()
+        }
+    }
+
     private startRotation() {
-        if (this.intervalId) clearInterval(this.intervalId)
+        if (this.intervalId !== null) return
         let lastTime = performance.now()
 
         const loop = () => {
@@ -394,7 +450,7 @@ export class AudioEngine {
     }
 
     private stopRotation() {
-        if (this.intervalId) {
+        if (this.intervalId !== null) {
             clearInterval(this.intervalId)
             this.intervalId = null
         }
@@ -402,6 +458,10 @@ export class AudioEngine {
 
     
     getAudioStream(): MediaStream {
+        if (!this.streamDestination) {
+            this.streamDestination = this.context.createMediaStreamDestination()
+            this.compressor.connect(this.streamDestination)
+        }
         return this.streamDestination.stream
     }
 
@@ -467,5 +527,43 @@ export class AudioEngine {
         } else {
             this.compressor.connect(this.context.destination)
         }
+    }
+
+    dispose() {
+        if (this.disposed) return
+        this.disposed = true
+        this.stopRotation()
+        if (this.reverbDisconnectTimer !== null) clearTimeout(this.reverbDisconnectTimer)
+        this.reverbDisconnectTimer = null
+        this.context.removeEventListener('statechange', this.updateRotation)
+        this.mediaElement?.removeEventListener('play', this.updateRotation)
+        this.mediaElement?.removeEventListener('pause', this.updateRotation)
+        this.mediaElement?.removeEventListener('ended', this.updateRotation)
+        this.stopPcmCapture()
+        for (const [source, filter] of this.crowdVoices) {
+            source.onended = null
+            source.stop()
+            source.disconnect()
+            filter.disconnect()
+        }
+        this.crowdVoices.clear()
+        this.crowdSource = null
+        this.crowdFilter = null
+        this.crowdBuffer = null
+        this.impulseCache.clear()
+        this.convolver.buffer = null
+        this.source?.disconnect()
+        this.source = null
+        this.mediaElement = null
+        for (const node of [this.panner, this.focusEQ, this.distanceFilter, this.dryGain,
+            this.convolver, this.reverbGain, this.crowdGain, this.masterGain, this.compressor]) {
+            node.disconnect()
+        }
+        if (this.streamDestination) {
+            for (const track of this.streamDestination.stream.getTracks()) track.stop()
+            this.streamDestination.disconnect()
+            this.streamDestination = null
+        }
+        void this.context.close().catch(error => console.warn('Audio context cleanup failed:', error))
     }
 }
