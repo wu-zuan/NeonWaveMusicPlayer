@@ -68,7 +68,7 @@ React 掛載前將匯入資料補入 WebView2 localStorage。後續設定維持�
 - Renderer 沒有 fs、shell、process、HTTP plugin 或任意視窗操作權限。資料夾、媒體、GPU、下載等必要作業由驗證過的應用程式 command 處理；Discord developer portal 是唯一可透過外部連結 command 開啟的 URL。
 - 內部串流綁定 `127.0.0.1` 的隨機 port，具有每次啟動產生的 256-bit 權杖與來源檢查。只讀絕對音訊／影片路徑；YouTube proxy 限 HTTPS googlevideo hosts，逐次檢查 redirects。保留 Range、HEAD、CORS、中文與特殊字元檔名。
 - CSP 不開放任意 script、frame、object 或遠端 native API；正式版 navigation 限制在應用程式 origin。公開 Party server 保留原本的房間驗證及網路行為，與內部 media server 分開。
-- Node executable 由建置機的 Node 24 複製，與同次安裝的 native modules 配對；產物包含 Node 授權及 dependency licenses，使用者不必安裝 Node。跨 OS / CPU 架構必須在目標平台建置。
+- Node executable 由建置機的 Node 24 複製，與同次安裝的 native modules 配對；只收錄目標 OS / CPU / libc 使用的預建原生模組，保留 macOS universal binary，避免 Linux AppImage 掃描未使用的 musl 模組。產物包含 Node 授權及 dependency licenses，使用者不必安裝 Node。跨 OS / CPU 架構必須在目標平台建置。
 - Rust 管理 stdio RPC、錯誤、逾時和退出。Windows Job Object 回收 Node、FFmpeg、yt-dlp、Deno、PowerShell、cloudflared 等子程序樹；一般退出先讓服務停止與寫完設定。非 Windows 透過 stdin EOF 與追蹤的 process groups 清理。
 - 保留每次啟動重建的 `debug.log`，另有 `native.log`、`service-stderr.log` 協助診斷新宿主。WebView2 renderer crash 延遲重載，無回應提供重新載入／稍候，browser process crash 提示後重新啟動。
 
@@ -92,7 +92,7 @@ React 掛載前將匯入資料補入 WebView2 localStorage。後續設定維持�
 | --- | --- |
 | Production build | `npm run build` 通過，產出完整 NSIS exe + updater signature；不是只有 frontend 或 cargo check |
 | TypeScript / Rust | typecheck、cargo check、cargo fmt check 通過 |
-| 回歸測試 | 44 項既有測試 + 3 項 sidecar / binary transport 測試，全數通過 |
+| 回歸測試 | 44 項既有測試 + 5 項 sidecar / binary transport / 平台封裝測試，全數通過 |
 | Native dependencies | 隨附 Node 實際載入 Opus，編碼／解碼 48 kHz stereo frame；FFmpeg、DAVE、sodium 載入通過 |
 | 真實資料 | 從正在使用的舊 profile 的唯讀複本匯入 898 個 key；來源 CURRENT 檔案不變，未輸出設定內容 |
 | 兩萬首歌曲 | 真實 production WebView2 的虛擬列表、搜尋 Enter、切換歌單、本機播放、跳秒、8D pause / resume、暫停中開 mini 的快照通過 |

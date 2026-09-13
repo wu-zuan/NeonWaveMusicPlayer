@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
+import { nativeResourceFilter } from './native-resource-filter.mjs'
 
 const workspace = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 process.chdir(workspace)
@@ -16,7 +17,10 @@ await fs.mkdir(out, { recursive: true })
 await fs.mkdir(binaryDirectory, { recursive: true })
 const binary = path.join(binaryDirectory, `neonwave-node-${target}${process.platform === 'win32' ? '.exe' : ''}`)
 const lock = await fs.readFile('package-lock.json')
-const fingerprint = createHash('sha256').update(lock).update(process.version).update(target).digest('hex')
+const filterSource = await fs.readFile(new URL('./native-resource-filter.mjs', import.meta.url))
+const fingerprint = createHash('sha256').update(lock).update(process.version).update(target).update(filterSource).digest('hex')
+const libc = process.platform === 'linux' ? (process.report.getReport().header.glibcVersionRuntime ? 'glibc' : 'musl') : undefined
+const resourceFilter = nativeResourceFilter({ platform: process.platform, arch: process.arch, libc })
 const previous = await fs.readFile(path.join(out, 'build.json'), 'utf8').then(JSON.parse).catch(() => ({}))
 if (previous.fingerprint !== fingerprint || !await fs.stat(binary).catch(() => null)) {
   const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
@@ -29,7 +33,7 @@ if (previous.fingerprint !== fingerprint || !await fs.stat(binary).catch(() => n
   for (const directory of packages) {
     const relative = path.relative(workspace, directory)
     if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error(`Dependency is outside checkout: ${relative}`)
-    await fs.cp(directory, path.join(out, relative), { recursive: true, dereference: true })
+    await fs.cp(directory, path.join(out, relative), { recursive: true, dereference: true, filter: resourceFilter })
   }
   await fs.copyFile(process.execPath, binary)
   if (process.platform !== 'win32') await fs.chmod(binary, 0o755)

@@ -38,4 +38,6 @@ npm run e2e:performance
 
 Tauri 截圖驗證透過 CDP 固定 viewport / focus，避免隱藏 WebView2 surface 遺漏 compositor layers；原歷史資料使用不同的 visibility / focus 條件。因此不能把兩次的列數或 commits 差值解讀成效能改善或退步。這是列表與播放行為測試，並非讀取兩萬個真實音檔的啟動速度基準。
 
+7.0.9 發佈驗證另增加 2 項原生套件封裝測試，確認保留正確的平台／CPU 預建模組與 macOS universal binary，並排除 glibc AppImage 不使用的 musl 模組；目前共 49 項回歸測試。
+
 這些測試驗證資源管理與操作行為，不能推算每台電腦的 CPU 或記憶體改善百分比。長時間使用與真實封面、歌詞校正、Discord 串流的負載仍需依實際使用情境量測。

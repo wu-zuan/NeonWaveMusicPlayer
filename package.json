@@ -30,7 +30,7 @@
     "build:frontend": "tsc && vite build",
     "build:sidecar": "node scripts/build-sidecar.mjs",
     "prepare:desktop": "npm run build:sidecar && npm run build:frontend",
-    "test:native": "node --test tests/sidecar.test.cjs tests/transport.test.cjs",
+    "test:native": "node --test tests/sidecar.test.cjs tests/transport.test.cjs tests/sidecar-packaging.test.cjs",
     "test": "npm run test:party && npm run test:filenames && npm run test:lyrics-timeline && npm run test:performance && npm run test:native"
   },
   "dependencies": {
