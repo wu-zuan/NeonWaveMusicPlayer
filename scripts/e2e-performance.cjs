@@ -125,7 +125,7 @@ function instrumentation(tone, fixtureRoot) {
         };
         const tracks = Array.from({ length: 20000 }, (_, index) => ({
             path: index === 0 ? ${JSON.stringify(tone)} : ${JSON.stringify(path.basename(fixtureRoot))} + '/missing-' + index + '.m4a',
-            title: index === 0 ? 'Performance Tone' : index === 10 ? 'Needle A' : index === 19999 ? 'Needle B' : 'Track ' + index,
+            title: index === 0 ? 'Performance Tone' : index === 10 ? '跳轉 Needle A' : index === 19999 ? '跳轉 Needle B' : 'Track ' + index,
             artist: 'Fixture'
         }));
         tracks[0].artwork = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2" fill="blue"/></svg>');
@@ -137,7 +137,8 @@ function instrumentation(tone, fixtureRoot) {
         localStorage.setItem('neonwave_favorites', '[]');
         localStorage.setItem('neonwave_custom_playlists', JSON.stringify([
             { id: 'perf-large', name: 'PERF Large', type: 'custom', tracks },
-            { id: 'perf-small', name: 'PERF Small', type: 'custom', tracks: smallTracks }
+            { id: 'perf-small', name: 'PERF Small', type: 'custom', tracks: smallTracks },
+            { id: 'perf-empty', name: 'PERF Empty', type: 'custom', tracks: [] }
         ]));
         localStorage.setItem('nw_8d', 'true');
         localStorage.setItem('nw_muted', 'true');
@@ -215,7 +216,31 @@ async function main() {
             await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
         };
         const rowCount = () => cdp.eval(`document.querySelectorAll(${JSON.stringify(rowsSelector)}).length`);
+        const playlistHeight = () => cdp.eval(`document.querySelector('[role="list"]').getBoundingClientRect().height`);
+        const visibleMatches = [];
+        const expectVisibleMatch = async (index, label) => {
+            let geometry;
+            await waitFor(async () => {
+                geometry = await cdp.eval(`(() => {
+                    const row = document.getElementById('track-item-${index}');
+                    if (!row?.className.includes('highlighted')) return null;
+                    const rect = row.getBoundingClientRect();
+                    const list = row.parentElement.getBoundingClientRect();
+                    const viewport = document.querySelector('.app-scroll');
+                    const bounds = viewport.getBoundingClientRect();
+                    const top = Math.max(0, bounds.top, list.top);
+                    const bottom = Math.min(innerHeight, bounds.bottom - parseFloat(getComputedStyle(viewport).paddingBottom), list.bottom);
+                    return { top: rect.top, bottom: rect.bottom, viewportTop: top, viewportBottom: bottom,
+                        visible: rect.height > 0 && rect.top >= top - 1 && rect.bottom <= bottom + 1 };
+                })()`);
+                return geometry?.visible;
+            }, `${label}: highlighted row is visible above the player`);
+            visibleMatches.push({ label, index, ...geometry });
+        };
         await clickPlaylist('PERF Large');
+        const initialListHeight = await playlistHeight();
+        await sleep(1200);
+        assert.ok(Math.abs(await playlistHeight() - initialListHeight) <= 1, 'list height stays stable while idle');
         const mountedCounts = [await rowCount()];
         await cdp.eval(`(() => {
             const row = document.querySelector(${JSON.stringify(rowsSelector)});
@@ -230,14 +255,54 @@ async function main() {
 
         await setSearch('Needle');
         await waitFor(() => cdp.eval(`document.querySelector('[class*="searchCount"]')?.textContent === '1 / 2'`), 'large library search');
+        await expectVisibleMatch(10, 'typing jumps to first match');
         await pressEnter();
-        await waitFor(() => cdp.eval(`document.getElementById('track-item-19999')?.className.includes('highlighted')`), 'Enter jumps to second match');
+        await expectVisibleMatch(19999, 'Enter jumps to second match');
         mountedCounts.push(await rowCount());
         await clickPlaylist('PERF Small');
         await waitFor(() => cdp.eval(`document.getElementById('track-item-0')?.className.includes('highlighted') && document.querySelectorAll(${JSON.stringify(rowsSelector)}).length === 2`), 'search refresh after playlist switch');
         await cdp.eval(`document.querySelector('input[class*="searchInput"]').focus()`);
         await pressEnter();
-        await waitFor(() => cdp.eval(`document.getElementById('track-item-1')?.className.includes('highlighted')`), 'Enter on switched playlist');
+        await expectVisibleMatch(1, 'Enter on switched playlist');
+        await clickPlaylist('PERF Empty');
+        await waitFor(() => cdp.eval(`document.body.textContent.includes('這個列表是空的。')`), 'empty playlist');
+        await clickPlaylist('PERF Large');
+        await expectVisibleMatch(10, 'search after remounting an empty list');
+
+        // A mounted/highlighted virtual row can still be outside the screen.
+        // Exercise the themed headers and minimum window size with real bounds.
+        await clickPlaylist('PERF Large');
+        for (const theme of ['neonwave', 'spotify', 'discord', 'youtube-music', 'apple-music']) {
+            await cdp.eval(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+            for (const viewport of [{ width: 1200, height: 800 }, { width: 800, height: 600 }]) {
+                await cdp.send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false });
+                await sleep(150);
+                const height = await playlistHeight();
+                await sleep(250);
+                assert.ok(Math.abs(await playlistHeight() - height) <= 1, `${theme}: list height remains bounded after resize`);
+                await setSearch('');
+                await waitFor(() => cdp.eval(`!document.querySelector('[class*="searchCount"]')`), 'cleared playlist search');
+                await setSearch('跳轉');
+                await expectVisibleMatch(10, `${theme} ${viewport.width}: first match`);
+                await pressEnter();
+                await expectVisibleMatch(19999, `${theme} ${viewport.width}: last match`);
+                await pressEnter();
+                await expectVisibleMatch(10, `${theme} ${viewport.width}: Enter wraps`);
+                assert.ok(await rowCount() < 80, `${theme}: virtual rows stay bounded`);
+            }
+        }
+        await cdp.eval(`document.documentElement.dataset.theme = 'neonwave'`);
+        await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false });
+        await setSearch('no matching track');
+        await waitFor(() => cdp.eval(`!document.querySelector('[class*="searchCount"]')`), 'unmatched query');
+        await pressEnter();
+        assert.equal(await cdp.eval(`!!document.querySelector('[id^="track-item-"][class*="highlighted"]')`), false, 'Enter with no matches is harmless');
+        await setSearch('Needle A');
+        await expectVisibleMatch(10, 'single result');
+        await cdp.eval(`document.querySelector('[role="list"]').scrollTop = 10000 * 56`);
+        await waitFor(() => cdp.eval(`!!document.getElementById('track-item-10000')`), 'scroll away from single result');
+        await pressEnter();
+        await expectVisibleMatch(10, 'Enter returns to a single result');
 
         await clickPlaylist('PERF Large');
         await setSearch('Performance Tone');
@@ -285,7 +350,7 @@ async function main() {
         await waitFor(() => cdp.eval(`!window.__nwPerf.videos[0].paused && [...window.__nwPerf.intervals.values()].filter(delay => delay === 16).length === 1`), '8D timer restarts on resume');
         assert.deepEqual(cdp.exceptions, [], 'no uncaught renderer exceptions');
 
-        const result = { result: 'PASS', libraryTracks: 20000, mountedRows: mountedCounts, searchAndPlaylistSwitch: true, playbackAdvanceSeconds: +(after.time - before.time).toFixed(3), clockCommits: after.commits - before.commits, mainAppClockRenders: after.mainRenders - before.mainRenders, seekAnd8DPauseResume: true, pausedMiniSnapshot: true, profile };
+        const result = { result: 'PASS', libraryTracks: 20000, mountedRows: mountedCounts, searchAndPlaylistSwitch: true, visibleSearchMatches: visibleMatches, playbackAdvanceSeconds: +(after.time - before.time).toFixed(3), clockCommits: after.commits - before.commits, mainAppClockRenders: after.mainRenders - before.mainRenders, seekAnd8DPauseResume: true, pausedMiniSnapshot: true, profile };
         fs.writeFileSync(path.join(workspace, 'artifacts/performance-validation.json'), JSON.stringify(result, null, 2));
         console.log(JSON.stringify(result, null, 2));
     } catch (error) {

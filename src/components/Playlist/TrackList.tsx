@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback, useDeferredValue } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react'
 import { List, useListRef } from 'react-window'
 import { Music, Search } from 'lucide-react'
 import { TrackItem } from './TrackItem'
@@ -58,10 +58,8 @@ const TrackListView: React.FC<TrackListProps> = ({
     const [searchQuery, setSearchQuery] = useState('')
     const deferredQuery = useDeferredValue(searchQuery.toLowerCase())
     const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
-    const containerRef = useRef<HTMLDivElement>(null)
-    const headerAreaRef = useRef<HTMLDivElement>(null)
     const listRef = useListRef(null)
-    const [listHeight, setListHeight] = useState(600)
+    const [listSize, setListSize] = useState<{ height: number; width: number }>()
     const favoritePaths = useMemo(() => new Set(favorites.map(f => f.path)), [favorites])
     const searchIndex = useMemo(() => tracks.map(track => ({
         title: track.title.toLowerCase(), artist: track.artist?.toLowerCase() || ''
@@ -74,33 +72,22 @@ const TrackListView: React.FC<TrackListProps> = ({
         })
         return result
     }, [deferredQuery, searchIndex])
-    const hasTracks = tracks.length > 0
     const rowProps = useMemo(() => ({
         tracks, currentTrack, favoritePaths, highlightedIndex: matches[currentMatchIdx], onPlay, onToggleFavorite
     }), [tracks, currentTrack, favoritePaths, matches, currentMatchIdx, onPlay, onToggleFavorite])
-
-    // Measure container height for virtualized list
-    useEffect(() => {
-        const measure = () => {
-            if (containerRef.current) {
-                const rect = containerRef.current.getBoundingClientRect()
-                const headerHeight = headerAreaRef.current?.getBoundingClientRect().height || 90
-                setListHeight(Math.max(200, rect.height - headerHeight))
-            }
-        }
-        measure()
-        const observer = new ResizeObserver(measure)
-        if (containerRef.current) observer.observe(containerRef.current)
-        if (headerAreaRef.current) observer.observe(headerAreaRef.current)
-        return () => observer.disconnect()
-    }, [hasTracks])
 
     // Refresh navigation when the query or playlist changes. Search work runs
     // behind input updates, and normalization is reused across keystrokes.
     useEffect(() => {
         setCurrentMatchIdx(0)
-        if (matches.length > 0) listRef.current?.scrollToRow({ index: matches[0], align: 'center' })
-    }, [matches, listRef])
+    }, [matches])
+
+    // Wait for the list's actual flex viewport, including after an empty list
+    // mounts or a theme/window resize changes the space below the header.
+    useEffect(() => {
+        const index = matches[currentMatchIdx]
+        if (index !== undefined) listRef.current?.scrollToRow({ index, align: 'center' })
+    }, [matches, currentMatchIdx, listSize, listRef])
 
     const scrollToMatch = (index: number) => {
         listRef.current?.scrollToRow({ index, align: 'center' })
@@ -126,8 +113,8 @@ const TrackListView: React.FC<TrackListProps> = ({
 
 
     return (
-        <div className={styles.container} ref={containerRef}>
-            <div ref={headerAreaRef}>
+        <div className={styles.container}>
+            <div className={styles.headerArea}>
                 <section className={styles.themeHero} aria-hidden="true">
                     <div className={styles.themeHeroArtwork}>
                         {currentTrack?.artwork ? (
@@ -166,7 +153,8 @@ const TrackListView: React.FC<TrackListProps> = ({
             </div>
             <List<TrackRowProps>
                 listRef={listRef}
-                style={{ height: listHeight, width: '100%' }}
+                onResize={setListSize}
+                style={{ height: '100%', minHeight: ITEM_HEIGHT, width: '100%' }}
                 rowCount={tracks.length}
                 rowHeight={ITEM_HEIGHT}
                 rowComponent={TrackRow}

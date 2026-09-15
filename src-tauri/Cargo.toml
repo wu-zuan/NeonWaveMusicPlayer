@@ -1,6 +1,6 @@
 [package]
 name = "neonwave"
-version = "7.0.9"
+version = "7.1.0"
 description = "NeonWave Music Player"
 authors = ["wu-zuan"]
 edition = "2021"
