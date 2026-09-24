@@ -18,6 +18,10 @@ type PlaybackSnapshot = {
   duration: number
   isPlaying: boolean
   updatedAt: number
+  lyrics?: { time: number; text: string }[]
+  lyricsVisible?: boolean
+  lyricsStyle?: string
+  soundMode?: string
 }
 
 export type PartyCommand =
@@ -39,6 +43,9 @@ export type PartyStatus = {
   cloudflaredState: 'idle' | 'downloading' | 'ready' | 'error'
   cloudflaredMessage?: string
   cloudflaredProgress?: number
+  permissions: { next: boolean; seek: boolean }
+  lyrics: { visible: boolean; style: string; lines: { time: number; text: string }[] }
+  soundMode: string
   track: {
     path?: string
     title: string
@@ -118,6 +125,7 @@ export class PartyRoomService {
   private sseClients = new Set<ServerResponse>()
   private keepAliveTimer: NodeJS.Timeout | null = null
   private readonly onCommand: (command: PartyCommand) => void
+  private permissions = { next: false, seek: false }
 
   constructor(onCommand: (command: PartyCommand) => void) {
     this.onCommand = onCommand
@@ -125,6 +133,21 @@ export class PartyRoomService {
 
   isActive() {
     return !!this.server
+  }
+
+  setPermissions(next: Partial<{ next: boolean; seek: boolean }>) {
+    this.permissions = { next: !!next.next, seek: !!next.seek }
+    this.broadcastState()
+    return this.getStatus()
+  }
+
+  updatePresentation(snapshot: Partial<Pick<PlaybackSnapshot, 'lyrics' | 'lyricsVisible' | 'lyricsStyle' | 'soundMode'>>) {
+    this.playback = {
+      ...this.playback,
+      ...snapshot,
+      ...(snapshot.lyrics ? { lyrics: snapshot.lyrics.filter(line => Number.isFinite(line.time) && typeof line.text === 'string').slice(0, 2000) } : {})
+    }
+    this.broadcastState()
   }
 
   updatePlayback(snapshot: Partial<PlaybackSnapshot>) {
@@ -135,7 +158,10 @@ export class PartyRoomService {
     }
     if (trackChanged || (snapshot.artwork !== undefined && snapshot.artwork !== this.playback.artwork)) {
       this.artworkVersion++
-      if (trackChanged) this.playback.artwork = undefined
+      if (trackChanged) {
+        this.playback.artwork = undefined
+        this.playback.lyrics = []
+      }
     }
     this.playback = {
       ...this.playback,
@@ -175,6 +201,7 @@ export class PartyRoomService {
     this.cloudflaredState = 'idle'
     this.cloudflaredMessage = undefined
     this.cloudflaredProgress = undefined
+    this.permissions = { next: false, seek: false }
     this.broadcastState()
   }
 
@@ -194,6 +221,13 @@ export class PartyRoomService {
       cloudflaredState: this.cloudflaredState,
       cloudflaredMessage: this.cloudflaredMessage,
       cloudflaredProgress: this.cloudflaredProgress,
+      permissions: { ...this.permissions },
+      lyrics: {
+        visible: !!this.playback.lyricsVisible,
+        style: this.playback.lyricsStyle || 'danmaku',
+        lines: this.playback.lyrics || []
+      },
+      soundMode: this.playback.soundMode || 'none',
       track: this.roomId
         ? {
             path: this.playback.path,
@@ -662,8 +696,16 @@ export class PartyRoomService {
         return
       }
       const body = await this.readJsonBody(req)
-      if (!body?.action) {
-        this.sendJson(res, 400, { error: 'missing_action' })
+      if (!body || !['next', 'seek'].includes(body.action)) {
+        this.sendJson(res, 400, { error: 'invalid_action' })
+        return
+      }
+      if (!this.permissions[body.action as 'next' | 'seek']) {
+        this.sendJson(res, 403, { error: 'control_disabled' })
+        return
+      }
+      if (body.action === 'seek' && (!Number.isFinite(body.value) || body.value < 0 || body.value > this.playback.duration)) {
+        this.sendJson(res, 400, { error: 'invalid_seek' })
         return
       }
       this.onCommand(body as PartyCommand)
@@ -814,6 +856,7 @@ export class PartyRoomService {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
   <title>NeonWave Listening Party</title>
   <style>
     :root {
@@ -1030,6 +1073,40 @@ export class PartyRoomService {
       .art { max-height: 320px; border-right: 0; border-bottom: 1px solid var(--line); }
       .main { padding: 22px; }
     }
+    body { display:block; padding: clamp(16px, 4vw, 48px); background: radial-gradient(circle at 16% 10%, rgba(0,218,206,.16), transparent 35%), radial-gradient(circle at 85% 85%, rgba(143,76,245,.14), transparent 34%), #080b13; }
+    body::before { content:'NEONWAVE  /  LISTENING PARTY'; display:block; max-width: 1180px; margin: 0 auto 24px; color: #c9fff8; font-size: 12px; font-weight: 800; letter-spacing:.23em; }
+    .wrap { width: min(1180px, 100%); min-height: min(680px, calc(100vh - 130px)); margin:auto; grid-template-columns: minmax(320px, .9fr) minmax(0, 1.1fr); gap:0; background:rgba(13,19,33,.88); border:1px solid rgba(185,221,232,.14); border-radius:32px; box-shadow:0 30px 100px rgba(0,0,0,.5); }
+    .art { aspect-ratio:auto; min-height:480px; border-right:1px solid rgba(255,255,255,.08); background:radial-gradient(circle at center, #1b4150, #0c1625 60%); }
+    .art img { width: min(74%, 400px); height:auto; aspect-ratio:1; object-fit:cover; border-radius:22px; box-shadow:0 25px 65px rgba(0,0,0,.45); }
+    .fallback { width:min(74%,400px); height:auto; aspect-ratio:1; border-radius:22px; font-size:clamp(22px,4vw,38px); font-weight:800; background:linear-gradient(145deg,#114750,#402453); }
+    .main { padding:clamp(25px,4vw,55px); gap:22px; justify-content:center; min-width:0; }
+    .eyebrow { color:var(--accent); font-weight:800; margin-bottom:16px; }
+    h1 { font-size:clamp(34px,4vw,62px); line-height:1.08; letter-spacing:-.045em; overflow-wrap:anywhere; }
+    .artist { margin-top:12px; font-size:clamp(17px,2vw,24px); }
+    .meta { gap:8px; }
+    .pill { background:rgba(255,255,255,.055); padding:8px 12px; }
+    .bar { height:6px; }
+    .controls { gap:9px; }
+    button { min-height:46px; }
+    button:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+    .primary { padding:13px 24px; }
+    .status { min-width:0; }
+    #source { max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .party-lyrics { min-height:135px; border-radius:22px; padding:19px 22px; background:linear-gradient(135deg,rgba(0,255,242,.075),rgba(174,77,240,.07)); border:1px solid rgba(255,255,255,.09); overflow:hidden; }
+    .party-lyrics[hidden] { display:none; }
+    .lyrics-label { display:flex; justify-content:space-between; color:#75dcd6; text-transform:uppercase; letter-spacing:.17em; font-size:11px; font-weight:800; }
+    .lyrics-line { margin-top:17px; font-size:clamp(21px,2.4vw,34px); line-height:1.35; font-weight:800; overflow-wrap:anywhere; }
+    .lyrics-next { margin-top:8px; color:#9daabe; font-size:15px; overflow-wrap:anywhere; }
+    .lyrics-line.enter { animation:lyric-in .38s ease-out; }
+    .party-lyrics[data-style='kinetic'] .lyrics-line { color:#84fff4; text-transform:uppercase; letter-spacing:.04em; }
+    .party-lyrics[data-style='rhythm-cut'] .lyrics-line { color:#ffacd9; font-style:italic; }
+    .party-lyrics[data-style='manga'] { background:linear-gradient(135deg,#29213d,#101721); }
+    .party-lyrics[data-style='manga'] .lyrics-line { text-shadow:3px 3px 0 #6c368d; }
+    .party-lyrics[data-style='handwritten'] .lyrics-line { font-family:cursive; font-weight:500; color:#ffe8b6; }
+    .party-lyrics[data-style='subtitle'] .lyrics-line { text-align:center; font-size:24px; }
+    .party-lyrics[data-style='focus'] .lyrics-line { font-size:clamp(28px,3.3vw,44px); }
+    @keyframes lyric-in { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+    @media (max-width: 760px) { body { padding:18px; } body::before { margin-bottom:16px; } .wrap,.wrap.has-video { display:flex; flex-direction:column; min-height:0; } .art,.wrap.has-video .art { min-height:0; height:min(75vw,360px); border-right:0; border-bottom:1px solid rgba(255,255,255,.08); } .main { padding:24px; } .row input[type='range'] { min-width:100px; } #source { display:none; } }
   </style>
 </head>
 <body>
@@ -1050,6 +1127,11 @@ export class PartyRoomService {
         <span class="pill" id="conn">連線中</span>
         <span class="pill" id="room">Room ${escapeHtml(roomId)}</span>
       </div>
+      <div class="party-lyrics" id="lyricsPanel" hidden>
+        <div class="lyrics-label"><span>同步歌詞</span><span id="soundMode">原音</span></div>
+        <div class="lyrics-line" id="lyricCurrent">♪</div>
+        <div class="lyrics-next" id="lyricNext"></div>
+      </div>
       <div id="linkStatus" class="status waiting">
         <span class="status-dot"></span>
         <div class="status-text">
@@ -1065,15 +1147,14 @@ export class PartyRoomService {
         </div>
       </div>
       <div class="controls">
-        <button id="prevBtn" class="secondary">上一首</button>
-        <button id="toggleBtn" class="primary">${isPlaying === 'true' ? '暫停' : '播放'}</button>
+        <button id="toggleBtn" class="primary">${isPlaying === 'true' ? '暫停聆聽' : '開始聆聽'}</button>
         <button id="nextBtn" class="secondary">下一首</button>
         <button id="copyBtn" class="secondary" ${inviteUrl ? '' : 'disabled'}>複製邀請連結</button>
       </div>
       <div class="row">
         <span style="font-size: 13px; color: var(--muted); min-width: 36px;">進度</span>
         <input id="seek" type="range" min="0" max="${duration}" step="0.1" value="${currentTime}" ${streamable === 'true' ? '' : 'disabled'} />
-        <button id="syncBtn" class="secondary">同步</button>
+        <button id="syncBtn" class="secondary">重新同步</button>
       </div>
       <div class="row" style="margin-top: 10px; display: flex; align-items: center; gap: 12px;">
         <span style="font-size: 13px; color: var(--muted); min-width: 36px;">音量</span>
@@ -1102,19 +1183,70 @@ export class PartyRoomService {
     const linkStatusEl = document.getElementById('linkStatus');
     const seekEl = document.getElementById('seek');
     const toggleBtn = document.getElementById('toggleBtn');
-    const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     const copyBtn = document.getElementById('copyBtn');
     const syncBtn = document.getElementById('syncBtn');
     const sourceEl = document.getElementById('source');
     const volumeEl = document.getElementById('volume');
     const volumeValEl = document.getElementById('volumeVal');
+    const lyricsPanel = document.getElementById('lyricsPanel');
+    const lyricCurrent = document.getElementById('lyricCurrent');
+    const lyricNext = document.getElementById('lyricNext');
+    const soundModeEl = document.getElementById('soundMode');
     let state = ${JSON.stringify(baseState).replace(/</g, '\\u003c')};
     let manualSeek = false;
     let currentStreamPath = '';
     let pendingAudioTarget = null;
     let lastHostTime = 0;
     let lastHostTimeReceivedAt = 0;
+    let joinedAudio = false;
+    let lastLyricIndex = -2;
+    let audioContext;
+    let wetGain;
+    let delayNode;
+
+    function syncSoundMode() {
+      if (!audioContext) return;
+      const mode = state.soundMode || 'none';
+      const effects = { none:[0,0], room:[.08,.09], hall:[.16,.16], concert:[.25,.22], racing:[.04,.05], fps:[.025,.035] };
+      const params = effects[mode] || effects.none;
+      delayNode.delayTime.setTargetAtTime(params[0], audioContext.currentTime, .05);
+      wetGain.gain.setTargetAtTime(params[1], audioContext.currentTime, .05);
+    }
+
+    function ensureAudioEffects() {
+      if (audioContext) { audioContext.resume(); return; }
+      const Context = window.AudioContext || window.webkitAudioContext;
+      if (!Context) return;
+      audioContext = new Context();
+      const source = audioContext.createMediaElementSource(audio);
+      delayNode = audioContext.createDelay(.5);
+      wetGain = audioContext.createGain();
+      source.connect(audioContext.destination);
+      source.connect(delayNode);
+      delayNode.connect(wetGain);
+      wetGain.connect(audioContext.destination);
+      syncSoundMode();
+    }
+
+    function renderLyrics(time) {
+      const info = state.lyrics || {};
+      const lines = Array.isArray(info.lines) ? info.lines : [];
+      lyricsPanel.hidden = !info.visible;
+      if (!info.visible) return;
+      lyricsPanel.dataset.style = info.style || 'danmaku';
+      const names = { none: '原音', room: '房間', hall: '空間', concert: '演唱會', racing: '賽車遊戲', fps: 'FPS' };
+      soundModeEl.textContent = names[state.soundMode] || '原音';
+      let index = -1;
+      for (let i = 0; i < lines.length; i++) if (lines[i].time <= time) index = i;
+      if (index === lastLyricIndex) return;
+      lastLyricIndex = index;
+      lyricCurrent.textContent = lines[index]?.text || (lines.length ? '♫' : '等待主機載入歌詞');
+      lyricNext.textContent = lines[index + 1]?.text || '';
+      lyricCurrent.classList.remove('enter');
+      void lyricCurrent.offsetWidth;
+      lyricCurrent.classList.add('enter');
+    }
 
     // Initial volume load
     const savedVolume = localStorage.getItem('party_volume');
@@ -1222,7 +1354,12 @@ export class PartyRoomService {
       lastHostTimeReceivedAt = now;
 
       state = next;
-      seekEl.disabled = !next.track?.streamable;
+      syncSoundMode();
+      if (trackChanged) lastLyricIndex = -2;
+      seekEl.disabled = !next.track?.streamable || !next.permissions?.seek;
+      nextBtn.disabled = !next.permissions?.next;
+      nextBtn.title = next.permissions?.next ? '' : '主機未開放切歌';
+      seekEl.title = next.permissions?.seek ? '' : '主機未開放調整進度';
       copyBtn.disabled = !next.publicUrl;
       if (wrapEl) {
         if (next.track?.isVideo) {
@@ -1280,8 +1417,9 @@ export class PartyRoomService {
           if (fallbackEl) fallbackEl.style.display = next.track?.isVideo ? 'none' : '';
         }
       }
-      toggleBtn.textContent = next.track?.isPlaying ? '暫停' : '播放';
+      toggleBtn.textContent = audio.paused ? '開始聆聽' : '暫停聆聽';
       sourceEl.textContent = next.publicUrl || '等待 Cloudflare 產生公開連結';
+      renderLyrics(audio.paused ? currentTime : audio.currentTime);
 
       setAudioSrc(trackChanged);
       if (!next.track?.streamable) {
@@ -1293,7 +1431,7 @@ export class PartyRoomService {
         if (hostDidSeek || trackChanged) {
           syncAudioPosition(true);
         }
-      } else if (next.track?.isPlaying) {
+      } else if (next.track?.isPlaying && joinedAudio) {
         syncAudioPosition(true);
         audio.play().catch(() => setError('請按播放按鈕，允許瀏覽器開始聆聽。'));
       } else if (!next.track?.isPlaying && !audio.paused) {
@@ -1304,13 +1442,14 @@ export class PartyRoomService {
       }
     }
 
-    prevBtn.addEventListener('click', () => sendCommand('prev').catch(err => setError(err.message)));
     nextBtn.addEventListener('click', () => sendCommand('next').catch(err => setError(err.message)));
     toggleBtn.addEventListener('click', () => {
-      if (state.track?.isPlaying && audio.paused) {
+      if (audio.paused) {
+        joinedAudio = true;
+        ensureAudioEffects();
         syncAudioPosition(true);
-        audio.play().catch(err => setError(err.message));
-      } else sendCommand('toggle-play').catch(err => setError(err.message));
+        audio.play().then(() => toggleBtn.textContent = '暫停聆聽').catch(err => setError(err.message));
+      } else { joinedAudio = false; audio.pause(); toggleBtn.textContent = '開始聆聽'; }
     });
     syncBtn.addEventListener('click', async () => {
       try {
@@ -1359,6 +1498,7 @@ export class PartyRoomService {
       seekEl.max = String(duration || 0);
       seekEl.value = String(currentTime || 0);
       timeEl.textContent = fmt(currentTime) + ' / ' + fmt(duration);
+      renderLyrics(currentTime);
     });
     audio.addEventListener('loadedmetadata', () => {
       syncAudioPosition(true);

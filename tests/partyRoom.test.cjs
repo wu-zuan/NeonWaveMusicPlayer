@@ -126,3 +126,33 @@ test('stopping during dependency installation does not launch a tunnel afterward
   assert.equal(room.getStatus().active, false)
   assert.equal(room.getStatus().tunnelStatus, 'idle')
 })
+
+test('guest controls follow live host permissions and presentation state', async () => {
+  const commands = []
+  const room = new PartyRoomService(command => commands.push(command))
+  try {
+    room.updatePlayback({ path: 'sample.mp3', duration: 90 })
+    const status = await room.start()
+    const invite = new URL(status.localUrl)
+    const endpoint = invite.origin + '/api/room/' + status.roomId
+    const command = (action, value) => fetch(endpoint + '/command' + invite.search, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, value })
+    })
+    assert.equal((await command('next')).status, 403)
+    assert.equal((await command('seek', 10)).status, 403)
+    room.setPermissions({ next: true, seek: true })
+    assert.equal((await command('next')).status, 200)
+    assert.equal((await command('seek', 10)).status, 200)
+    assert.equal((await command('seek', 100)).status, 400)
+    assert.equal((await command('prev')).status, 400)
+    assert.deepEqual(commands, [{ action: 'next' }, { action: 'seek', value: 10 }])
+    room.updatePresentation({ lyricsVisible: true, lyricsStyle: 'manga', lyrics: [{ time: 1, text: '你好' }], soundMode: 'concert' })
+    const state = await (await fetch(endpoint + invite.search)).json()
+    assert.equal(state.permissions.next, true)
+    assert.equal(state.lyrics.style, 'manga')
+    assert.equal(state.lyrics.lines[0].text, '你好')
+    assert.equal(state.soundMode, 'concert')
+    room.setPermissions({ next: false, seek: false })
+    assert.equal((await command('next')).status, 403)
+  } finally { await room.stop() }
+})

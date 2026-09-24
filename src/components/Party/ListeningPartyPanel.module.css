@@ -36,6 +36,17 @@
     gap: 10px;
 }
 
+.permissionBox { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--glass-border); border-radius: 16px; background: rgba(255,255,255,.035); color: var(--text-main); }
+.permissionBox label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; cursor: pointer; }
+.permissionBox input { width: 18px; height: 18px; accent-color: var(--accent-primary); }
+.permissionBox small { color: var(--text-muted); }
+.joinBox { display:grid; gap:12px; padding:18px; border:1px solid var(--glass-border); border-radius:18px; background:rgba(255,255,255,.035); color:var(--text-main); }
+.joinBox p { margin:0; color:var(--text-muted); font-size:13px; }
+.joinRow { display:flex; gap:8px; }
+.joinRow input { flex:1; min-width:0; padding:11px 13px; border:1px solid var(--glass-border); border-radius:11px; background:rgba(0,0,0,.2); color:var(--text-main); }
+.joinError { color:#ff9da8; }
+.joinFrame { width:100%; height:650px; border:1px solid var(--glass-border); border-radius:18px; background:#080b13; }
+
 .noticeBox {
     border: 1px solid rgba(0, 255, 242, 0.16);
     background: linear-gradient(135deg, rgba(0, 255, 242, 0.08), rgba(255, 255, 255, 0.03));

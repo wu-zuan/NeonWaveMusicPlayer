@@ -1157,6 +1157,12 @@ const LyricsOverlayView: React.FC<LyricsOverlayProps> = ({
     const subStyle: string = 'neon'
     const [fetchTrigger, setFetchTrigger] = useState(0)
 
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('neonwave:party-lyrics', {
+            detail: { lyrics: visible ? lyrics : [], lyricsVisible: visible, lyricsStyle: presentation }
+        }))
+    }, [visible, lyrics, presentation])
+
     const containerRef = useRef<HTMLDivElement>(null)
     const panelLyricsRef = useRef<HTMLDivElement>(null)
     const activeCountRef = useRef(0)

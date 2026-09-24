@@ -71,6 +71,17 @@ function MainApp() {
 
   const [view, setView] = useState('all_songs')
   const [showLyrics, setShowLyrics] = useState(false)
+  const [soundMode, setSoundMode] = useState('none')
+
+  useEffect(() => {
+    const syncLyrics = (event: Event) => window.ipcRenderer.send('party:presentation', (event as CustomEvent).detail)
+    window.addEventListener('neonwave:party-lyrics', syncLyrics)
+    return () => window.removeEventListener('neonwave:party-lyrics', syncLyrics)
+  }, [])
+
+  useEffect(() => {
+    window.ipcRenderer.send('party:presentation', { soundMode })
+  }, [soundMode])
   const [importModalData, setImportModalData] = useState<any | null>(null)
   const [discordSyncSignal, setDiscordSyncSignal] = useState(0)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -450,7 +461,7 @@ function MainApp() {
           onNext={handleNext}
           onPrev={handlePrev}
           onSetDistance={setDistance}
-          onSetSpace={setSpaceMode}
+          onSetSpace={mode => { setSpaceMode(mode); setSoundMode(mode) }}
           onSetPosition={setPosition}
           onSetFocusMode={setFocusMode}
           onSetNormalization={setNormalization}

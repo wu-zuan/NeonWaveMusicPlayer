@@ -271,6 +271,15 @@ export async function startServices() {
         return true
     })
 
+    rpc.handle('party:permissions', (_event, permissions: { next: boolean; seek: boolean }) => {
+        if (!partyRoomService) throw new Error('Party service unavailable')
+        return partyRoomService.setPermissions(permissions)
+    })
+
+    rpc.on('party:presentation', (_event, presentation) => {
+        partyRoomService?.updatePresentation(presentation || {})
+    })
+
     
     let latestPlayerSnapshot: Record<string, any> | null = null
     rpc.handle('player:getSnapshot', () => latestPlayerSnapshot)

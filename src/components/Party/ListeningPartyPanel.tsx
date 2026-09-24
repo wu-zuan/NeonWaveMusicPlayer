@@ -15,6 +15,7 @@ type PartyStatus = {
     cloudflaredState: 'idle' | 'downloading' | 'ready' | 'error'
     cloudflaredMessage?: string
     cloudflaredProgress?: number
+    permissions: { next: boolean; seek: boolean }
     track: {
         title: string
         artist: string
@@ -36,6 +37,7 @@ const initialStatus: PartyStatus = {
     tunnelStatus: 'idle',
     cloudflaredAvailable: false,
     cloudflaredState: 'idle',
+    permissions: { next: false, seek: false },
     track: null
 }
 
@@ -43,6 +45,24 @@ export function ListeningPartyPanel() {
     const [status, setStatus] = useState<PartyStatus>(initialStatus)
     const [busy, setBusy] = useState(false)
     const [message, setMessage] = useState('')
+    const [joinInput, setJoinInput] = useState('')
+    const [joinedUrl, setJoinedUrl] = useState('')
+    const [joinError, setJoinError] = useState('')
+
+    const joinParty = () => {
+        try {
+            const url = new URL(joinInput.trim())
+            if (!/^\/party\/[a-f0-9]{8}$/.test(url.pathname) || !url.searchParams.get('token') ||
+                !((url.protocol === 'https:' && url.hostname.endsWith('.trycloudflare.com')) ||
+                  (url.protocol === 'http:' && url.hostname === '127.0.0.1'))) {
+                throw new Error('請貼上 NeonWave 的完整 Party 邀請連結')
+            }
+            setJoinedUrl(url.toString())
+            setJoinError('')
+        } catch (err) {
+            setJoinError(err instanceof Error ? err.message : '邀請連結無效')
+        }
+    }
 
     const refresh = async () => {
         try {
@@ -94,6 +114,16 @@ export function ListeningPartyPanel() {
         await writeClipboard(text)
         setMessage('已複製邀請連結')
         setTimeout(() => setMessage(''), 2000)
+    }
+
+    const setPermission = async (key: 'next' | 'seek', value: boolean) => {
+        try {
+            const next = { ...status.permissions, [key]: value }
+            const res = await window.ipcRenderer.invoke<PartyStatus>('party:permissions', next)
+            setStatus(res)
+        } catch (err) {
+            setMessage(err instanceof Error ? err.message : String(err))
+        }
     }
 
     const currentLabel = status.active
@@ -168,6 +198,13 @@ export function ListeningPartyPanel() {
                     </span>
                 </div>
 
+                <div className={styles.permissionBox}>
+                    <strong>訪客操作權限</strong>
+                    <label><span>允許切換下一首</span><input type="checkbox" checked={status.permissions?.next || false} onChange={e => void setPermission('next', e.target.checked)} /></label>
+                    <label><span>允許調整播放進度</span><input type="checkbox" checked={status.permissions?.seek || false} onChange={e => void setPermission('seek', e.target.checked)} /></label>
+                    <small>變更會立即同步給已加入的訪客。</small>
+                </div>
+
                 <div className={styles.linkBox}>
                     <div className={styles.linkLabel}>分享連結</div>
                     {status.publicUrl ? (
@@ -226,6 +263,16 @@ export function ListeningPartyPanel() {
                     <Link2 size={16} />
                     複製邀請連結
                 </button>
+            </div>
+            <div className={styles.joinBox}>
+                <strong>加入朋友的 Party</strong>
+                <p>貼上朋友傳來的邀請連結，就能在軟體內一起聆聽。</p>
+                <div className={styles.joinRow}>
+                    <input aria-label="Party 邀請連結" placeholder="https://…trycloudflare.com/party/…" value={joinInput} onChange={e => setJoinInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') joinParty() }} />
+                    <button className={styles.secondaryBtn} onClick={joinParty}>加入</button>
+                </div>
+                {joinError && <small className={styles.joinError}>{joinError}</small>}
+                {joinedUrl && <><button className={styles.secondaryBtn} onClick={() => setJoinedUrl('')}>離開 Party</button><iframe className={styles.joinFrame} title="朋友的 Listening Party" src={joinedUrl} allow="autoplay" referrerPolicy="no-referrer" /></>}
             </div>
         </div>
     )

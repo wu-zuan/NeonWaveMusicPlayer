@@ -20,6 +20,8 @@
   "party:status",
   "party:start",
   "party:stop",
+  "party:permissions",
+  "party:presentation",
   "player:getSnapshot",
   "player:sync",
   "files:listMusic",
