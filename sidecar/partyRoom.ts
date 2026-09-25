@@ -1076,7 +1076,9 @@ export class PartyRoomService {
     body { display:block; padding: clamp(16px, 4vw, 48px); background: radial-gradient(circle at 16% 10%, rgba(0,218,206,.16), transparent 35%), radial-gradient(circle at 85% 85%, rgba(143,76,245,.14), transparent 34%), #080b13; }
     body::before { content:'NEONWAVE  /  LISTENING PARTY'; display:block; max-width: 1180px; margin: 0 auto 24px; color: #c9fff8; font-size: 12px; font-weight: 800; letter-spacing:.23em; }
     .wrap { width: min(1180px, 100%); min-height: min(680px, calc(100vh - 130px)); margin:auto; grid-template-columns: minmax(320px, .9fr) minmax(0, 1.1fr); gap:0; background:rgba(13,19,33,.88); border:1px solid rgba(185,221,232,.14); border-radius:32px; box-shadow:0 30px 100px rgba(0,0,0,.5); }
+    .wrap.has-video { grid-template-columns:minmax(0,1.2fr) minmax(350px,.8fr); }
     .art { aspect-ratio:auto; min-height:480px; border-right:1px solid rgba(255,255,255,.08); background:radial-gradient(circle at center, #1b4150, #0c1625 60%); }
+    .wrap.has-video .art { aspect-ratio:auto; min-height:480px; border-right:1px solid rgba(255,255,255,.08); border-bottom:0; }
     .art img { width: min(74%, 400px); height:auto; aspect-ratio:1; object-fit:cover; border-radius:22px; box-shadow:0 25px 65px rgba(0,0,0,.45); }
     .fallback { width:min(74%,400px); height:auto; aspect-ratio:1; border-radius:22px; font-size:clamp(22px,4vw,38px); font-weight:800; background:linear-gradient(145deg,#114750,#402453); }
     .main { padding:clamp(25px,4vw,55px); gap:22px; justify-content:center; min-width:0; }
@@ -1114,7 +1116,7 @@ export class PartyRoomService {
     <div class="art">
       <img id="artwork" src="${artwork || ''}" style="${artwork ? '' : 'display:none;'} max-width: 100%; max-height: 100%; object-fit: cover;" alt="artwork" />
       <div id="fallback" class="fallback" style="${artwork ? 'display:none;' : ''}">NeonWave</div>
-      <video id="player" preload="metadata" playsinline webkit-playsinline style="width: 100%; height: 100%; object-fit: contain; display: none; position: absolute; inset: 0; z-index: 5;" ${streamable === 'true' ? '' : 'hidden'}></video>
+      <video id="player" preload="metadata" playsinline webkit-playsinline style="width: 100%; height: 100%; object-fit: contain; display: none; position: absolute; inset: 0; z-index: 5;"></video>
     </div>
     <div class="main">
       <div>
@@ -1200,6 +1202,7 @@ export class PartyRoomService {
     let lastHostTime = 0;
     let lastHostTimeReceivedAt = 0;
     let joinedAudio = false;
+    let locallyPaused = false;
     let lastLyricIndex = -2;
     let audioContext;
     let wetGain;
@@ -1283,6 +1286,7 @@ export class PartyRoomService {
         audio.load();
         currentStreamPath = '';
         audio.style.display = 'none';
+        audio.hidden = true;
         if (artworkEl) artworkEl.style.display = state.track?.artwork ? '' : 'none';
         if (fallbackEl) fallbackEl.style.display = state.track?.artwork ? 'none' : '';
         return;
@@ -1296,10 +1300,12 @@ export class PartyRoomService {
         pendingAudioTarget = state.track.currentTime || 0;
       }
       if (state.track.isVideo) {
+        audio.hidden = false;
         audio.style.display = 'block';
         if (artworkEl) artworkEl.style.display = 'none';
         if (fallbackEl) fallbackEl.style.display = 'none';
       } else {
+        audio.hidden = true;
         audio.style.display = 'none';
         if (artworkEl) artworkEl.style.display = state.track.artwork ? '' : 'none';
         if (fallbackEl) fallbackEl.style.display = state.track.artwork ? 'none' : '';
@@ -1354,6 +1360,7 @@ export class PartyRoomService {
       lastHostTimeReceivedAt = now;
 
       state = next;
+      if (trackChanged) locallyPaused = false;
       syncSoundMode();
       if (trackChanged) lastLyricIndex = -2;
       seekEl.disabled = !next.track?.streamable || !next.permissions?.seek;
@@ -1417,7 +1424,7 @@ export class PartyRoomService {
           if (fallbackEl) fallbackEl.style.display = next.track?.isVideo ? 'none' : '';
         }
       }
-      toggleBtn.textContent = audio.paused ? '開始聆聽' : '暫停聆聽';
+      toggleBtn.textContent = audio.paused ? '開始聆聽' : joinedAudio ? '暫停聆聽' : '開啟聲音';
       sourceEl.textContent = next.publicUrl || '等待 Cloudflare 產生公開連結';
       renderLyrics(audio.paused ? currentTime : audio.currentTime);
 
@@ -1434,6 +1441,12 @@ export class PartyRoomService {
       } else if (next.track?.isPlaying && joinedAudio) {
         syncAudioPosition(true);
         audio.play().catch(() => setError('請按播放按鈕，允許瀏覽器開始聆聽。'));
+      } else if (next.track?.isPlaying && next.track.isVideo && !locallyPaused) {
+        audio.muted = true;
+        syncAudioPosition(true);
+        audio.play().then(() => { toggleBtn.textContent = '開啟聲音'; }).catch(() => {
+          setError('請按「開始聆聽」以播放影片。');
+        });
       } else if (!next.track?.isPlaying && !audio.paused) {
         audio.pause();
         syncAudioPosition(true);
@@ -1444,12 +1457,14 @@ export class PartyRoomService {
 
     nextBtn.addEventListener('click', () => sendCommand('next').catch(err => setError(err.message)));
     toggleBtn.addEventListener('click', () => {
-      if (audio.paused) {
+      if (audio.paused || !joinedAudio) {
         joinedAudio = true;
+        locallyPaused = false;
+        audio.muted = false;
         ensureAudioEffects();
         syncAudioPosition(true);
         audio.play().then(() => toggleBtn.textContent = '暫停聆聽').catch(err => setError(err.message));
-      } else { joinedAudio = false; audio.pause(); toggleBtn.textContent = '開始聆聽'; }
+      } else { joinedAudio = false; locallyPaused = true; audio.pause(); toggleBtn.textContent = '開始聆聽'; }
     });
     syncBtn.addEventListener('click', async () => {
       try {

@@ -192,7 +192,7 @@ async fn desktop_send(
     args: Vec<Value>,
 ) -> Result<(), String> {
     if window.label() != "main"
-        || !["player:sync", "discord:audio-chunk"].contains(&channel.as_str())
+        || !["player:sync", "discord:audio-chunk", "party:presentation"].contains(&channel.as_str())
     {
         return Err("Event is not permitted".into());
     }
