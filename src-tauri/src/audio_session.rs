@@ -1,8 +1,8 @@
-//! Give NeonWave's WebView2 audio sessions an app name in the Windows mixer.
+//! Give NeonWave's WebView2 audio sessions the app name and icon in Windows mixers.
 
-use std::{collections::HashMap, ffi::c_void, mem::size_of, thread, time::Duration};
+use std::{collections::HashMap, ffi::c_void, mem::size_of, path::Path, thread, time::Duration};
 use windows::{
-    core::{w, Interface},
+    core::{w, Interface, PCWSTR},
     Win32::{
         Foundation::CloseHandle,
         Media::Audio::{
@@ -26,8 +26,11 @@ pub fn start() {
         if CoInitializeEx(None, COINIT_MULTITHREADED).is_err() {
             return;
         }
+        let Ok(exe_path) = std::env::current_exe() else {
+            return;
+        };
         loop {
-            let _ = rename_sessions_for(std::process::id());
+            let _ = configure_sessions_for(std::process::id(), &exe_path);
             thread::sleep(Duration::from_secs(4));
         }
     });
@@ -84,9 +87,15 @@ fn is_our_webview(pid: u32, own_pid: u32, processes: &HashMap<u32, (u32, String)
     false
 }
 
-pub(crate) unsafe fn rename_sessions_for(own_pid: u32) -> windows::core::Result<usize> {
+pub(crate) unsafe fn configure_sessions_for(
+    own_pid: u32,
+    exe_path: &Path,
+) -> windows::core::Result<(usize, usize)> {
     let processes = process_tree()?;
     let mut renamed = 0;
+    let mut icons_set = 0;
+    let icon_path = format!("{},0", exe_path.display());
+    let icon_path_wide: Vec<u16> = icon_path.encode_utf16().chain(std::iter::once(0)).collect();
     let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
     let devices = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
     for device_index in 0..devices.GetCount()? {
@@ -124,9 +133,21 @@ pub(crate) unsafe fn rename_sessions_for(own_pid: u32) -> windows::core::Result<
                     renamed += 1;
                 }
             }
+            let Ok(existing_icon) = control.GetIconPath() else {
+                continue;
+            };
+            let existing_icon_path = existing_icon.to_string().unwrap_or_default();
+            CoTaskMemFree(Some(existing_icon.0 as *const c_void));
+            if existing_icon_path != icon_path
+                && control
+                    .SetIconPath(PCWSTR(icon_path_wide.as_ptr()), std::ptr::null())
+                    .is_ok()
+            {
+                icons_set += 1;
+            }
         }
     }
-    Ok(renamed)
+    Ok((renamed, icons_set))
 }
 
 #[cfg(test)]

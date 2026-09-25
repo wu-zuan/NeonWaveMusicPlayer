@@ -1,4 +1,5 @@
 import { userData } from './paths'
+import { partyGuestStyle } from './partyGuestStyle'
 import http, { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -858,319 +859,40 @@ export class PartyRoomService {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="referrer" content="no-referrer" />
   <title>NeonWave Listening Party</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #050816;
-      --card: rgba(10, 16, 36, 0.84);
-      --line: rgba(255,255,255,.1);
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #00fff2;
-      --accent2: #ff00ff;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: radial-gradient(circle at top, rgba(0,255,242,.16), transparent 35%), linear-gradient(160deg, #020617, #0f172a 45%, #111827 100%);
-      color: var(--text);
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-    .wrap {
-      width: min(920px, 100%);
-      display: grid;
-      grid-template-columns: 240px 1fr;
-      gap: 24px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 28px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 20px 80px rgba(0,0,0,.45);
-      overflow: hidden;
-    }
-    .art {
-      aspect-ratio: 1;
-      background: #000;
-      border-right: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
-    }
-    .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .fallback {
-      width: 100%;
-      height: 100%;
-      display: grid;
-      place-items: center;
-      color: rgba(255,255,255,.7);
-      font-size: 14px;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      background: linear-gradient(135deg, rgba(0,255,242,.15), rgba(255,0,255,.1));
-    }
-    .main {
-      padding: 30px;
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-    }
-    .eyebrow {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .18em;
-      color: var(--muted);
-    }
-    h1 {
-      margin: 0;
-      font-size: clamp(28px, 4vw, 44px);
-      line-height: 1.05;
-    }
-    .artist {
-      color: var(--muted);
-      font-size: 18px;
-    }
-    .meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .pill {
-      padding: 6px 10px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: rgba(255,255,255,.03);
-    }
-    .bar {
-      width: 100%;
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.08);
-      overflow: hidden;
-    }
-    .bar > div {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      transition: width .2s linear;
-    }
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-    button {
-      border: 0;
-      color: #fff;
-      cursor: pointer;
-      border-radius: 14px;
-      padding: 12px 16px;
-      font-weight: 700;
-      background: rgba(255,255,255,.08);
-      transition: transform .16s ease, background-color .16s ease, box-shadow .16s ease;
-    }
-    button:hover { transform: translateY(-1px); }
-    .primary {
-      background: var(--accent);
-      color: #03111f;
-      box-shadow: 0 12px 30px rgba(0,255,242,.22);
-    }
-    .secondary { border: 1px solid var(--line); }
-    .row {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    input[type="range"] {
-      flex: 1;
-      min-width: 220px;
-      accent-color: var(--accent);
-    }
-    .status {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      padding-top: 6px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .status strong { color: var(--text); }
-    .status.waiting {
-      justify-content: flex-start;
-      gap: 10px;
-    }
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 0 0 rgba(0, 255, 242, 0.45);
-      animation: pulse 1.4s ease-in-out infinite;
-      flex: 0 0 auto;
-    }
-    .status-text {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .status-title {
-      color: var(--text);
-      font-weight: 700;
-    }
-    .status-subtitle {
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .loading-bar {
-      width: 100%;
-      height: 10px;
-      border-radius: 999px;
-      overflow: hidden;
-      background: rgba(255,255,255,.08);
-      position: relative;
-    }
-    .loading-bar::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(0,255,242,.8), transparent);
-      transform: translateX(-100%);
-      animation: sweep 1.2s linear infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(0, 255, 242, 0.45); }
-      50% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 242, 0); }
-    }
-    @keyframes sweep {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
-    }
-    .wrap.has-video {
-      grid-template-columns: 1fr;
-    }
-    .wrap.has-video .art {
-      aspect-ratio: 16 / 9;
-      border-right: 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .error {
-      color: #fda4af;
-      font-size: 13px;
-      min-height: 1.2em;
-    }
-    @media (max-width: 760px) {
-      .wrap { grid-template-columns: 1fr; }
-      .art { max-height: 320px; border-right: 0; border-bottom: 1px solid var(--line); }
-      .main { padding: 22px; }
-    }
-    body { display:block; padding: clamp(16px, 3vw, 36px); background: radial-gradient(circle at 16% 10%, rgba(0,218,206,.16), transparent 35%), radial-gradient(circle at 85% 85%, rgba(143,76,245,.14), transparent 34%), #080b13; }
-    body::before { content:'NEONWAVE  /  LISTENING PARTY'; display:block; max-width: 1160px; margin: 0 auto 18px; color: #c9fff8; font-size: 11px; font-weight: 800; letter-spacing:.2em; }
-    .wrap { width: min(1160px, 100%); min-height: 540px; margin:auto; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:0; background:rgba(13,19,33,.92); border:1px solid rgba(185,221,232,.14); border-radius:26px; box-shadow:0 30px 100px rgba(0,0,0,.5); }
-    .wrap.has-video { grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr); }
-    .art { aspect-ratio:auto; min-height:500px; border-right:1px solid rgba(255,255,255,.08); background:radial-gradient(circle at center, #1b4150, #0c1625 60%); }
-    .wrap.has-video .art { aspect-ratio:auto; min-height:500px; border-right:1px solid rgba(255,255,255,.08); border-bottom:0; }
-    .art img { width: min(74%, 400px); height:auto; aspect-ratio:1; object-fit:cover; border-radius:22px; box-shadow:0 25px 65px rgba(0,0,0,.45); }
-    .fallback { width:min(74%,400px); height:auto; aspect-ratio:1; border-radius:22px; font-size:clamp(22px,4vw,38px); font-weight:800; background:linear-gradient(145deg,#114750,#402453); }
-    .main { padding:clamp(24px,3vw,38px); gap:18px; justify-content:center; min-width:0; }
-    .eyebrow { color:var(--accent); font-weight:800; margin-bottom:12px; }
-    h1 { font-size:clamp(23px,2.4vw,32px); line-height:1.22; letter-spacing:-.02em; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; }
-    .artist { margin-top:10px; font-size:15px; line-height:1.4; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }
-    .meta { gap:8px; }
-    .pill { background:rgba(255,255,255,.055); padding:8px 12px; }
-    .bar { height:6px; }
-    .controls { gap:9px; }
-    button { min-height:46px; }
-    button:disabled { opacity:.4; cursor:not-allowed; transform:none; }
-    .primary { padding:13px 24px; }
-    .status { min-width:0; }
-    #source { max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .sound-prompt { position:absolute; z-index:7; left:50%; bottom:24px; transform:translateX(-50%); max-width:calc(100% - 36px); white-space:nowrap; padding:12px 18px; border:1px solid rgba(255,255,255,.35); border-radius:999px; background:rgba(4,12,23,.86); color:#fff; font-size:14px; font-weight:700; box-shadow:0 12px 32px rgba(0,0,0,.35); cursor:pointer; }
-    .sound-prompt:hover { background:rgba(6,30,44,.96); }
-    .sound-prompt[hidden] { display:none; }
-    #player { opacity:0; transition:opacity .25s ease; }
-    #player.video-ready { opacity:1; }
-    .party-lyrics { min-height:135px; border-radius:22px; padding:19px 22px; background:linear-gradient(135deg,rgba(0,255,242,.075),rgba(174,77,240,.07)); border:1px solid rgba(255,255,255,.09); overflow:hidden; }
-    .party-lyrics[hidden] { display:none; }
-    .lyrics-label { display:flex; justify-content:space-between; color:#75dcd6; text-transform:uppercase; letter-spacing:.17em; font-size:11px; font-weight:800; }
-    .lyrics-line { margin-top:17px; font-size:clamp(21px,2.4vw,34px); line-height:1.35; font-weight:800; overflow-wrap:anywhere; }
-    .lyrics-next { margin-top:8px; color:#9daabe; font-size:15px; overflow-wrap:anywhere; }
-    .lyrics-line.enter { animation:lyric-in .38s ease-out; }
-    .party-lyrics[data-style='kinetic'] .lyrics-line { color:#84fff4; text-transform:uppercase; letter-spacing:.04em; }
-    .party-lyrics[data-style='rhythm-cut'] .lyrics-line { color:#ffacd9; font-style:italic; }
-    .party-lyrics[data-style='manga'] { background:linear-gradient(135deg,#29213d,#101721); }
-    .party-lyrics[data-style='manga'] .lyrics-line { text-shadow:3px 3px 0 #6c368d; }
-    .party-lyrics[data-style='handwritten'] .lyrics-line { font-family:cursive; font-weight:500; color:#ffe8b6; }
-    .party-lyrics[data-style='subtitle'] .lyrics-line { text-align:center; font-size:24px; }
-    .party-lyrics[data-style='focus'] .lyrics-line { font-size:clamp(28px,3.3vw,44px); }
-    @keyframes lyric-in { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
-    @media (max-width: 760px) { body { padding:14px; } body::before { margin-bottom:14px; } .wrap,.wrap.has-video { display:flex; flex-direction:column; min-height:0; } .art,.wrap.has-video .art { min-height:0; height:auto; aspect-ratio:16/10; border-right:0; border-bottom:1px solid rgba(255,255,255,.08); } .main { padding:22px; } h1 { font-size:clamp(22px,6vw,30px); } .row input[type='range'] { min-width:100px; } #source { display:none; } }
-  </style>
+  <style>${partyGuestStyle}</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="art">
-      <img id="artwork" src="${artwork || ''}" style="${artwork ? '' : 'display:none;'} max-width: 100%; max-height: 100%; object-fit: cover;" alt="artwork" />
-      <div id="fallback" class="fallback" style="${artwork ? 'display:none;' : ''}">NeonWave</div>
-      <video id="player" preload="metadata" playsinline webkit-playsinline style="width: 100%; height: 100%; object-fit: contain; display: none; position: absolute; inset: 0; z-index: 5;"></video>
-      <button id="soundPrompt" class="sound-prompt" hidden>🔊 開啟聲音</button>
-    </div>
-    <div class="main">
-      <div>
-        <div class="eyebrow">Listening Party</div>
-        <h1 id="title" title="${title}">${title || '等待主機開始播放'}</h1>
-        <div class="artist" id="artist">${artist || '目前尚未同步歌曲'}</div>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">N</span><div><div class="brand-name">NEONWAVE</div><div class="brand-sub">LISTENING PARTY</div></div></div>
+      <div class="top-meta"><span class="live-tag">LIVE</span><span id="room">Room ${escapeHtml(roomId)}</span></div>
+    </header>
+    <section class="wrap">
+      <div class="art">
+        <img id="artwork" src="${artwork || ''}" style="${artwork ? '' : 'display:none;'}" alt="歌曲封面" />
+        <div id="fallback" class="fallback" style="${artwork ? 'display:none;' : ''}"><span class="fallback-mark">N</span><span class="fallback-label">NEONWAVE RADIO</span></div>
+        <video id="player" preload="metadata" playsinline webkit-playsinline style="width:100%;height:100%;object-fit:contain;display:none;position:absolute;inset:0;z-index:5"></video>
+        <button id="soundPrompt" class="sound-prompt" hidden>🔊 點一下開啟聲音</button>
       </div>
-      <div class="meta">
-        ${album ? `<span class="pill" id="album">${album}</span>` : ''}
-        <span class="pill" id="conn">連線中</span>
-        <span class="pill" id="room">Room ${escapeHtml(roomId)}</span>
-      </div>
-      <div class="party-lyrics" id="lyricsPanel" hidden>
-        <div class="lyrics-label"><span>同步歌詞</span><span id="soundMode">原音</span></div>
-        <div class="lyrics-line" id="lyricCurrent">♪</div>
-        <div class="lyrics-next" id="lyricNext"></div>
-      </div>
-      <div id="linkStatus" class="status waiting">
-        <span class="status-dot"></span>
-        <div class="status-text">
-          <div class="status-title">正在等待 Cloudflare 公開網址</div>
-          <div class="status-subtitle">連線成功後才會顯示分享連結，避免曝光本機位址。</div>
+      <div class="main">
+        <div class="track-info">
+          <div class="eyebrow">NOW PLAYING</div>
+          <h1 id="title" title="${title}">${title || '等待主機開始播放'}</h1>
+          <div class="artist" id="artist">${artist || '目前尚未同步歌曲'}</div>
+          <div class="meta"><span class="pill" id="album" style="${album ? '' : 'display:none;'}">${album}</span><span class="pill" id="conn">連線中</span></div>
         </div>
-      </div>
-      <div>
-        <div class="bar"><div id="progress"></div></div>
-        <div class="status">
-          <span id="time">0:00 / 0:00</span>
-          <span id="source">與主機同步中</span>
+        <div class="deck">
+          <div id="linkStatus"><span class="status-dot"></span><div class="status-text"><div class="status-title">正在連線</div><div class="status-subtitle">等待房間同步</div></div></div>
+          <div class="timeline"><div class="bar"><div id="progress"></div></div><div class="time-row"><span id="time">0:00 / 0:00</span><span id="source">與主機同步中</span></div></div>
+          <div class="controls"><button id="toggleBtn" class="primary">${isPlaying === 'true' ? '開啟聲音' : '等待主機播放'}</button><button id="nextBtn">下一首</button><button id="copyBtn" ${inviteUrl ? '' : 'disabled'}>複製連結</button></div>
+          <div id="autoplayHint" class="autoplay-hint" hidden>瀏覽器阻止有聲自動播放，點一下影片或「開啟聲音」即可聆聽。</div>
+          <div class="slider-row"><label for="seek">進度</label><input id="seek" type="range" min="0" max="${duration}" step="0.1" value="${currentTime}" ${streamable === 'true' ? '' : 'disabled'} /><button id="syncBtn">同步</button></div>
+          <div class="slider-row"><label for="volume">音量</label><input id="volume" type="range" min="0" max="1" step="0.01" value="1" /><span id="volumeVal">100%</span></div>
+          <div class="error" id="error" role="status"></div>
         </div>
+        <div class="party-lyrics" id="lyricsPanel" hidden><div class="lyrics-label"><span>同步歌詞</span><span id="soundMode">原音</span></div><div class="lyrics-line" id="lyricCurrent">♪</div><div class="lyrics-next" id="lyricNext"></div></div>
       </div>
-      <div class="controls">
-        <button id="toggleBtn" class="primary">${isPlaying === 'true' ? '暫停聆聽' : '開始聆聽'}</button>
-        <button id="nextBtn" class="secondary">下一首</button>
-        <button id="copyBtn" class="secondary" ${inviteUrl ? '' : 'disabled'}>複製邀請連結</button>
-      </div>
-      <div class="row">
-        <span style="font-size: 13px; color: var(--muted); min-width: 36px;">進度</span>
-        <input id="seek" type="range" min="0" max="${duration}" step="0.1" value="${currentTime}" ${streamable === 'true' ? '' : 'disabled'} />
-        <button id="syncBtn" class="secondary">重新同步</button>
-      </div>
-      <div class="row" style="margin-top: 10px; display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 13px; color: var(--muted); min-width: 36px;">音量</span>
-        <input id="volume" type="range" min="0" max="1" step="0.01" value="1" style="max-width: 150px; flex: initial;" />
-        <span id="volumeVal" style="font-size: 12px; color: var(--muted); min-width: 36px; text-align: left;">100%</span>
-      </div>
-      <div class="error" id="error"></div>
-    </div>
+    </section>
   </div>
   <script>
     const roomId = ${JSON.stringify(roomId)};
@@ -1192,6 +914,7 @@ export class PartyRoomService {
     const seekEl = document.getElementById('seek');
     const toggleBtn = document.getElementById('toggleBtn');
     const soundPrompt = document.getElementById('soundPrompt');
+    const autoplayHint = document.getElementById('autoplayHint');
     const nextBtn = document.getElementById('nextBtn');
     const copyBtn = document.getElementById('copyBtn');
     const syncBtn = document.getElementById('syncBtn');
@@ -1398,21 +1121,18 @@ export class PartyRoomService {
         albumEl.style.display = next.track?.album ? '' : 'none';
       }
       if (connEl) {
-        connEl.textContent = next.active ? (next.publicUrl ? 'Cloudflare Tunnel 已連線' : '本機房間已啟動') : '尚未開啟房間';
+        connEl.textContent = next.active ? '房間連線正常' : '等待主機連線';
       }
       if (linkStatusEl) {
-        if (next.publicUrl) {
+        if (next.active && next.track?.streamable) {
           linkStatusEl.className = 'status';
-          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">分享連結已就緒</div><div class="status-subtitle">現在可以把公開網址分享給朋友。</div></div>';
-        } else if (next.tunnelStatus === 'starting' || next.cloudflaredState === 'downloading') {
-          linkStatusEl.className = 'status waiting';
-          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">正在建立 Cloudflare Tunnel</div><div class="status-subtitle">請稍候，正在背景準備公開連結。</div></div>';
+          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">與主機同步中</div><div class="status-subtitle">歌曲與播放進度會自動更新。</div></div>';
         } else if (next.active) {
           linkStatusEl.className = 'status waiting';
-          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">等待 Cloudflare 產生公開連結</div><div class="status-subtitle">房間已啟動，但還沒拿到可對外分享的網址。</div></div>';
+          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">等待可播放的歌曲</div><div class="status-subtitle">主機切換歌曲後會自動更新。</div></div>';
         } else {
           linkStatusEl.className = 'status waiting';
-          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">尚未建立分享房間</div><div class="status-subtitle">按下建立房間後，會自動下載依賴並開啟 Tunnel。</div></div>';
+          linkStatusEl.innerHTML = '<span class="status-dot"></span><div class="status-text"><div class="status-title">等待主機開啟房間</div><div class="status-subtitle">連線恢復後會自動同步。</div></div>';
         }
       }
       if (roomEl) roomEl.textContent = 'Room ' + (next.roomId || '-');
@@ -1440,8 +1160,8 @@ export class PartyRoomService {
           if (fallbackEl) fallbackEl.style.display = next.track?.isVideo && audio.classList.contains('video-ready') ? 'none' : '';
         }
       }
-      toggleBtn.textContent = audio.paused ? '開始聆聽' : joinedAudio ? '暫停聆聽' : '開啟聲音';
-      sourceEl.textContent = next.publicUrl ? '與主機即時同步' : '等待連線';
+      toggleBtn.textContent = joinedAudio ? '暫停聆聽' : locallyPaused ? '繼續聆聽' : next.track?.isPlaying ? '開啟聲音' : '等待主機播放';
+      sourceEl.textContent = next.active ? '即時同步' : '等待連線';
       renderLyrics(audio.paused ? currentTime : audio.currentTime);
 
       setAudioSrc(trackChanged);
@@ -1465,6 +1185,7 @@ export class PartyRoomService {
           joinedAudio = true;
           toggleBtn.textContent = '暫停聆聽';
           soundPrompt.hidden = true;
+          autoplayHint.hidden = true;
         }).catch(() => {
           joinedAudio = false;
           if (next.track.isVideo) {
@@ -1473,6 +1194,7 @@ export class PartyRoomService {
           }
           soundPrompt.hidden = false;
           toggleBtn.textContent = '開啟聲音';
+          autoplayHint.hidden = false;
         });
       } else if (!next.track?.isPlaying && !audio.paused) {
         audio.pause();
@@ -1481,6 +1203,7 @@ export class PartyRoomService {
         syncAudioPosition(true);
       }
       soundPrompt.hidden = !next.track?.streamable || !next.track?.isPlaying || joinedAudio;
+      if (!next.track?.isPlaying || joinedAudio) autoplayHint.hidden = true;
     }
 
     nextBtn.addEventListener('click', () => sendCommand('next').catch(err => setError(err.message)));
@@ -1496,6 +1219,7 @@ export class PartyRoomService {
           syncAudioPosition(true);
           await audio.play();
           toggleBtn.textContent = '暫停聆聽';
+          autoplayHint.hidden = true;
           setError('');
         } catch (err) {
           joinedAudio = false;
@@ -1506,11 +1230,14 @@ export class PartyRoomService {
         joinedAudio = false;
         locallyPaused = true;
         audio.pause();
-        toggleBtn.textContent = '開始聆聽';
+        toggleBtn.textContent = '繼續聆聽';
       }
     }
     toggleBtn.addEventListener('click', toggleListening);
     soundPrompt.addEventListener('click', toggleListening);
+    audio.addEventListener('click', toggleListening);
+    artworkEl.addEventListener('click', toggleListening);
+    fallbackEl.addEventListener('click', toggleListening);
     syncBtn.addEventListener('click', async () => {
       try {
         const res = await fetch(apiBase + '/api/room/' + roomId + '?token=' + encodeURIComponent(token));
