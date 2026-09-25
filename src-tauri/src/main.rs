@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(windows)]
+mod audio_session;
 mod backend;
 mod native_dialogs;
 mod platform;
@@ -330,6 +332,8 @@ fn main() {
             app.manage(host);
             platform::initialize();
             windows::create_main(app.handle(), &directory)?;
+            #[cfg(windows)]
+            audio_session::start();
             Ok(())
         })
         .on_window_event(|window, event| {

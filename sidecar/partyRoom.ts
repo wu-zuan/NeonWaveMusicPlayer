@@ -1073,18 +1073,18 @@ export class PartyRoomService {
       .art { max-height: 320px; border-right: 0; border-bottom: 1px solid var(--line); }
       .main { padding: 22px; }
     }
-    body { display:block; padding: clamp(16px, 4vw, 48px); background: radial-gradient(circle at 16% 10%, rgba(0,218,206,.16), transparent 35%), radial-gradient(circle at 85% 85%, rgba(143,76,245,.14), transparent 34%), #080b13; }
-    body::before { content:'NEONWAVE  /  LISTENING PARTY'; display:block; max-width: 1180px; margin: 0 auto 24px; color: #c9fff8; font-size: 12px; font-weight: 800; letter-spacing:.23em; }
-    .wrap { width: min(1180px, 100%); min-height: min(680px, calc(100vh - 130px)); margin:auto; grid-template-columns: minmax(320px, .9fr) minmax(0, 1.1fr); gap:0; background:rgba(13,19,33,.88); border:1px solid rgba(185,221,232,.14); border-radius:32px; box-shadow:0 30px 100px rgba(0,0,0,.5); }
-    .wrap.has-video { grid-template-columns:minmax(0,1.2fr) minmax(350px,.8fr); }
-    .art { aspect-ratio:auto; min-height:480px; border-right:1px solid rgba(255,255,255,.08); background:radial-gradient(circle at center, #1b4150, #0c1625 60%); }
-    .wrap.has-video .art { aspect-ratio:auto; min-height:480px; border-right:1px solid rgba(255,255,255,.08); border-bottom:0; }
+    body { display:block; padding: clamp(16px, 3vw, 36px); background: radial-gradient(circle at 16% 10%, rgba(0,218,206,.16), transparent 35%), radial-gradient(circle at 85% 85%, rgba(143,76,245,.14), transparent 34%), #080b13; }
+    body::before { content:'NEONWAVE  /  LISTENING PARTY'; display:block; max-width: 1160px; margin: 0 auto 18px; color: #c9fff8; font-size: 11px; font-weight: 800; letter-spacing:.2em; }
+    .wrap { width: min(1160px, 100%); min-height: 540px; margin:auto; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:0; background:rgba(13,19,33,.92); border:1px solid rgba(185,221,232,.14); border-radius:26px; box-shadow:0 30px 100px rgba(0,0,0,.5); }
+    .wrap.has-video { grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr); }
+    .art { aspect-ratio:auto; min-height:500px; border-right:1px solid rgba(255,255,255,.08); background:radial-gradient(circle at center, #1b4150, #0c1625 60%); }
+    .wrap.has-video .art { aspect-ratio:auto; min-height:500px; border-right:1px solid rgba(255,255,255,.08); border-bottom:0; }
     .art img { width: min(74%, 400px); height:auto; aspect-ratio:1; object-fit:cover; border-radius:22px; box-shadow:0 25px 65px rgba(0,0,0,.45); }
     .fallback { width:min(74%,400px); height:auto; aspect-ratio:1; border-radius:22px; font-size:clamp(22px,4vw,38px); font-weight:800; background:linear-gradient(145deg,#114750,#402453); }
-    .main { padding:clamp(25px,4vw,55px); gap:22px; justify-content:center; min-width:0; }
-    .eyebrow { color:var(--accent); font-weight:800; margin-bottom:16px; }
-    h1 { font-size:clamp(34px,4vw,62px); line-height:1.08; letter-spacing:-.045em; overflow-wrap:anywhere; }
-    .artist { margin-top:12px; font-size:clamp(17px,2vw,24px); }
+    .main { padding:clamp(24px,3vw,38px); gap:18px; justify-content:center; min-width:0; }
+    .eyebrow { color:var(--accent); font-weight:800; margin-bottom:12px; }
+    h1 { font-size:clamp(23px,2.4vw,32px); line-height:1.22; letter-spacing:-.02em; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; }
+    .artist { margin-top:10px; font-size:15px; line-height:1.4; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }
     .meta { gap:8px; }
     .pill { background:rgba(255,255,255,.055); padding:8px 12px; }
     .bar { height:6px; }
@@ -1094,6 +1094,11 @@ export class PartyRoomService {
     .primary { padding:13px 24px; }
     .status { min-width:0; }
     #source { max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sound-prompt { position:absolute; z-index:7; left:50%; bottom:24px; transform:translateX(-50%); max-width:calc(100% - 36px); white-space:nowrap; padding:12px 18px; border:1px solid rgba(255,255,255,.35); border-radius:999px; background:rgba(4,12,23,.86); color:#fff; font-size:14px; font-weight:700; box-shadow:0 12px 32px rgba(0,0,0,.35); cursor:pointer; }
+    .sound-prompt:hover { background:rgba(6,30,44,.96); }
+    .sound-prompt[hidden] { display:none; }
+    #player { opacity:0; transition:opacity .25s ease; }
+    #player.video-ready { opacity:1; }
     .party-lyrics { min-height:135px; border-radius:22px; padding:19px 22px; background:linear-gradient(135deg,rgba(0,255,242,.075),rgba(174,77,240,.07)); border:1px solid rgba(255,255,255,.09); overflow:hidden; }
     .party-lyrics[hidden] { display:none; }
     .lyrics-label { display:flex; justify-content:space-between; color:#75dcd6; text-transform:uppercase; letter-spacing:.17em; font-size:11px; font-weight:800; }
@@ -1108,7 +1113,7 @@ export class PartyRoomService {
     .party-lyrics[data-style='subtitle'] .lyrics-line { text-align:center; font-size:24px; }
     .party-lyrics[data-style='focus'] .lyrics-line { font-size:clamp(28px,3.3vw,44px); }
     @keyframes lyric-in { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
-    @media (max-width: 760px) { body { padding:18px; } body::before { margin-bottom:16px; } .wrap,.wrap.has-video { display:flex; flex-direction:column; min-height:0; } .art,.wrap.has-video .art { min-height:0; height:min(75vw,360px); border-right:0; border-bottom:1px solid rgba(255,255,255,.08); } .main { padding:24px; } .row input[type='range'] { min-width:100px; } #source { display:none; } }
+    @media (max-width: 760px) { body { padding:14px; } body::before { margin-bottom:14px; } .wrap,.wrap.has-video { display:flex; flex-direction:column; min-height:0; } .art,.wrap.has-video .art { min-height:0; height:auto; aspect-ratio:16/10; border-right:0; border-bottom:1px solid rgba(255,255,255,.08); } .main { padding:22px; } h1 { font-size:clamp(22px,6vw,30px); } .row input[type='range'] { min-width:100px; } #source { display:none; } }
   </style>
 </head>
 <body>
@@ -1117,11 +1122,12 @@ export class PartyRoomService {
       <img id="artwork" src="${artwork || ''}" style="${artwork ? '' : 'display:none;'} max-width: 100%; max-height: 100%; object-fit: cover;" alt="artwork" />
       <div id="fallback" class="fallback" style="${artwork ? 'display:none;' : ''}">NeonWave</div>
       <video id="player" preload="metadata" playsinline webkit-playsinline style="width: 100%; height: 100%; object-fit: contain; display: none; position: absolute; inset: 0; z-index: 5;"></video>
+      <button id="soundPrompt" class="sound-prompt" hidden>🔊 開啟聲音</button>
     </div>
     <div class="main">
       <div>
         <div class="eyebrow">Listening Party</div>
-        <h1 id="title">${title || '等待主機開始播放'}</h1>
+        <h1 id="title" title="${title}">${title || '等待主機開始播放'}</h1>
         <div class="artist" id="artist">${artist || '目前尚未同步歌曲'}</div>
       </div>
       <div class="meta">
@@ -1145,7 +1151,7 @@ export class PartyRoomService {
         <div class="bar"><div id="progress"></div></div>
         <div class="status">
           <span id="time">0:00 / 0:00</span>
-          <span id="source">${inviteUrl ? escapeHtml(inviteUrl) : '等待 Cloudflare 產生公開連結'}</span>
+          <span id="source">與主機同步中</span>
         </div>
       </div>
       <div class="controls">
@@ -1185,6 +1191,7 @@ export class PartyRoomService {
     const linkStatusEl = document.getElementById('linkStatus');
     const seekEl = document.getElementById('seek');
     const toggleBtn = document.getElementById('toggleBtn');
+    const soundPrompt = document.getElementById('soundPrompt');
     const nextBtn = document.getElementById('nextBtn');
     const copyBtn = document.getElementById('copyBtn');
     const syncBtn = document.getElementById('syncBtn');
@@ -1203,6 +1210,7 @@ export class PartyRoomService {
     let lastHostTimeReceivedAt = 0;
     let joinedAudio = false;
     let locallyPaused = false;
+    let autoplayAttemptedFor = '';
     let lastLyricIndex = -2;
     let audioContext;
     let wetGain;
@@ -1217,8 +1225,9 @@ export class PartyRoomService {
       wetGain.gain.setTargetAtTime(params[1], audioContext.currentTime, .05);
     }
 
-    function ensureAudioEffects() {
-      if (audioContext) { audioContext.resume(); return; }
+    async function ensureAudioEffects() {
+      if ((state.soundMode || 'none') === 'none' && !audioContext) return;
+      if (audioContext) { await audioContext.resume(); return; }
       const Context = window.AudioContext || window.webkitAudioContext;
       if (!Context) return;
       audioContext = new Context();
@@ -1230,6 +1239,7 @@ export class PartyRoomService {
       delayNode.connect(wetGain);
       wetGain.connect(audioContext.destination);
       syncSoundMode();
+      await audioContext.resume();
     }
 
     function renderLyrics(time) {
@@ -1295,6 +1305,7 @@ export class PartyRoomService {
       const next = '/api/room/' + roomId + '/stream?token=' + encodeURIComponent(token) + '&_cb=' + buster;
       if (currentStreamPath !== next || forceReload) {
         currentStreamPath = next;
+        audio.classList.remove('video-ready');
         audio.src = next;
         audio.load();
         pendingAudioTarget = state.track.currentTime || 0;
@@ -1302,8 +1313,8 @@ export class PartyRoomService {
       if (state.track.isVideo) {
         audio.hidden = false;
         audio.style.display = 'block';
-        if (artworkEl) artworkEl.style.display = 'none';
-        if (fallbackEl) fallbackEl.style.display = 'none';
+        if (artworkEl) artworkEl.style.display = state.track.artwork && !audio.classList.contains('video-ready') ? '' : 'none';
+        if (fallbackEl) fallbackEl.style.display = !state.track.artwork && !audio.classList.contains('video-ready') ? '' : 'none';
       } else {
         audio.hidden = true;
         audio.style.display = 'none';
@@ -1360,7 +1371,11 @@ export class PartyRoomService {
       lastHostTimeReceivedAt = now;
 
       state = next;
-      if (trackChanged) locallyPaused = false;
+      if (trackChanged) {
+        locallyPaused = false;
+        autoplayAttemptedFor = '';
+      }
+      if (!hostIsPlaying) autoplayAttemptedFor = '';
       syncSoundMode();
       if (trackChanged) lastLyricIndex = -2;
       seekEl.disabled = !next.track?.streamable || !next.permissions?.seek;
@@ -1376,6 +1391,7 @@ export class PartyRoomService {
         }
       }
       if (titleEl) titleEl.textContent = next.track?.title || '等待主機開始播放';
+      if (titleEl) titleEl.title = next.track?.title || '';
       if (artistEl) artistEl.textContent = next.track?.artist || '目前尚未同步歌曲';
       if (albumEl) {
         albumEl.textContent = next.track?.album || '';
@@ -1416,16 +1432,16 @@ export class PartyRoomService {
       if (artworkEl) {
         if (next.track?.artwork) {
           if (artworkEl.getAttribute('src') !== next.track.artwork) artworkEl.src = next.track.artwork;
-          artworkEl.style.display = next.track.isVideo ? 'none' : '';
+          artworkEl.style.display = next.track.isVideo && audio.classList.contains('video-ready') ? 'none' : '';
           if (fallbackEl) fallbackEl.style.display = 'none';
         } else {
           artworkEl.src = '';
           artworkEl.style.display = 'none';
-          if (fallbackEl) fallbackEl.style.display = next.track?.isVideo ? 'none' : '';
+          if (fallbackEl) fallbackEl.style.display = next.track?.isVideo && audio.classList.contains('video-ready') ? 'none' : '';
         }
       }
       toggleBtn.textContent = audio.paused ? '開始聆聽' : joinedAudio ? '暫停聆聽' : '開啟聲音';
-      sourceEl.textContent = next.publicUrl || '等待 Cloudflare 產生公開連結';
+      sourceEl.textContent = next.publicUrl ? '與主機即時同步' : '等待連線';
       renderLyrics(audio.paused ? currentTime : audio.currentTime);
 
       setAudioSrc(trackChanged);
@@ -1441,11 +1457,22 @@ export class PartyRoomService {
       } else if (next.track?.isPlaying && joinedAudio) {
         syncAudioPosition(true);
         audio.play().catch(() => setError('請按播放按鈕，允許瀏覽器開始聆聽。'));
-      } else if (next.track?.isPlaying && next.track.isVideo && !locallyPaused) {
-        audio.muted = true;
+      } else if (next.track?.isPlaying && !locallyPaused && autoplayAttemptedFor !== newTrackPath) {
+        autoplayAttemptedFor = newTrackPath;
+        audio.muted = false;
         syncAudioPosition(true);
-        audio.play().then(() => { toggleBtn.textContent = '開啟聲音'; }).catch(() => {
-          setError('請按「開始聆聽」以播放影片。');
+        audio.play().then(() => {
+          joinedAudio = true;
+          toggleBtn.textContent = '暫停聆聽';
+          soundPrompt.hidden = true;
+        }).catch(() => {
+          joinedAudio = false;
+          if (next.track.isVideo) {
+            audio.muted = true;
+            audio.play().catch(() => {});
+          }
+          soundPrompt.hidden = false;
+          toggleBtn.textContent = '開啟聲音';
         });
       } else if (!next.track?.isPlaying && !audio.paused) {
         audio.pause();
@@ -1453,19 +1480,37 @@ export class PartyRoomService {
       } else if (hostDidSeek || trackChanged) {
         syncAudioPosition(true);
       }
+      soundPrompt.hidden = !next.track?.streamable || !next.track?.isPlaying || joinedAudio;
     }
 
     nextBtn.addEventListener('click', () => sendCommand('next').catch(err => setError(err.message)));
-    toggleBtn.addEventListener('click', () => {
+    async function toggleListening() {
       if (audio.paused || !joinedAudio) {
         joinedAudio = true;
         locallyPaused = false;
         audio.muted = false;
-        ensureAudioEffects();
-        syncAudioPosition(true);
-        audio.play().then(() => toggleBtn.textContent = '暫停聆聽').catch(err => setError(err.message));
-      } else { joinedAudio = false; locallyPaused = true; audio.pause(); toggleBtn.textContent = '開始聆聽'; }
-    });
+        soundPrompt.hidden = true;
+        try {
+          await ensureAudioEffects();
+          if (audioContext && audioContext.state !== 'running') throw new Error('音訊裝置尚未啟動');
+          syncAudioPosition(true);
+          await audio.play();
+          toggleBtn.textContent = '暫停聆聽';
+          setError('');
+        } catch (err) {
+          joinedAudio = false;
+          soundPrompt.hidden = !state.track?.streamable;
+          setError('無法開啟聲音：' + (err.message || '請檢查瀏覽器的音訊權限與輸出裝置'));
+        }
+      } else {
+        joinedAudio = false;
+        locallyPaused = true;
+        audio.pause();
+        toggleBtn.textContent = '開始聆聽';
+      }
+    }
+    toggleBtn.addEventListener('click', toggleListening);
+    soundPrompt.addEventListener('click', toggleListening);
     syncBtn.addEventListener('click', async () => {
       try {
         const res = await fetch(apiBase + '/api/room/' + roomId + '?token=' + encodeURIComponent(token));
@@ -1517,6 +1562,13 @@ export class PartyRoomService {
     });
     audio.addEventListener('loadedmetadata', () => {
       syncAudioPosition(true);
+    });
+    audio.addEventListener('loadeddata', () => {
+      audio.classList.add('video-ready');
+      if (state.track?.isVideo) {
+        artworkEl.style.display = 'none';
+        fallbackEl.style.display = 'none';
+      }
     });
     audio.addEventListener('error', () => {
       if (audio.error) setError('串流載入失敗，請確認主機仍在播放可串流的本機檔案。');
