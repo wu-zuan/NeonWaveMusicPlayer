@@ -9,6 +9,7 @@ import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { usePlaybackTime } from './hooks/usePlaybackTime'
 import { useLibrary } from './hooks/useLibrary'
 import { useAppDetection } from './hooks/useAppDetection'
+import { AUTO_FOCUS_KEY } from './utils/audioSettings'
 import './index.css'
 
 import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
@@ -59,19 +60,25 @@ function MainApp() {
   } = useLibrary()
 
   const { contextMode } = useAppDetection()
+  const [autoFocusEnabled, setAutoFocusEnabled] = useState(() => localStorage.getItem(AUTO_FOCUS_KEY) === 'true')
+
+  const changeAutoFocus = useCallback((enabled: boolean) => {
+    localStorage.setItem(AUTO_FOCUS_KEY, String(enabled))
+    setAutoFocusEnabled(enabled)
+  }, [])
 
   const {
     isPlaying, currentTrack, duration, volume, is8D,
     isShuffle, repeatMode,
     playTrack, togglePlay, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
-    setDistance, setSpaceMode, setPosition, setFocusMode, setNormalization,
+    setDistance, setSpaceMode, setPosition, setFocusMode, audioSettings, isFocus,
     getAudioStream, getMediaElement, setLocalMute
-  } = useAudioPlayer(contextMode)
+  } = useAudioPlayer(contextMode, autoFocusEnabled && contextMode === 'work')
 
   const [view, setView] = useState('all_songs')
   const [showLyrics, setShowLyrics] = useState(false)
-  const [soundMode, setSoundMode] = useState('none')
+  const soundMode = isFocus ? 'none' : audioSettings.spaceMode
 
   useEffect(() => {
     const syncLyrics = (event: Event) => window.ipcRenderer.send('party:presentation', (event as CustomEvent).detail)
@@ -131,15 +138,6 @@ function MainApp() {
 
     return () => { if (cleanup) cleanup() }
   }, [togglePlay, handleNext, handlePrev, seek, setVolume])
-
-  useEffect(() => {
-    if (contextMode === 'work') {
-      setFocusMode(true)
-    } else if (contextMode === 'normal') {
-      setFocusMode(false)
-    }
-    
-  }, [contextMode, setFocusMode])
 
   useEffect(() => {
     const triggerDiscordSync = () => setDiscordSyncSignal(signal => signal + 1)
@@ -423,7 +421,8 @@ function MainApp() {
           )}
 
           {view === 'settings' && (
-            <SettingsView currentTrack={currentTrack ? { path: currentTrack.path, title: currentTrack.title } : null} />
+            <SettingsView currentTrack={currentTrack ? { path: currentTrack.path, title: currentTrack.title } : null}
+              autoFocusEnabled={autoFocusEnabled} onAutoFocusChange={changeAutoFocus} />
           )}
 
           {view === 'discord' && (
@@ -461,10 +460,13 @@ function MainApp() {
           onNext={handleNext}
           onPrev={handlePrev}
           onSetDistance={setDistance}
-          onSetSpace={mode => { setSpaceMode(mode); setSoundMode(mode) }}
+          audioSettings={audioSettings}
+          isFocus={isFocus}
+          automaticFocus={autoFocusEnabled && contextMode === 'work'}
+          onDisableAutomaticFocus={() => changeAutoFocus(false)}
+          onSetSpace={setSpaceMode}
           onSetPosition={setPosition}
           onSetFocusMode={setFocusMode}
-          onSetNormalization={setNormalization}
           onToggleLyrics={handleToggleLyrics}
         />
 

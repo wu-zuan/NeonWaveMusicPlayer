@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
 import { AudioEngine } from '../src/utils/AudioEngine.ts'
+import { readAudioSettings, spacePreset } from '../src/utils/audioSettings.ts'
 
 class FakeParam {
     value = 0
@@ -177,6 +178,39 @@ test('capture preserves PCM format and cleans its branch without interrupting br
     assert.equal(capture.onaudioprocess, null)
     assert.equal(capture.connections.size, 0)
     assert.equal(context.compressor.connections.size, 2, 'local and broadcast output routes remain attached')
+})
+
+test('automatic focus restores the saved concert effect and 8D when leaving work', t => {
+    const { engine, context, media, intervals } = harness(t)
+    const settings = spacePreset('concert')
+    media.play()
+    engine.applySettings(settings, true)
+    const wetGain = [...context.convolver.connections][0]
+    const impulse = context.convolver.buffer
+    assert.equal(wetGain.gain.value, 0.5)
+    assert.equal(intervals.size, 1)
+    engine.applySettings(settings, true, true)
+    t.mock.timers.tick(1600)
+    assert.equal(wetGain.gain.value, 0)
+    assert.equal(intervals.size, 0)
+    engine.applySettings(settings, true, false)
+    assert.equal(wetGain.gain.value, 0.5)
+    assert.equal(context.panner.connections.has(context.convolver), true)
+    assert.equal(context.convolver.buffer, impulse)
+    assert.equal(intervals.size, 1)
+    assert.equal(settings.spaceMode, 'concert', 'automatic focus leaves the saved manual preference intact')
+})
+
+test('reopened TETR settings restore reverb and manual position after stopping 8D', t => {
+    const { engine, context, media } = harness(t)
+    media.play()
+    engine.toggle8D(true)
+    const settings = readAudioSettings(JSON.stringify({ ...spacePreset('tetr'), distance: 2, position: { x: -2, y: 0, z: 1 } }))
+    engine.applySettings(settings, false)
+    assert.equal([...context.convolver.connections][0].gain.value, 0.12)
+    assert.equal(context.panner.positionX.value, -2)
+    assert.equal(context.panner.positionZ.value, 1)
+    assert.equal(context.panner.connections.has(context.convolver), true)
 })
 
 test('dispose releases pending fades, buffers, streams, capture, nodes and playback listeners', t => {

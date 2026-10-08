@@ -21,9 +21,11 @@
     align-items: center;
     gap: 16px;
     width: 25%;
+    min-width: 0;
 }
 
 .art {
+    flex-shrink: 0;
     width: 56px;
     height: 56px;
     background: rgba(255, 255, 255, 0.05);
@@ -62,6 +64,7 @@
 }
 
 .controls {
+    min-width: 180px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -159,11 +162,64 @@
 }
 
 .extra {
-    width: 25%;
+    flex: 0 0 auto;
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 16px;
+    gap: 8px;
+}
+
+.volumeControl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 164px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.volumeControl > svg { flex-shrink: 0; }
+.volumeValue { width: 34px; flex-shrink: 0; font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.volumeSlider {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 1;
+    min-width: 0;
+    height: 20px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.volumeSlider::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    /* The thumb centre travels between two 6px insets. */
+    background: linear-gradient(to right, var(--accent-primary) calc(6px + (100% - 12px) * var(--volume-progress)), rgba(255,255,255,0.18) 0);
+}
+
+.volumeSlider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--text-main);
+}
+
+.volumeSlider:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; border-radius: 6px; }
+
+@media (max-width: 1050px) {
+    .bar { padding: 0 16px; gap: 12px; }
+    .nowPlaying { width: 20%; }
+    .buttons { gap: 12px; }
+    .extra { gap: 2px; }
+    .volumeControl { width: 122px; gap: 5px; }
 }
 
 .toggle8D {
@@ -256,3 +312,13 @@
 :global(:root[data-theme='apple-music']) .art { border-radius: 12px; }
 :global(:root[data-theme='apple-music']) .playBtn { background: var(--accent-primary); color: #fff; }
 :global(:root[data-theme='apple-music']) .progressContainer { max-width: 520px; }
+
+@media (max-width: 1050px) {
+    :global(:root[data-theme]) .bar {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 0 16px;
+        border-radius: 0;
+    }
+}

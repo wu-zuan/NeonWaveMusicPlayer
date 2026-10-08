@@ -42,7 +42,8 @@ if (previous.fingerprint !== fingerprint || !await fs.stat(binary).catch(() => n
   await fs.writeFile(path.join(out, 'NODE-LICENSE'), await license.text())
   await fs.writeFile(path.join(out, 'build.json'), JSON.stringify({ fingerprint, node: process.version, target, packages: packages.length }, null, 2))
 }
-await build({ entryPoints: ['sidecar/index.ts'], outfile: path.join(out, 'index.mjs'),
+await build({ entryPoints: ['sidecar/index.ts'], outdir: out, outExtension: { '.js': '.mjs' },
+  splitting: true, chunkNames: 'chunks/[name]-[hash]',
   bundle: true, platform: 'node', format: 'esm', target: 'node24', packages: 'external', sourcemap: true })
 await fs.writeFile(path.join(out, 'package.json'), JSON.stringify({ name: 'neonwave-service', private: true, type: 'module' }))
 console.log(`Sidecar ready: Node ${process.version}, ${target}`)

@@ -1,3 +1,5 @@
+import type { AudioSettings } from './audioSettings'
+
 export class AudioEngine {
     private context: AudioContext
     private source: MediaElementAudioSourceNode | null = null
@@ -262,32 +264,13 @@ export class AudioEngine {
                 targetDry = 1.0
                 targetCutoff = 3000 
                 break;
-            case 'driver': 
-                wetAmount = 0.35  
-                duration = 0.3    
-                decay = 12.0      
-                preDelay = 0.001  
+            case 'tetr':
+                wetAmount = 0.12
+                duration = 0.3
+                decay = 12
+                preDelay = 0.003
                 lowPass = true
-                targetDry = 1.0   
-                targetCutoff = 8000 
-                break;
-            case 'racing':
-                wetAmount = 0.18
-                duration = 0.45
-                decay = 8.0
-                preDelay = 0.004
-                lowPass = true
-                targetDry = 1.0
-                targetCutoff = 12500
-                break;
-            case 'fps':
-                wetAmount = 0.08
-                duration = 0.22
-                decay = 14.0
-                preDelay = 0.002
-                lowPass = true
-                targetDry = 1.0
-                targetCutoff = 15500
+                targetCutoff = 19000
                 break;
             case 'none':
             default:
@@ -369,22 +352,6 @@ export class AudioEngine {
         }
     }
 
-    setNormalization(enable: boolean) {
-        const t = this.context.currentTime
-        if (enable) {
-            
-            this.compressor.threshold.setTargetAtTime(-24, t, 0.1)
-            this.compressor.knee.setTargetAtTime(30, t, 0.1)
-            this.compressor.ratio.setTargetAtTime(12, t, 0.1)
-            this.compressor.attack.setTargetAtTime(0.003, t, 0.1)
-            this.compressor.release.setTargetAtTime(0.25, t, 0.1)
-        } else {
-            
-            this.compressor.threshold.setTargetAtTime(0, t, 0.1)
-            this.compressor.ratio.setTargetAtTime(1, t, 0.1)
-        }
-    }
-
     setFocusMode(enable: boolean) {
         const t = this.context.currentTime
         if (enable) {
@@ -404,6 +371,19 @@ export class AudioEngine {
             
             this.focusEQ.gain.setTargetAtTime(0, t, 0.2)
         }
+    }
+
+    applySettings(settings: AudioSettings, is8D: boolean, automaticFocus = false) {
+        const focus = automaticFocus || settings.focus
+        this.setFocusMode(false)
+        this.setSpaceMode(settings.spaceMode)
+        this.setDistance(settings.distance)
+        this.toggle8D(is8D && !focus)
+        if (!is8D || focus) {
+            const { x, y, z } = settings.position
+            this.setPosition(x, y, z)
+        }
+        if (focus) this.setFocusMode(true)
     }
 
     

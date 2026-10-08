@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react'
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Activity, Mic2, Film } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Mic2, Film } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
 import { AudioRadar } from './AudioRadar'
+import { SPACE_MODES, type AudioSettings, type SpaceMode } from '../../utils/audioSettings'
 
 interface PlayerBarProps {
     isPlaying: boolean
@@ -23,10 +24,13 @@ interface PlayerBarProps {
     onPrev?: () => void
     
     onSetDistance?: (d: number) => void
-    onSetSpace?: (s: string) => void
+    audioSettings: AudioSettings
+    isFocus: boolean
+    automaticFocus: boolean
+    onDisableAutomaticFocus: () => void
+    onSetSpace?: (s: SpaceMode) => void
     onSetPosition?: (x: number, y: number, z: number) => void
     onSetFocusMode?: (enable: boolean) => void
-    onSetNormalization?: (enable: boolean) => void
     onToggleLyrics?: () => void
 }
 
@@ -35,83 +39,21 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     isShuffle, repeatMode,
     onTogglePlay, onSeek, onVolumeChange, onToggle8D,
     onToggleShuffle, onToggleRepeat, onNext, onPrev,
-    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode, onSetNormalization,
+    onSetDistance, onSetSpace, onSetPosition, onSetFocusMode,
+    audioSettings, isFocus, automaticFocus, onDisableAutomaticFocus,
     onToggleLyrics
 }) => {
     const [showSpatial, setShowSpatial] = useState(false)
-    const [distVal, setDistVal] = useState(0)
-    const [spaceMode, setSpaceMode] = useState('none')
-    const [isFocus, setIsFocus] = useState(false)
-    const [isNorm, setIsNorm] = useState(false)
-    const [radarPos, setRadarPos] = useState({ x: 0, z: 0 })
+    const distVal = isFocus ? 0.5 : audioSettings.distance
+    const spaceMode = isFocus ? 'none' : audioSettings.spaceMode
+    const radarPos = isFocus ? { x: 0, z: 0 } : audioSettings.position
     const [activeTab, setActiveTab] = useState<'effects' | 'spatial'>('effects')
     const [pendingSeekTime, setPendingSeekTime] = useState<number | null>(null)
     const isPointerSeekingRef = useRef(false)
 
-    const handleDistance = (val: number) => {
-        setDistVal(val)
-        onSetDistance?.(val)
-    }
-
-    const handleSpace = (val: string) => {
-        setSpaceMode(val)
-        onSetSpace?.(val)
-
-        if (val !== 'none') {
-            setIsFocus(false)
-            onSetFocusMode?.(false)
-        }
-
-        
-        let newDist = 0
-        let newPos = { x: 0, z: 0 }
-
-        if (val === 'concert') {
-            newDist = 7.5
-            newPos = { x: 0, z: 0 } 
-        } else if (val === 'hall') {
-            newDist = 5.0
-            newPos = { x: 0, z: -3.5 } 
-        } else if (val === 'room') {
-            newDist = 2.5
-            newPos = { x: 0, z: -2 } 
-        } else if (val === 'driver') {
-            newDist = 0.5               
-            newPos = { x: 0, z: -0.8 }  
-        } else if (val === 'racing') {
-            newDist = 1.5
-            newPos = { x: -0.7, z: -1.2 }
-        } else if (val === 'fps') {
-            newDist = 1.0
-            newPos = { x: 0, z: -1.0 }
-        } else {
-            
-            newDist = 0
-            newPos = { x: 0, z: 0 }
-        }
-
-        setDistVal(newDist)
-        onSetDistance?.(newDist)
-
-        setRadarPos(newPos)
-        onSetPosition?.(newPos.x, 0, newPos.z)
-    }
-
     const handleFocus = () => {
-        const newVal = !isFocus
-        setIsFocus(newVal)
-        onSetFocusMode?.(newVal)
-        if (newVal) {
-            setDistVal(0.5)
-            setSpaceMode('none')
-            setRadarPos({ x: 0, z: 0 })
-        }
-    }
-
-    const handleNorm = () => {
-        const newVal = !isNorm
-        setIsNorm(newVal)
-        onSetNormalization?.(newVal)
+        if (automaticFocus) onDisableAutomaticFocus()
+        onSetFocusMode?.(!isFocus)
     }
 
     const formatTime = (t: number) => {
@@ -127,9 +69,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         background: `linear-gradient(to right, var(--accent-primary) ${progressPercent}%, rgba(255,255,255,0.1) ${progressPercent}%)`
     }
     const volPercent = volume * 100
-    const volStyle = {
-        background: `linear-gradient(to right, #fff ${volPercent}%, rgba(255,255,255,0.1) ${volPercent}%)`
-    }
+    const volStyle = { '--volume-progress': volume } as React.CSSProperties
 
     return (
         <div className={styles.bar}>
@@ -194,7 +134,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                         <Brain size={14} color="var(--accent-primary)" />
                                         專注模式
                                     </div>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>消除殘響，增強人聲清晰度</div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>{automaticFocus ? '工作程式自動啟用' : '消除殘響，增強人聲清晰度'}</div>
                                 </div>
                                 <button
                                     onClick={handleFocus}
@@ -212,31 +152,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                 </button>
                             </div>
 
-                            {/* Normalization */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                <div>
-                                    <div style={{ color: 'var(--text-main)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Activity size={14} color="var(--accent-primary)" />
-                                        音量平衡
-                                    </div>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>動態壓縮，防止爆音</div>
-                                </div>
-                                <button
-                                    onClick={handleNorm}
-                                    style={{
-                                        width: '40px', height: '22px', borderRadius: '11px', border: 'none', cursor: 'pointer',
-                                        background: isNorm ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
-                                        position: 'relative', transition: 'background-color 0.16s ease, transform 0.16s ease'
-                                    }}
-                                >
-                                    <div style={{
-                                        position: 'absolute', top: '2px', left: isNorm ? '20px' : '2px',
-                                        width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
-                                        transition: 'left 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
-                                    }} />
-                                </button>
-                            </div>
-
                             { }
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: isFocus ? 0.5 : 1, pointerEvents: isFocus ? 'none' : 'auto', transition: 'opacity 0.16s ease' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -244,10 +159,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                     {isFocus && <span style={{ fontSize: '10px', color: 'var(--accent-secondary)' }}>專注模式下不可用</span>}
                                 </div>
                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                    {['none', 'room', 'hall', 'concert', 'racing', 'fps'].map(mode => (
+                                    {SPACE_MODES.map(mode => (
                                         <button
                                             key={mode}
-                                            onClick={() => handleSpace(mode)}
+                                            onClick={() => onSetSpace?.(mode)}
                                             style={{
                                                 flex: 1, minWidth: '50px',
                                                 background: spaceMode === mode ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
@@ -258,7 +173,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                                 whiteSpace: 'nowrap'
                                             }}
                                         >
-                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '空間' : mode === 'concert' ? '演唱會' : mode === 'racing' ? '賽車遊戲' : 'FPS'}
+                                            {mode === 'none' ? '原音' : mode === 'room' ? '房間' : mode === 'hall' ? '空間' : mode === 'concert' ? '演唱會' : 'TETR'}
                                         </button>
                                     ))}
                                 </div>
@@ -293,7 +208,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                 <input
                                     type="range" min={0} max={10} step={0.5}
                                     value={distVal}
-                                    onChange={(e) => handleDistance(Number(e.target.value))}
+                                    onChange={(e) => onSetDistance?.(Number(e.target.value))}
                                     style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
                                 />
                             </div>
@@ -307,7 +222,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                                         currentZ={radarPos.z}
                                         onSetPosition={(x, y, z) => {
                                             if (isFocus) return // Should be blocked by overlay anyway
-                                            setRadarPos({ x, z })
                                             onSetPosition?.(x, y, z)
                                         }}
                                     />
@@ -469,16 +383,20 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     <Mic2 size={18} />
                 </button>
 
-                <div className="flex items-center gap-2 w-32">
-                    <Volume2 size={18} className="text-gray-400" />
+                <div className={styles.volumeControl}>
+                    <Volume2 size={18} aria-hidden="true" />
                     <input
                         type="range"
                         min={0} max={1} step={0.01}
                         value={volume}
                         onChange={(e) => onVolumeChange(Number(e.target.value))}
-                        className={styles.timeSlider}
+                        aria-label="音量"
+                        aria-valuetext={`${Math.round(volPercent)}%`}
+                        title={`音量 ${Math.round(volPercent)}%`}
+                        className={styles.volumeSlider}
                         style={volStyle}
                     />
+                    <output className={styles.volumeValue}>{Math.round(volPercent)}%</output>
                 </div>
             </div>
         </div>

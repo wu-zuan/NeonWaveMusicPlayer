@@ -1,6 +1,7 @@
 import { mediaUrl, remoteMediaUrl } from '../desktop'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AudioEngine } from '../utils/AudioEngine'
+import { AUDIO_SETTINGS_KEY, readAudioSettings, spacePreset, type SpaceMode } from '../utils/audioSettings'
 
 export interface Track {
     path: string
@@ -105,7 +106,7 @@ function waitForPlayable(media: HTMLMediaElement, signal: AbortSignal, timeoutMs
     })
 }
 
-export function useAudioPlayer(contextMode?: string) {
+export function useAudioPlayer(contextMode?: string, automaticFocus = false) {
     
     
     
@@ -116,10 +117,13 @@ export function useAudioPlayer(contextMode?: string) {
     
     const [volume, setVolume] = useState(() => {
         const saved = localStorage.getItem('nw_volume')
-        return saved ? parseFloat(saved) : 1
+        const value = saved === null ? 1 : Number(saved)
+        return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1
     })
     const [isMuted, setIsMuted] = useState(() => localStorage.getItem('nw_muted') === 'true')
     const [is8D, setIs8D] = useState(() => localStorage.getItem('nw_8d') === 'true')
+    const [audioSettings, setAudioSettings] = useState(() => readAudioSettings(localStorage.getItem(AUDIO_SETTINGS_KEY)))
+    const isFocus = automaticFocus || audioSettings.focus
     // Relative URL works from both the dev server and the packaged file:// page
     // (fetch()-ing it to a data URL would be blocked under webSecurity).
     const defaultArtwork = 'logo.png'
@@ -166,7 +170,6 @@ export function useAudioPlayer(contextMode?: string) {
 
     
     
-    useEffect(() => { engineRef.current?.toggle8D(is8D) }, [is8D])
     useEffect(() => {
         const effectiveVolume = isMuted ? 0 : volume
         if (engineRef.current) engineRef.current.setVolume(effectiveVolume)
@@ -177,6 +180,7 @@ export function useAudioPlayer(contextMode?: string) {
     useEffect(() => { localStorage.setItem('nw_volume', volume.toString()) }, [volume])
     useEffect(() => { localStorage.setItem('nw_muted', String(isMuted)) }, [isMuted])
     useEffect(() => { localStorage.setItem('nw_8d', String(is8D)) }, [is8D])
+    useEffect(() => { localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(audioSettings)) }, [audioSettings])
     useEffect(() => { localStorage.setItem('nw_shuffle', String(isShuffle)) }, [isShuffle])
     useEffect(() => { localStorage.setItem('nw_repeat', repeatMode) }, [repeatMode])
 
@@ -430,6 +434,8 @@ export function useAudioPlayer(contextMode?: string) {
         audioRef.current = audio
         const engine = getSharedEngine(audio)
         engineRef.current = engine
+        // The graph owns volume; applying it to the media element too squares it.
+        audio.volume = 1
         try {
             // Apply initial settings (safe to call multiple times)
             engine.toggle8D(is8D)
@@ -439,6 +445,10 @@ export function useAudioPlayer(contextMode?: string) {
         }
         return releaseSharedPlayback
     }, [])
+
+    useEffect(() => {
+        engineRef.current?.applySettings(audioSettings, is8D, automaticFocus)
+    }, [audioSettings, automaticFocus, is8D])
 
     
     useEffect(() => {
@@ -651,18 +661,21 @@ export function useAudioPlayer(contextMode?: string) {
     const toggleShuffle = useCallback(() => setIsShuffle(value => !value), [])
     const toggleRepeat = useCallback(() => setRepeatMode(mode => mode === 'none' ? 'all' : mode === 'all' ? 'one' : 'none'), [])
     const playNext = useCallback(() => handleNext(false), [handleNext])
-    const setDistance = useCallback((meters: number) => engineRef.current?.setDistance(meters), [])
-    const setSpaceMode = useCallback((mode: string) => engineRef.current?.setSpaceMode(mode), [])
-    const setPosition = useCallback((x: number, y: number, z: number) => {
-        engineRef.current?.toggle8D(false)
+    const setDistance = useCallback((distance: number) => setAudioSettings(settings => ({ ...settings, distance })), [])
+    const setSpaceMode = useCallback((mode: SpaceMode) => {
         setIs8D(false)
-        engineRef.current?.setPosition(x, y, z)
+        setAudioSettings(spacePreset(mode))
+    }, [])
+    const setPosition = useCallback((x: number, y: number, z: number) => {
+        setIs8D(false)
+        setAudioSettings(settings => ({ ...settings, position: { x, y, z } }))
     }, [])
     const setFocusMode = useCallback((enable: boolean) => {
         if (enable) setIs8D(false)
-        engineRef.current?.setFocusMode(enable)
+        setAudioSettings(settings => enable
+            ? { ...spacePreset('none'), focus: true, distance: 0.5 }
+            : { ...settings, focus: false })
     }, [])
-    const setNormalization = useCallback((enable: boolean) => engineRef.current?.setNormalization(enable), [])
     const setCrowd = useCallback((enable: boolean) => engineRef.current?.setCrowd(enable), [])
 
     return {
@@ -670,7 +683,9 @@ export function useAudioPlayer(contextMode?: string) {
         currentTrack,
         duration,
         volume,
-        is8D,
+        is8D: is8D && !isFocus,
+        audioSettings,
+        isFocus,
         isShuffle,
         repeatMode,
         playlist,
@@ -688,7 +703,6 @@ export function useAudioPlayer(contextMode?: string) {
         setSpaceMode,
         setPosition,
         setFocusMode,
-        setNormalization,
         setCrowd,
         isMuted,
         setIsMuted,

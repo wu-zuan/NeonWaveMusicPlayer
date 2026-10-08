@@ -276,9 +276,11 @@ const CustomSelect = ({ value, onChange, options }: {
 
 interface SettingsViewProps {
     currentTrack?: { path: string; title: string } | null
+    autoFocusEnabled: boolean
+    onAutoFocusChange: (enabled: boolean) => void
 }
 
-export function SettingsView({ currentTrack }: SettingsViewProps) {
+export function SettingsView({ currentTrack, autoFocusEnabled, onAutoFocusChange }: SettingsViewProps) {
     const { status, progress, version, error, checkForUpdates, installUpdate } = useUpdater()
 
     const [lyricsProvider, setLyricsProvider] = useState(() => localStorage.getItem('neonwave_lyrics_ai_provider') || 'default')
@@ -289,7 +291,7 @@ export function SettingsView({ currentTrack }: SettingsViewProps) {
     const [lyricsReasoning, setLyricsReasoning] = useState(() => localStorage.getItem('neonwave_lyrics_ai_reasoning') || 'none')
     const [saveSuccess, setSaveSuccess] = useState(false)
     const [theme, setTheme] = useState<AppTheme>(getStoredTheme)
-    const [activeCategory, setActiveCategory] = useState<'appearance' | 'presentation' | 'calibration' | 'lyrics' | 'connections' | 'downloads' | 'community' | 'about'>('appearance')
+    const [activeCategory, setActiveCategory] = useState<'appearance' | 'audio' | 'presentation' | 'calibration' | 'lyrics' | 'connections' | 'downloads' | 'community' | 'about'>('appearance')
     const [lyricsPresentation, setLyricsPresentation] = useState(() => localStorage.getItem('neonwave_lyrics_presentation') || 'danmaku')
     const [calibrationEnabled, setCalibrationEnabled] = useState(() => localStorage.getItem('neonwave_lyrics_calibration_enabled') === 'true')
     const [calibrationMode, setCalibrationMode] = useState(() => localStorage.getItem('neonwave_lyrics_calibration_mode') || 'adaptive')
@@ -321,6 +323,7 @@ export function SettingsView({ currentTrack }: SettingsViewProps) {
 
     const categoryCopy = {
         appearance: ['外觀與介面', '主題與迷你播放器顯示方式'],
+        audio: ['音效與專注', '選擇是否依工作程式自動切換專注模式'],
         presentation: ['歌詞呈現', '決定同步歌詞如何出現在播放畫面'],
         calibration: ['歌詞校正', '針對翻唱、現場版與不同速度重新調整時間軸'],
         lyrics: ['歌詞與 AI', '歌詞來源、AI 模型與辨識偏好'],
@@ -416,6 +419,7 @@ export function SettingsView({ currentTrack }: SettingsViewProps) {
             <div className="settings-layout">
                 <nav className="settings-nav" aria-label="設定分類">
                     <button className={activeCategory === 'appearance' ? 'active' : ''} onClick={() => setActiveCategory('appearance')}><Palette size={18} /><span><strong>外觀與介面</strong><small>主題與顯示</small></span></button>
+                    <button className={activeCategory === 'audio' ? 'active' : ''} onClick={() => setActiveCategory('audio')}><AudioLines size={18} /><span><strong>音效與專注</strong><small>自動專注設定</small></span></button>
                     <button className={activeCategory === 'presentation' ? 'active' : ''} onClick={() => setActiveCategory('presentation')}><Captions size={18} /><span><strong>歌詞呈現</strong><small>字幕與彈幕方式</small></span></button>
                     <button className={activeCategory === 'calibration' ? 'active' : ''} onClick={() => setActiveCategory('calibration')}><AudioLines size={18} /><span><strong>歌詞校正</strong><small>翻唱時間軸</small></span></button>
                     <button className={activeCategory === 'lyrics' ? 'active' : ''} onClick={() => setActiveCategory('lyrics')}><Languages size={18} /><span><strong>歌詞與 AI</strong><small>來源與模型</small></span></button>
@@ -437,6 +441,24 @@ export function SettingsView({ currentTrack }: SettingsViewProps) {
                     </section>
 
             <div className={`glass settings-panel ${activeCategory === 'community' ? 'settings-panel-hidden' : ''}`}>
+                <section className={`settings-category ${activeCategory === 'audio' ? '' : 'settings-category-hidden'}`}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px' }}>
+                        <div>
+                            <h4 style={{ marginBottom: '8px' }}>自動專注模式</h4>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1.7 }}>
+                                切到 VS Code、Word 等工作程式時啟用專注音效，離開後恢復原本的模式。預設關閉。
+                            </p>
+                        </div>
+                        <label className="switch">
+                            <input type="checkbox" aria-label="自動專注模式" checked={autoFocusEnabled}
+                                onChange={event => onAutoFocusChange(event.target.checked)} />
+                            <span className="slider round"></span>
+                        </label>
+                    </div>
+                    <p style={{ color: 'var(--text-muted)', marginTop: '24px', fontSize: '13px' }}>
+                        音效模式、音場距離、音源位置與音量會自動儲存。TETR 使用短混響，適合玩 TETR.io 時聆聽。
+                    </p>
+                </section>
                 <section className={`settings-category settings-about ${activeCategory === 'about' ? '' : 'settings-category-hidden'}`}>
                 <h3 style={{ fontSize: '20px', marginBottom: '24px' }}>關於 NeonWave</h3>
 

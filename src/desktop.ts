@@ -1,11 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { PreferenceWriter, restorePreferences } from './utils/preferenceWriter'
 
 type Listener = (event: unknown, ...args: any[]) => void
 type DesktopEvent = { channel: string; args: any[] }
 const listeners = new Map<string, Set<Listener>>()
 let mediaBase = ''
-let preferenceQueue: Promise<unknown> = Promise.resolve()
 let audioQueue: Promise<unknown> = Promise.resolve()
 const originalConsole = { ...console }
 
@@ -42,7 +42,7 @@ const bridge = {
   removeListener(channel: string, listener: Listener) { this.off(channel, listener) },
   removeAllListeners(channel: string) { listeners.delete(channel) },
   async invoke<T = any>(channel: string, ...args: any[]): Promise<T> {
-    if (channel === 'window:close' || channel === 'update:install') await preferenceQueue
+    if (channel === 'window:close' || channel === 'update:install') await preferenceWriter.flush()
     if (channel === 'files:readBuffer' || channel === 'files:readBufferPartial') {
       try {
         const partial = channel.endsWith('Partial')
@@ -71,6 +71,11 @@ const bridge = {
     void invoke('desktop_send', { channel, args }).catch(error => console.error(error))
   }
 }
+
+const preferenceWriter = new PreferenceWriter(
+  (key, value) => bridge.invoke('storage:set', key, value),
+  error => originalConsole.error('Preference write failed', error),
+)
 
 // The historical API name is intentional. No Electron module or preload remains;
 // keeping the name and signatures avoids changing every renderer component.
@@ -155,14 +160,11 @@ export async function initializeDesktop() {
   })
   const bootstrap = await desktop.invoke<{ mediaBase: string; preferences: Record<string, string>; platform: string }>('desktop:bootstrap')
   mediaBase = bootstrap.mediaBase
-  for (const [key, value] of Object.entries(bootstrap.preferences)) {
-    if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
-  }
+  restorePreferences(localStorage, bootstrap.preferences)
   const set = Storage.prototype.setItem
   const remove = Storage.prototype.removeItem
   const persist = (key: string, value: string | null) => {
-    if (!/^(neonwave_|nw_|discord_|artist_img_|lyrics_)/.test(key)) return
-    preferenceQueue = preferenceQueue.then(() => bridge.invoke('storage:set', key, value)).catch(error => originalConsole.error('Preference write failed', error))
+    preferenceWriter.enqueue(key, value)
   }
   Storage.prototype.setItem = function(key, value) { set.call(this, key, value); if (this === localStorage) persist(key, String(value)) }
   Storage.prototype.removeItem = function(key) { remove.call(this, key); if (this === localStorage) persist(key, null) }
@@ -183,7 +185,7 @@ export async function initializeDesktop() {
   window.addEventListener('unhandledrejection', event => console.error(event.reason))
   bridge.on('desktop:error', (_, message) => { console.error(message); alert(message) })
   if (nativeWindow.label === 'main') {
-    bridge.on('desktop:before-close', () => { void preferenceQueue.then(() => bridge.invoke('app:quit')).catch(console.error) })
+    bridge.on('desktop:before-close', () => { void preferenceWriter.flush().then(() => bridge.invoke('app:quit')).catch(console.error) })
   }
   installChrome(bootstrap.platform)
 }
