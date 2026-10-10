@@ -25,6 +25,7 @@
     "e2e": "node scripts/e2e-playback.cjs",
     "e2e:performance": "node scripts/e2e-performance.cjs",
     "e2e:settings": "node scripts/e2e-settings.cjs",
+    "e2e:tetrio": "node scripts/e2e-tetrio.cjs",
     "release": "powershell -ExecutionPolicy Bypass -File ./scripts/publish.ps1",
     "tauri": "tauri",
     "dev:frontend": "vite --host 127.0.0.1",

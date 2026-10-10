@@ -638,6 +638,15 @@ export function useAudioPlayer(contextMode?: string, automaticFocus = false) {
             }
         }
     }, [playTrack])
+    const resumePlayback = useCallback(async () => {
+        if (!currentTrackRef.current) return false
+        const audio = audioRef.current
+        if (!audio.paused || isPlaybackPendingRef.current) return true
+        await togglePlay()
+        if (audio.paused) throw new Error('Playback could not resume')
+        return true
+    }, [togglePlay])
+
     const seek = useCallback((time: number) => {
         const audio = audioRef.current
         if (!Number.isFinite(time) || audio.readyState === HTMLMediaElement.HAVE_NOTHING) return
@@ -691,6 +700,7 @@ export function useAudioPlayer(contextMode?: string, automaticFocus = false) {
         playlist,
         playTrack,
         togglePlay,
+        resumePlayback,
         setVolume,
         setIs8D,
         toggleShuffle,

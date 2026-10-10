@@ -9,6 +9,16 @@
 </head>
 
 <body>
+  <div id="startup" class="startup" role="status" aria-live="polite">
+    <div class="startup-drag"></div>
+    <div class="startup-card">
+      <img class="startup-logo" src="/logo.png" width="88" height="88" alt="" />
+      <h1>NeonWave</h1>
+      <div class="startup-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <p id="startup-message">正在準備你的音樂空間…</p>
+      <button id="startup-retry" type="button" hidden>重新載入</button>
+    </div>
+  </div>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

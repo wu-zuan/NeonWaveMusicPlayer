@@ -52,6 +52,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/e2e-native.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run e2e:tetrio
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: node scripts/collect-release.mjs
         id: collect
       - uses: actions/upload-artifact@v4

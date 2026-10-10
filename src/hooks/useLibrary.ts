@@ -32,6 +32,7 @@ export function useLibrary() {
     const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number; currentTracks: string[]; isPaused: boolean; eta?: string; speedStr?: string } | null>(null)
     const downloadControlRef = useRef({ isPaused: false, isCancelled: false, startTime: 0, pauseStartTime: 0, totalPausedMs: 0, activeTracks: [] as string[] })
     const downloadSpeedsRef = useRef<Record<string, string>>({})
+    const loadGeneration = useRef(0)
 
     useEffect(() => {
         loadSavedData()
@@ -64,6 +65,7 @@ export function useLibrary() {
         }
 
         return () => {
+            loadGeneration.current++
             if (window.ipcRenderer && window.ipcRenderer.offDownloadProgress) {
                 window.ipcRenderer.offDownloadProgress()
             }
@@ -71,6 +73,8 @@ export function useLibrary() {
     }, [])
 
     const loadSavedData = async () => {
+        const generation = ++loadGeneration.current
+        const isCurrent = () => generation === loadGeneration.current
         setIsLoading(true)
         try {
             
@@ -98,36 +102,32 @@ export function useLibrary() {
                 }
             }
 
-            const loadedPlaylists: Playlist[] = []
-
-            for (const item of folderData) {
-                const tracks = await scanFolder(item.path)
-                loadedPlaylists.push({
-                    id: item.path,
-                    name: item.name,
-                    type: 'folder',
-                    path: item.path,
-                    tracks: tracks
-                })
-            }
-
-            // 3. Load Custom Playlists (Imported)
             const customJson = localStorage.getItem(STORAGE_KEY_CUSTOM_PLAYLISTS)
-            if (customJson) {
-                const customPlaylists = JSON.parse(customJson) as Playlist[]
-                loadedPlaylists.push(...customPlaylists)
+            const customPlaylists = customJson ? JSON.parse(customJson) as Playlist[] : []
+            // Show saved playlists immediately; publish metadata batches as they arrive.
+            setPlaylists(previous => [
+                ...folderData.map(item => ({ id: item.path, name: item.name, type: 'folder' as const,
+                    path: item.path, tracks: previous.find(p => p.id === item.path)?.tracks || [] })),
+                ...customPlaylists
+            ])
+            // Let StrictMode cleanup cancel its discarded mount before starting disk work.
+            await Promise.resolve()
+            for (const item of folderData) {
+                if (!isCurrent()) return
+                await scanFolder(item.path, tracks => {
+                    if (isCurrent()) setPlaylists(previous => previous.map(playlist =>
+                        playlist.id === item.path ? { ...playlist, tracks } : playlist))
+                }, isCurrent)
             }
-
-            setPlaylists(loadedPlaylists)
 
         } catch (e) {
             console.error("Error loading library data", e)
         } finally {
-            setIsLoading(false)
+            if (isCurrent()) setIsLoading(false)
         }
     }
 
-    const scanFolder = async (folderPath: string): Promise<Track[]> => {
+    const scanFolder = async (folderPath: string, onBatch?: (tracks: Track[]) => void, isCurrent = () => true): Promise<Track[]> => {
         try {
             const files: string[] = await window.ipcRenderer.listMusicFiles(folderPath)
 
@@ -141,7 +141,9 @@ export function useLibrary() {
             const allTracks: Track[] = []
 
             for (const batch of chunks) {
+                if (!isCurrent()) return allTracks
                 const metas: any[] = await window.ipcRenderer.getAudioMetadataBatch(batch)
+                if (!isCurrent()) return allTracks
                 const metaByPath = new Map(metas.map(m => [m.path, m]))
 
                 for (const filePath of batch) {
@@ -160,8 +162,9 @@ export function useLibrary() {
                         sampleRate: meta?.sampleRate
                     })
                 }
+                onBatch?.([...allTracks])
             }
-
+            if (!chunks.length && isCurrent()) onBatch?.([])
             return allTracks
         } catch (e) {
             console.error("Failed to scan folder", folderPath, e)

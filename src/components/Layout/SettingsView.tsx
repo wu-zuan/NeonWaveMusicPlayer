@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Download, CheckCircle, AlertCircle, Globe, Palette, Check, Bot, Languages, Info, Users, Captions, AudioLines } from 'lucide-react'
 import { ListeningPartyPanel } from '../Party/ListeningPartyPanel'
+import type { TetrioStatus } from '../../hooks/useTetrioCompanion'
 import { applyTheme, getStoredTheme, THEMES, type AppTheme } from '../../theme'
 import {
     DEFAULT_TRACK_CALIBRATION, getCalibrationComputeConfig, getCalibrationPrecision, getTrackCalibration,
@@ -275,12 +276,13 @@ const CustomSelect = ({ value, onChange, options }: {
 }
 
 interface SettingsViewProps {
+    tetrio: { enabled: boolean; status: TetrioStatus; changeEnabled: (enabled: boolean) => void }
     currentTrack?: { path: string; title: string } | null
     autoFocusEnabled: boolean
     onAutoFocusChange: (enabled: boolean) => void
 }
 
-export function SettingsView({ currentTrack, autoFocusEnabled, onAutoFocusChange }: SettingsViewProps) {
+export function SettingsView({ currentTrack, autoFocusEnabled, onAutoFocusChange, tetrio }: SettingsViewProps) {
     const { status, progress, version, error, checkForUpdates, installUpdate } = useUpdater()
 
     const [lyricsProvider, setLyricsProvider] = useState(() => localStorage.getItem('neonwave_lyrics_ai_provider') || 'default')
@@ -458,6 +460,32 @@ export function SettingsView({ currentTrack, autoFocusEnabled, onAutoFocusChange
                     <p style={{ color: 'var(--text-muted)', marginTop: '24px', fontSize: '13px' }}>
                         音效模式、音場距離、音源位置與音量會自動儲存。TETR 使用短混響，適合玩 TETR.io 時聆聽。
                     </p>
+                    <div style={{ marginTop: '28px', borderTop: '1px solid var(--glass-border)', paddingTop: '24px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px' }}>
+                            <div>
+                                <h4>TETR.IO 自動接續播放</h4>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1.8 }}>
+                                    偵測到桌面版啟動時，接續 NeonWave 目前歌曲。已在播放就保持播放，手動暫停後不會反覆搶播。關閉遊戲後仍可繼續聽歌。
+                                </p>
+                            </div>
+                            <label className="switch">
+                                <input type="checkbox" aria-label="TETR.IO 自動接續播放" checked={tetrio.enabled}
+                                    onChange={event => tetrio.changeEnabled(event.target.checked)} />
+                                <span className="slider round"></span>
+                            </label>
+                        </div>
+                        <p style={{ fontSize: '13px', lineHeight: 1.8 }}>
+                            首次使用：在 TETR.IO 的 CONFIG → VOLUME &amp; AUDIO 將 MUSIC 設為 0，SFX 保持原本音量，再於 NeonWave 選好歌曲。
+                            此功能不會自動修改遊戲音量，支援 Windows 桌面版。開關會自動儲存，預設關閉。
+                        </p>
+                        <p role="status" data-tetrio-status={tetrio.status} style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                            {{ disabled: '自動偵測已關閉', checking: '正在偵測 TETR.IO…', waiting: '等待 TETR.IO 桌面版啟動',
+                                running: '已偵測到 TETR.IO，本次啟動已接續播放；你仍可隨時暫停',
+                                'no-track': '已偵測到 TETR.IO，請先選擇並播放一首歌曲',
+                                blocked: '已偵測到 TETR.IO，請按播放器的播放鍵接續',
+                                unsupported: '此系統暫不支援桌面版自動偵測', error: '暫時無法偵測，稍後會自動重試' }[tetrio.status]}
+                        </p>
+                    </div>
                 </section>
                 <section className={`settings-category settings-about ${activeCategory === 'about' ? '' : 'settings-category-hidden'}`}>
                 <h3 style={{ fontSize: '20px', marginBottom: '24px' }}>關於 NeonWave</h3>

@@ -9,6 +9,7 @@ import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { usePlaybackTime } from './hooks/usePlaybackTime'
 import { useLibrary } from './hooks/useLibrary'
 import { useAppDetection } from './hooks/useAppDetection'
+import { useTetrioCompanion } from './hooks/useTetrioCompanion'
 import { AUTO_FOCUS_KEY } from './utils/audioSettings'
 import './index.css'
 
@@ -56,7 +57,7 @@ function MainApp() {
     playlists, favorites, allTracks,
     addFolder, removeFolder, renameFolder, toggleFavorite, refreshLibrary,
     exportPlaylist, readImportFile, processStreamImport, processDownloadImport,
-    downloadProgress, pauseDownload, resumeDownload, cancelDownload
+    downloadProgress, pauseDownload, resumeDownload, cancelDownload, isLoading: libraryLoading
   } = useLibrary()
 
   const { contextMode } = useAppDetection()
@@ -70,11 +71,12 @@ function MainApp() {
   const {
     isPlaying, currentTrack, duration, volume, is8D,
     isShuffle, repeatMode,
-    playTrack, togglePlay, setVolume, setIs8D, seek,
+    playTrack, togglePlay, resumePlayback, setVolume, setIs8D, seek,
     toggleShuffle, toggleRepeat, handleNext, handlePrev,
     setDistance, setSpaceMode, setPosition, setFocusMode, audioSettings, isFocus,
     getAudioStream, getMediaElement, setLocalMute
   } = useAudioPlayer(contextMode, autoFocusEnabled && contextMode === 'work')
+  const tetrio = useTetrioCompanion(resumePlayback)
 
   const [view, setView] = useState('all_songs')
   const [showLyrics, setShowLyrics] = useState(false)
@@ -398,6 +400,10 @@ function MainApp() {
         </div>
 
         <div className="app-scroll">
+          {libraryLoading && <div className="library-loading" role="status">
+            <span className="library-loading-dot" aria-hidden="true" />
+            正在整理音樂庫… 已載入 {allTracks.length.toLocaleString()} 首，可先播放已載入歌曲
+          </div>}
           {currentTrack?.mediaType === 'video' && (
             <VideoSurface
               track={currentTrack}
@@ -422,7 +428,7 @@ function MainApp() {
 
           {view === 'settings' && (
             <SettingsView currentTrack={currentTrack ? { path: currentTrack.path, title: currentTrack.title } : null}
-              autoFocusEnabled={autoFocusEnabled} onAutoFocusChange={changeAutoFocus} />
+              autoFocusEnabled={autoFocusEnabled} onAutoFocusChange={changeAutoFocus} tetrio={tetrio} />
           )}
 
           {view === 'discord' && (

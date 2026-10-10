@@ -9,7 +9,7 @@ import extract from 'extract-zip'
 import * as mm from 'music-metadata'
 import type YtDlpWrapType from 'yt-dlp-wrap'
 import type { Progress as YtDlpProgress } from 'yt-dlp-wrap'
-import { DiscordBotManager } from './discordBot'
+import type { DiscordBotManager } from './discordBot'
 import { DiscordRPCManager } from './discordRPC'
 import { searchArtistImage } from './utils/artistSearch'
 import { searchTrackArtwork } from './utils/artworkSearch'
@@ -35,11 +35,15 @@ export async function startServices() {
   const startDiscordPowerSaveBlocker = () => { void native('power:set', true) }
   const stopDiscordPowerSaveBlocker = () => { void native('power:set', false) }
   const partyRoomService = new PartyRoomService((command: PartyCommand) => emit('main', 'party:command', command))
-  const discordBot = new DiscordBotManager()
+  let discordBot: DiscordBotManager | null = null
+  let discordBotPromise: Promise<DiscordBotManager> | null = null
+  const getDiscordBot = () => discordBotPromise ??= import('./discordBot')
+    .then(({ DiscordBotManager }) => discordBot = new DiscordBotManager())
+    .catch(error => { discordBotPromise = null; throw error })
   onShutdown(async () => {
     await partyRoomService.stop()
-    discordBot.stop()
-    await discordBot.disconnect()
+    discordBot?.stop()
+    await discordBot?.disconnect()
     stopDiscordPowerSaveBlocker()
   })
   const discordRPC = new DiscordRPCManager()
@@ -174,31 +178,31 @@ export async function startServices() {
 
 
   rpc.handle('discord:login', async (_, token) => {
-    return await discordBot.login(token)
+    return await (await getDiscordBot()).login(token)
   })
 
   rpc.handle('discord:getGuilds', () => {
-    return discordBot.getGuilds()
+    return discordBot?.getGuilds() ?? []
   })
 
   rpc.handle('discord:getChannels', (_, guildId) => {
-    return discordBot.getChannels(guildId)
+    return discordBot?.getChannels(guildId) ?? []
   })
 
   rpc.handle('discord:join', async (_, guildId, channelId) => {
-    const joined = await discordBot.joinChannel(guildId, channelId)
+    const joined = await discordBot?.joinChannel(guildId, channelId) ?? false
     if (joined) startDiscordPowerSaveBlocker()
     return joined
   })
 
   rpc.handle('discord:leave', async () => {
-    const left = await discordBot.leaveChannel()
+    const left = await discordBot?.leaveChannel() ?? false
     stopDiscordPowerSaveBlocker()
     return left
   })
 
   rpc.handle('discord:disconnect', async () => {
-    const result = await discordBot.disconnect()
+    const result = await discordBot?.disconnect()
     stopDiscordPowerSaveBlocker()
     return result
   })
@@ -206,32 +210,38 @@ export async function startServices() {
   rpc.handle('discord:play', async (_, filePath, startTime = 0) => {
     
     
-    return await discordBot.playFile(filePath, ffmpegPath, startTime)
+    return await discordBot?.playFile(filePath, ffmpegPath, startTime) ?? false
   })
 
   rpc.handle('discord:stop', () => {
-    return discordBot.stop()
+    return discordBot?.stop() ?? false
   })
 
   rpc.handle('discord:pause', () => {
-    return discordBot.pause()
+    return discordBot?.pause() ?? false
   })
 
   rpc.handle('discord:resume', () => {
-    return discordBot.resume()
+    return discordBot?.resume() ?? false
   })
 
   rpc.handle('discord:setVolume', (_, volume) => {
-    return discordBot.setVolume(volume)
+    return discordBot?.setVolume(volume) ?? false
   })
 
   rpc.handle('discord:status', () => {
-    return discordBot.getStatus()
+    return discordBot?.getStatus() ?? {
+      isConnected: false, username: null, avatar: null, currentGuildId: null,
+      currentChannelId: null, currentGuildName: null, currentChannelName: null,
+      isPlaying: false, playbackStatus: 'idle', streamInputBytes: 0,
+      streamDecodedBytes: 0, streamLastInputAt: 0, streamLastDecodedAt: 0,
+      streamError: null, nowPlaying: null
+    }
   })
 
   
   rpc.handle('discord:startStreamMode', async () => {
-    return await discordBot.playReceiverStream(ffmpegPath)
+    return await discordBot?.playReceiverStream(ffmpegPath) ?? false
   })
 
   
@@ -239,7 +249,7 @@ export async function startServices() {
   
   
   rpc.on('discord:audio-chunk', (_, buffer) => {
-    discordBot.writeAudioChunk(new Uint8Array(buffer))
+    discordBot?.writeAudioChunk(new Uint8Array(buffer))
   })
 
   

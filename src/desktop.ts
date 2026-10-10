@@ -158,6 +158,8 @@ export async function initializeDesktop() {
       try { callback({}, ...payload.args.map(decode)) } catch (error) { originalConsole.error(error) }
     }
   })
+  // Keep minimize/close available while the startup shell is waiting.
+  installChrome(navigator.userAgent.includes('Windows') ? 'win32' : '')
   const bootstrap = await desktop.invoke<{ mediaBase: string; preferences: Record<string, string>; platform: string }>('desktop:bootstrap')
   mediaBase = bootstrap.mediaBase
   restorePreferences(localStorage, bootstrap.preferences)
@@ -187,7 +189,6 @@ export async function initializeDesktop() {
   if (nativeWindow.label === 'main') {
     bridge.on('desktop:before-close', () => { void preferenceWriter.flush().then(() => bridge.invoke('app:quit')).catch(console.error) })
   }
-  installChrome(bootstrap.platform)
 }
 
 export async function desktopReady() { await invoke('desktop_ready') }

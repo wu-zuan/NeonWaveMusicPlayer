@@ -5,6 +5,7 @@ mod audio_session;
 mod backend;
 mod native_dialogs;
 mod platform;
+mod tetrio;
 mod updates;
 mod windows;
 
@@ -88,6 +89,8 @@ async fn desktop_invoke(
     validate_window(window.label(), &channel)?;
     let first = args.first().cloned().unwrap_or(Value::Null);
     match channel.as_str() {
+        "app:tetrio-status" => tauri::async_runtime::spawn_blocking(tetrio::status)
+            .await.map_err(|e| e.to_string())?,
         "app:version" => Ok(json!(app.package_info().version.to_string())),
         "app:quit" => {
             app.state::<Arc<Backend>>().shutdown().await;
@@ -315,8 +318,16 @@ pub async fn native_request(
 }
 
 fn main() {
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| windows::restore_main(app)))
+    let builder = tauri::Builder::default();
+    // Isolated CDP tests must not activate or collide with the user's running player.
+    let isolated_test = std::env::var_os("NW_USER_DATA").is_some()
+        && std::env::var("NW_REMOTE_DEBUG").ok().and_then(|port| port.parse::<u16>().ok()).is_some();
+    let builder = if isolated_test {
+        builder
+    } else {
+        builder.plugin(tauri_plugin_single_instance::init(|app, _, _| windows::restore_main(app)))
+    };
+    let app = builder
         .plugin(native_dialogs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
