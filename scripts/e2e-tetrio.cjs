@@ -34,13 +34,16 @@ async function main() {
         }
         await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
             window.__gameRunning = false;
+            // Hold each phase until its assertions finish, regardless of CI speed.
+            const bootstrapReady = new Promise(resolve => { window.__releaseBootstrap = resolve; });
+            const metadataReady = new Promise(resolve => { window.__releaseMetadata = resolve; });
             let batches = 0;
             let api;
             Object.defineProperty(window, 'ipcRenderer', { get: () => api, set: value => {
                 api = value;
                 const original = api.invoke.bind(api);
                 api.invoke = async (channel, ...args) => {
-                    if (channel === 'desktop:bootstrap') await new Promise(r=>setTimeout(r,1800));
+                    if (channel === 'desktop:bootstrap') await bootstrapReady;
                     if (channel === 'app:tetrio-status') {
                         if (window.__gameError) throw new Error('Temporary process query failure');
                         return { supported: true, running: window.__gameRunning };
@@ -49,24 +52,34 @@ async function main() {
                 };
                 api.listMusicFiles = async () => Array.from({length:401},(_,i)=>i===0?${JSON.stringify(tone)}:${JSON.stringify(profile)}+'/missing-'+i+'.m4a');
                 api.getAudioMetadataBatch = async paths => {
-                    if (++batches > 1) await new Promise(r=>setTimeout(r,1800));
+                    if (++batches > 1) await metadataReady;
                     return paths.map(path=>({path,title:'Fixture '+path,duration:120}));
                 };
             }});
             const play = HTMLMediaElement.prototype.play;
             HTMLMediaElement.prototype.play = function(...args) { window.__audio = this; return play.apply(this,args); };
         ` });
+        // Windows runners may prefer reduced motion. Verify that path explicitly,
+        // then request animation rather than depending on the host's preference.
+        await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
         await cdp.send('Page.reload');
-        await waitFor(() => cdp.eval("!!document.querySelector('.startup-wave i') && !!window.ipcRenderer"), 'loading shell');
+        await waitFor(() => cdp.eval("!!document.querySelector('.startup-wave i') && !!document.querySelector('.native-caption-controls') && !!window.__releaseBootstrap"), 'loading shell');
         assert.equal(await cdp.eval("!!document.querySelector('.native-caption-controls')"), true, 'window controls during startup');
+        assert.equal(await cdp.eval("getComputedStyle(document.querySelector('.startup-wave i')).animationName"), 'none', 'reduced motion shows a static loading indicator');
+        assert.equal(await cdp.eval("document.getElementById('startup-message').textContent.length > 0"), true, 'loading status remains available without animation');
+        await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+        await waitFor(() => cdp.eval("getComputedStyle(document.querySelector('.startup-wave i')).animationName === 'startup-wave'"), 'startup animation enabled');
         const wave = await cdp.eval("getComputedStyle(document.querySelector('.startup-wave i')).transform");
-        await sleep(200);
-        assert.notEqual(await cdp.eval("getComputedStyle(document.querySelector('.startup-wave i')).transform"), wave);
+        await waitFor(() => cdp.eval(`getComputedStyle(document.querySelector('.startup-wave i')).transform !== ${JSON.stringify(wave)}`), 'startup animation advances');
         const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
         fs.writeFileSync(path.join(artifacts, 'startup-animation.png'), Buffer.from(screenshot.data, 'base64'));
+        await cdp.eval('window.__releaseBootstrap()');
         await waitFor(() => cdp.eval("document.querySelector('.library-loading')?.textContent.includes('200') && !!document.getElementById('track-item-0')"), 'first batch before full scan');
         await cdp.eval("document.getElementById('track-item-0').click()");
         await waitFor(() => cdp.eval("window.__audio?.currentTime > 0.1"), 'play while library loads');
+        assert.equal(await cdp.eval("!!document.querySelector('.library-loading')"), true, 'playback starts before the scan completes');
+        await cdp.eval('window.__releaseMetadata()');
+        await waitFor(() => cdp.eval("!document.querySelector('.library-loading')"), 'remaining metadata loaded');
         await cdp.eval("window.__audio.pause()");
         await cdp.eval("[...document.querySelectorAll('aside button')].find(b=>b.textContent.includes('設定')).click()");
         await clickText(cdp, '音效與專注自動專注設定');
@@ -102,7 +115,7 @@ async function main() {
         assert.equal(JSON.parse(fs.readFileSync(path.join(profile, 'preferences.json'), 'utf8')).neonwave_tetrio_companion, 'true');
         app = await launch(profile); cdp = app.cdp;
         assert.equal(await cdp.eval("localStorage.getItem('neonwave_tetrio_companion')"), 'true');
-        const result = { result: 'PASS', firstScreenMs, reopenMs: app.startupMs, nativeGameRunning: initialNative.running, profile };
+        const result = { result: 'PASS', reducedMotion: true, startupAnimation: true, incrementalPlayback: true, firstScreenMs, reopenMs: app.startupMs, nativeGameRunning: initialNative.running, profile };
         fs.writeFileSync(path.join(artifacts, 'tetrio-validation.json'), JSON.stringify(result, null, 2));
         console.log(JSON.stringify(result, null, 2));
     } finally { game?.kill(); await app?.close(); }
