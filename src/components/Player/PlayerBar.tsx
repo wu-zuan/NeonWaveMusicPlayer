@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Volume2, Music, Repeat, Repeat1, Sliders, AudioWaveform, Brain, Mic2, Film } from 'lucide-react'
 import styles from './Player.module.css'
 import { Track } from '../../hooks/useAudioPlayer'
@@ -48,8 +48,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     const spaceMode = isFocus ? 'none' : audioSettings.spaceMode
     const radarPos = isFocus ? { x: 0, z: 0 } : audioSettings.position
     const [activeTab, setActiveTab] = useState<'effects' | 'spatial'>('effects')
-    const [pendingSeekTime, setPendingSeekTime] = useState<number | null>(null)
-    const isPointerSeekingRef = useRef(false)
 
     const handleFocus = () => {
         if (automaticFocus) onDisableAutomaticFocus()
@@ -63,11 +61,6 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         return `${m}:${s.toString().padStart(2, '0')}`
     }
 
-    const displayedTime = pendingSeekTime ?? currentTime
-    const progressPercent = duration ? (displayedTime / duration) * 100 : 0
-    const sliderStyle = {
-        background: `linear-gradient(to right, var(--accent-primary) ${progressPercent}%, rgba(255,255,255,0.1) ${progressPercent}%)`
-    }
     const volPercent = volume * 100
     const volStyle = { '--volume-progress': volume } as React.CSSProperties
 
@@ -313,46 +306,8 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                     </button>
                 </div>
 
-                <div className={styles.progressContainer}>
-                    <span>{formatTime(displayedTime)}</span>
-                    <input
-                        type="range"
-                        min={0}
-                        max={duration || 100}
-                        step={0.1}
-                        value={displayedTime}
-                        disabled={!currentTrack || !Number.isFinite(duration) || duration <= 0}
-                        onPointerDown={(e) => {
-                            isPointerSeekingRef.current = true
-                            e.currentTarget.setPointerCapture(e.pointerId)
-                            setPendingSeekTime(Number(e.currentTarget.value))
-                        }}
-                        onChange={(e) => {
-                            const nextTime = Number(e.target.value)
-                            setPendingSeekTime(nextTime)
-                            if (!isPointerSeekingRef.current) {
-                                onSeek(nextTime)
-                                setPendingSeekTime(null)
-                            }
-                        }}
-                        onPointerUp={(e) => {
-                            const nextTime = Number(e.currentTarget.value)
-                            isPointerSeekingRef.current = false
-                            onSeek(nextTime)
-                            setPendingSeekTime(null)
-                            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                                e.currentTarget.releasePointerCapture(e.pointerId)
-                            }
-                        }}
-                        onPointerCancel={() => {
-                            isPointerSeekingRef.current = false
-                            setPendingSeekTime(null)
-                        }}
-                        className={styles.timeSlider}
-                        style={sliderStyle}
-                    />
-                    <span>{formatTime(duration)}</span>
-                </div>
+                <SeekControl key={currentTrack?.path || ''} currentTime={currentTime} duration={duration}
+                    disabled={!currentTrack} onSeek={onSeek} formatTime={formatTime} />
             </div>
 
             { }
@@ -401,4 +356,87 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             </div>
         </div>
     )
+}
+
+// Own the pointer gesture end-to-end. Capturing a native range without handling
+// pointer movement prevents Chromium's internal thumb from following the mouse.
+function SeekControl({ currentTime, duration, disabled, onSeek, formatTime }: {
+    currentTime: number; duration: number; disabled: boolean
+    onSeek: (time: number) => void; formatTime: (time: number) => string
+}) {
+    const [preview, setPreview] = useState<number | null>(null)
+    const pointer = useRef<number | null>(null)
+    const input = useRef<HTMLInputElement>(null)
+    const surface = useRef<HTMLDivElement>(null)
+    const clearGesture = useRef<(() => void) | null>(null)
+    useEffect(() => () => { clearGesture.current?.() }, [])
+    const available = !disabled && Number.isFinite(duration) && duration > 0
+    const max = available ? duration : 0
+    const time = Math.max(0, Math.min(max, preview ?? currentTime))
+    const fromPointer = (clientX: number) => {
+        const rect = surface.current!.getBoundingClientRect()
+        // Match the 12px thumb's centre travel, including both endpoints.
+        const ratio = Math.max(0, Math.min(1, (clientX - rect.left - 6) / Math.max(1, rect.width - 12)))
+        return Math.round(ratio * max * 10) / 10
+    }
+    const cancel = () => {
+        const id = pointer.current
+        pointer.current = null
+        clearGesture.current?.()
+        clearGesture.current = null
+        setPreview(null)
+        if (id !== null && surface.current?.hasPointerCapture(id)) surface.current.releasePointerCapture(id)
+    }
+    return <div className={styles.progressContainer}>
+        <span>{formatTime(time)}</span>
+        <div ref={surface} className={styles.seekTarget}
+            onPointerDown={event => {
+                if (!available || event.button !== 0 || pointer.current !== null) return
+                event.preventDefault()
+                input.current?.focus({ preventScroll: true })
+                pointer.current = event.pointerId
+                event.currentTarget.setPointerCapture(event.pointerId)
+                setPreview(fromPointer(event.clientX))
+                // WebView2 can lose capture while the mouse is still pressed.
+                // Window listeners keep the gesture working outside the track too.
+                const move = (next: PointerEvent) => {
+                    if (pointer.current !== next.pointerId) return
+                    if (next.pointerType === 'mouse' && next.buttons === 0) { cancel(); return }
+                    setPreview(fromPointer(next.clientX))
+                }
+                const finish = (next: PointerEvent) => {
+                    if (pointer.current !== next.pointerId) return
+                    const targetTime = fromPointer(next.clientX)
+                    cancel()
+                    onSeek(targetTime)
+                }
+                const abort = (next: PointerEvent) => {
+                    if (pointer.current === next.pointerId) cancel()
+                }
+                window.addEventListener('pointermove', move)
+                window.addEventListener('pointerup', finish)
+                window.addEventListener('pointercancel', abort)
+                window.addEventListener('blur', cancel)
+                clearGesture.current = () => {
+                    window.removeEventListener('pointermove', move)
+                    window.removeEventListener('pointerup', finish)
+                    window.removeEventListener('pointercancel', abort)
+                    window.removeEventListener('blur', cancel)
+                }
+            }}
+        >
+        <input ref={input} type="range" min={0} max={max || 100} step={0.1} value={time} disabled={!available}
+            aria-label="歌曲進度" aria-valuetext={`${formatTime(time)} / ${formatTime(max)}`}
+            onBlur={cancel}
+            onKeyDown={event => {
+                if (event.key === 'Escape') cancel()
+            }}
+            onChange={event => {
+                if (pointer.current === null) onSeek(Number(event.currentTarget.value))
+            }}
+            className={styles.timeSlider}
+            style={{ '--seek-progress': max ? time / max : 0 } as React.CSSProperties} />
+        </div>
+        <span>{formatTime(max)}</span>
+    </div>
 }

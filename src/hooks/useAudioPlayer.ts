@@ -654,6 +654,9 @@ export function useAudioPlayer(contextMode?: string, automaticFocus = false) {
         const mediaDuration = Number.isFinite(audio.duration) ? audio.duration : duration
         const nextTime = Math.min(Math.max(time, 0), mediaDuration > 0 ? mediaDuration : time)
         audio.currentTime = nextTime
+        // Publish the assigned position in the same React event as releasing the
+        // slider; the browser's asynchronous seeking event otherwise shows stale time.
+        audio.dispatchEvent(new Event('neonwave:seek'))
     }, [duration])
     const getAudioStream = useCallback(() => engineRef.current?.getAudioStream(), [])
     const startPcmCapture = useCallback((onChunk: (chunk: ArrayBuffer) => void) => {

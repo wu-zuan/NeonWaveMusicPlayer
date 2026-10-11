@@ -1,6 +1,6 @@
 type PlaybackClockSource = Pick<HTMLMediaElement, 'currentTime' | 'addEventListener' | 'removeEventListener'>
 
-const CLOCK_EVENTS = ['timeupdate', 'loadedmetadata', 'emptied', 'seeking', 'seeked', 'ended'] as const
+const CLOCK_EVENTS = ['timeupdate', 'loadedmetadata', 'emptied', 'seeking', 'seeked', 'ended', 'neonwave:seek'] as const
 
 // Subscribe only in UI components that display the clock. No polling loop is
 // needed: media events keep seeks, resets and background playback in sync.

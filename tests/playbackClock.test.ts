@@ -15,9 +15,11 @@ test('clock observes seeks, track resets, and elapsed time immediately', () => {
     media.dispatchEvent(new Event('timeupdate'))
     media.currentTime = 95
     media.dispatchEvent(new Event('seeking'))
+    media.currentTime = 24
+    media.dispatchEvent(new Event('neonwave:seek'))
     media.currentTime = 0
     media.dispatchEvent(new Event('emptied'))
-    assert.deepEqual(times, [12, 13, 95, 0])
+    assert.deepEqual(times, [12, 13, 95, 24, 0])
     unsubscribe()
 })
 
@@ -29,7 +31,7 @@ test('hidden or unmounted clock subscribers release every event listener', () =>
     const closePlayer = subscribePlaybackTime(media, time => playerTimes.push(time))
     hideLyrics()
     media.currentTime = 42
-    for (const event of ['timeupdate', 'loadedmetadata', 'emptied', 'seeking', 'seeked', 'ended']) {
+    for (const event of ['timeupdate', 'loadedmetadata', 'emptied', 'seeking', 'seeked', 'ended', 'neonwave:seek']) {
         media.dispatchEvent(new Event(event))
     }
     assert.deepEqual(hiddenTimes, [0])
@@ -37,6 +39,7 @@ test('hidden or unmounted clock subscribers release every event listener', () =>
     closePlayer()
     const updates = playerTimes.length
     media.dispatchEvent(new Event('timeupdate'))
+    media.dispatchEvent(new Event('neonwave:seek'))
     assert.equal(playerTimes.length, updates)
     const shownTimes: number[] = []
     const hideAgain = subscribePlaybackTime(media, time => shownTimes.push(time))
