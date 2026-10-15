@@ -78,6 +78,7 @@ async function serveRemote(request: IncomingMessage, response: ServerResponse, u
     const value = upstream.headers.get(name)
     if (value) response.setHeader(name, value)
   }
+  if (upstream.status === 429) console.warn('[Media] googlevideo returned 429; YouTube is throttling this IP')
   response.writeHead(upstream.status)
   if (!upstream.body || request.method === 'HEAD') { response.end(); return }
   await pipeline(Readable.fromWeb(upstream.body as never), response)

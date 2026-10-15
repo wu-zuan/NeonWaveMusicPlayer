@@ -581,10 +581,39 @@ export async function startServices() {
   if (process.env.NW_OFFLINE !== '1') updateYtDlpInBackground()
 
   
+  // YouTube throttles a single IP quickly. Reuse recent answers, and after a
+  // 429 stop contacting YouTube for a while instead of retrying every play.
+  const YT_CACHE_TTL_MS = 20 * 60_000
+  const YT_BACKOFF_MS = 15 * 60_000
+  const ytSearchCache = new Map<string, { at: number; value: unknown }>()
+  const ytPreviewCache = new Map<string, { at: number; value: unknown }>()
+  let ytBackoffUntil = 0
+  const readYoutubeCache = (cache: Map<string, { at: number; value: unknown }>, key: string) => {
+    const hit = cache.get(key)
+    if (!hit) return undefined
+    if (Date.now() - hit.at > YT_CACHE_TTL_MS) {
+      cache.delete(key)
+      return undefined
+    }
+    return hit.value
+  }
+  const throwIfYoutubeBackingOff = () => {
+    if (Date.now() < ytBackoffUntil) throw new Error('YouTube 暫時限制請求（429），請稍後再試')
+  }
+  const noteYoutubeError = (error: unknown) => {
+    if (!/\b429\b|Too Many Requests/i.test(getErrorMessage(error))) return
+    ytBackoffUntil = Date.now() + YT_BACKOFF_MS
+    console.warn('[Main] YouTube returned 429; pausing YouTube lookups for 15 minutes')
+  }
+
   rpc.handle('search:youtube', async (_, query, pagesToLoad = 1) => {
     try {
-      const ytSearch = createRequire(import.meta.url)('yt-search')
       const pages = Math.max(1, Math.min(Number(pagesToLoad) || 1, 5))
+      const cacheKey = `${pages}|${query}`
+      const cached = readYoutubeCache(ytSearchCache, cacheKey)
+      if (cached) return cached
+      throwIfYoutubeBackingOff()
+      const ytSearch = createRequire(import.meta.url)('yt-search')
       const r = await ytSearch({ query, pages })
       if (!r || !r.videos) return []
       
@@ -597,8 +626,10 @@ export async function startServices() {
         url: v.url
       }))
 
+      ytSearchCache.set(cacheKey, { at: Date.now(), value: results })
       return results
     } catch (e) {
+      noteYoutubeError(e)
       console.error("yt-search error:", e)
       return []
     }
@@ -606,6 +637,9 @@ export async function startServices() {
 
   rpc.handle('search:youtubePreview', async (_, url, title?: string, artist?: string) => {
     try {
+      const cached = readYoutubeCache(ytPreviewCache, url)
+      if (cached) return cached
+      throwIfYoutubeBackingOff()
       const yt = await getYtDlp()
       const runtimeArgs = await getYoutubeRuntimeArgs()
       const stdout = await yt.execPromise([url, ...runtimeArgs, '-J'])
@@ -709,11 +743,11 @@ export async function startServices() {
         if (formats.length > 0) streamUrl = formats[0].url
       }
 
-      return {
-        url: streamUrl,
-        startTime: bestStart
-      }
+      const result = { url: streamUrl, startTime: bestStart }
+      if (streamUrl) ytPreviewCache.set(url, { at: Date.now(), value: result })
+      return result
     } catch (e: any) {
+      noteYoutubeError(e)
       console.error("Youtube preview error:", e)
       return null
     }

@@ -20,6 +20,7 @@ const LOGIN_TIMEOUT_MS = 20_000;
 const LOGIN_COOLDOWN_MS = 15_000;
 const VOICE_JOIN_COOLDOWN_MS = 5_000;
 const RATE_LIMIT_BUFFER_MS = 1_000;
+const MAX_VOICE_RECONNECT_ATTEMPTS = 6;
 
 export class DiscordBotManager {
     private client: Client | null = null;
@@ -340,6 +341,15 @@ export class DiscordBotManager {
 
     private scheduleVoiceReconnect(reason: string) {
         if (this.voiceReconnectTimer || !this.desiredGuildId || !this.desiredChannelId) return;
+        // Every rejoin sends a voice state update to the Discord gateway. Endless
+        // retries look like abuse, so give up and leave the user to rejoin manually.
+        if (this.voiceReconnectAttempts >= MAX_VOICE_RECONNECT_ATTEMPTS) {
+            console.error(`[DiscordBot] Giving up voice reconnect after ${this.voiceReconnectAttempts} attempts (${reason})`);
+            this.desiredGuildId = null;
+            this.desiredChannelId = null;
+            this.voiceReconnectAttempts = 0;
+            return;
+        }
 
         const guildId = this.desiredGuildId;
         const channelId = this.desiredChannelId;
