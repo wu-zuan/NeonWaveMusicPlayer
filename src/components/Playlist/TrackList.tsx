@@ -17,6 +17,15 @@ interface TrackListProps {
 const ITEM_HEIGHT = 56
 const EMPTY_FAVORITES: Track[] = []
 
+const formatTotalDuration = (totalSeconds: number) => {
+    const total = Math.round(totalSeconds)
+    const hours = Math.floor(total / 3600)
+    const minutes = Math.floor((total % 3600) / 60)
+    const seconds = total % 60
+    if (hours > 0) return `${hours} 小時 ${minutes} 分`
+    return `${minutes} 分 ${seconds.toString().padStart(2, '0')} 秒`
+}
+
 type TrackRowProps = Pick<TrackListProps, 'tracks' | 'currentTrack' | 'onPlay' | 'onToggleFavorite'> & {
     favoritePaths: Set<string>
     highlightedIndex: number | undefined
@@ -61,6 +70,16 @@ const TrackListView: React.FC<TrackListProps> = ({
     const listRef = useListRef(null)
     const [listSize, setListSize] = useState<{ height: number; width: number }>()
     const favoritePaths = useMemo(() => new Set(favorites.map(f => f.path)), [favorites])
+    // Sum only the tracks whose duration is known; the rest are counted so the total can say so.
+    const totalDuration = useMemo(() => {
+        let seconds = 0
+        let unknown = 0
+        for (const track of tracks) {
+            if (track.duration) seconds += track.duration
+            else unknown++
+        }
+        return { seconds, unknown }
+    }, [tracks])
     const searchIndex = useMemo(() => tracks.map(track => ({
         title: track.title.toLowerCase(), artist: track.artist?.toLowerCase() || ''
     })), [tracks])
@@ -131,7 +150,10 @@ const TrackListView: React.FC<TrackListProps> = ({
                     <div className={styles.themeHeroCopy}>
                         <span className={styles.themeHeroEyebrow} />
                         <strong>{title}</strong>
-                        <small>NeonWave · {tracks.length} 首歌曲</small>
+                        <small>
+                            NeonWave · {tracks.length} 首歌曲 · 總時長 {totalDuration.seconds > 0 ? formatTotalDuration(totalDuration.seconds) : '未知'}
+                            {totalDuration.seconds > 0 && totalDuration.unknown > 0 && `（另 ${totalDuration.unknown} 首時長未知）`}
+                        </small>
                     </div>
                 </section>
                 <header className={styles.header}>
