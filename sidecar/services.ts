@@ -489,12 +489,14 @@ export async function startServices() {
   const getYoutubeRuntimeArgs = () => {
     if (!youtubeRuntimePromise) {
       youtubeRuntimePromise = downloadManagedDeno()
-        .then((denoPath) => ['--js-runtimes', `deno:${denoPath}`])
+        // remote-components lets yt-dlp fetch the EJS challenge solver; without
+        // it YouTube formats can go missing even when the JS runtime exists.
+        .then((denoPath) => ['--js-runtimes', `deno:${denoPath}`, '--remote-components', 'ejs:github'])
         .catch((error) => {
           // Node is not enabled by default in yt-dlp. It is a useful fallback on
           // developer machines or systems where GitHub cannot be reached.
           console.warn('[Main] Failed to prepare managed Deno; falling back to Node:', error)
-          return ['--js-runtimes', `node:${process.execPath}`]
+          return ['--js-runtimes', `node:${process.execPath}`, '--remote-components', 'ejs:github']
         })
     }
     return youtubeRuntimePromise
@@ -538,6 +540,13 @@ export async function startServices() {
   const isYoutubeMediaForbidden = (error: unknown) =>
     /(?:HTTP (?:Error )?403|403 Forbidden)/i.test(getErrorMessage(error))
 
+  const isYoutubeBotCheck = (error: unknown) =>
+    /Sign in to confirm|not a bot/i.test(getErrorMessage(error))
+
+  // Player clients that have passed YouTube's bot check without cookies.
+  // Each one is a full yt-dlp run, so keep the list short.
+  const YOUTUBE_BOT_CHECK_CLIENTS = ['android_vr', 'tv', 'web_safari', 'mweb']
+
   const runYtDlp = (
     yt: Pick<YtDlpWrapType, 'exec'>,
     args: string[],
@@ -562,6 +571,21 @@ export async function startServices() {
     try {
       await runYtDlp(yt, primaryArgs, onProgress, onEvent)
     } catch (error) {
+      if (isYoutubeBotCheck(error)) {
+        // The default web client asks for sign-in. Other clients usually skip
+        // that check, so try them in turn before giving up.
+        console.warn('[Main] YouTube bot check hit; retrying with alternate player clients')
+        for (const client of YOUTUBE_BOT_CHECK_CLIENTS) {
+          try {
+            await runYtDlp(yt, [...primaryArgs, '--extractor-args', `youtube:player_client=${client}`], onProgress, onEvent)
+            return
+          } catch (clientError) {
+            console.warn(`[Main] YouTube client ${client} failed:`, getErrorMessage(clientError))
+          }
+        }
+        throw error
+      }
+
       if (!isYoutubeMediaForbidden(error)) throw error
 
       // YouTube increasingly requires a PO token for direct googlevideo URLs.
@@ -635,6 +659,23 @@ export async function startServices() {
     }
   })
 
+  const fetchYoutubeInfoJson = async (yt: Pick<YtDlpWrapType, 'execPromise'>, url: string, runtimeArgs: string[]) => {
+    try {
+      return await yt.execPromise([url, ...runtimeArgs, '-J'])
+    } catch (error) {
+      if (!isYoutubeBotCheck(error)) throw error
+      console.warn('[Main] YouTube bot check hit on preview; retrying with alternate player clients')
+      for (const client of YOUTUBE_BOT_CHECK_CLIENTS) {
+        try {
+          return await yt.execPromise([url, ...runtimeArgs, '--extractor-args', `youtube:player_client=${client}`, '-J'])
+        } catch (clientError) {
+          console.warn(`[Main] YouTube client ${client} failed on preview:`, getErrorMessage(clientError))
+        }
+      }
+      throw error
+    }
+  }
+
   rpc.handle('search:youtubePreview', async (_, url, title?: string, artist?: string) => {
     try {
       const cached = readYoutubeCache(ytPreviewCache, url)
@@ -642,7 +683,7 @@ export async function startServices() {
       throwIfYoutubeBackingOff()
       const yt = await getYtDlp()
       const runtimeArgs = await getYoutubeRuntimeArgs()
-      const stdout = await yt.execPromise([url, ...runtimeArgs, '-J'])
+      const stdout = await fetchYoutubeInfoJson(yt, url, runtimeArgs)
       const dat = JSON.parse(stdout)
       let bestStart = 0
       let hasHeatmap = false
