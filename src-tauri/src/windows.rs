@@ -16,6 +16,9 @@ fn browser_args() -> String {
     let mut args = "--autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding".to_string();
     #[cfg(windows)]
     {
+        // Render audio inside the NeonWave process instead of WebView2's separate audio
+        // service, so per-window screen-share audio capture (e.g. Discord) can pick it up.
+        args.push_str(" --disable-features=AudioServiceOutOfProcess");
         let system = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
         if !Path::new(&system).join("System32/mfplat.dll").exists()
             || !Path::new(&system)
