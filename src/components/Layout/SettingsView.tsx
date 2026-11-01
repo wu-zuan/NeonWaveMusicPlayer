@@ -280,9 +280,11 @@ interface SettingsViewProps {
     currentTrack?: { path: string; title: string } | null
     autoFocusEnabled: boolean
     onAutoFocusChange: (enabled: boolean) => void
+    videoPreviewEnabled: boolean
+    onVideoPreviewChange: (enabled: boolean) => void
 }
 
-export function SettingsView({ currentTrack, autoFocusEnabled, onAutoFocusChange, tetrio }: SettingsViewProps) {
+export function SettingsView({ currentTrack, autoFocusEnabled, onAutoFocusChange, videoPreviewEnabled, onVideoPreviewChange, tetrio }: SettingsViewProps) {
     const { status, progress, version, error, checkForUpdates, installUpdate } = useUpdater()
 
     const [lyricsProvider, setLyricsProvider] = useState(() => localStorage.getItem('neonwave_lyrics_ai_provider') || 'default')
@@ -454,6 +456,19 @@ export function SettingsView({ currentTrack, autoFocusEnabled, onAutoFocusChange
                         <label className="switch">
                             <input type="checkbox" aria-label="自動專注模式" checked={autoFocusEnabled}
                                 onChange={event => onAutoFocusChange(event.target.checked)} />
+                            <span className="slider round"></span>
+                        </label>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px', marginTop: '28px', borderTop: '1px solid var(--glass-border)', paddingTop: '24px' }}>
+                        <div>
+                            <h4 style={{ marginBottom: '8px' }}>顯示影片預覽</h4>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1.7 }}>
+                                播放影片檔時顯示畫面。關閉後影片會像 MP3 一樣只播放聲音，不佔用畫面。
+                            </p>
+                        </div>
+                        <label className="switch">
+                            <input type="checkbox" aria-label="顯示影片預覽" checked={videoPreviewEnabled}
+                                onChange={event => onVideoPreviewChange(event.target.checked)} />
                             <span className="slider round"></span>
                         </label>
                     </div>

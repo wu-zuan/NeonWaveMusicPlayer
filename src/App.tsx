@@ -10,7 +10,7 @@ import { usePlaybackTime } from './hooks/usePlaybackTime'
 import { useLibrary } from './hooks/useLibrary'
 import { useAppDetection } from './hooks/useAppDetection'
 import { useTetrioCompanion } from './hooks/useTetrioCompanion'
-import { AUTO_FOCUS_KEY } from './utils/audioSettings'
+import { AUTO_FOCUS_KEY, VIDEO_PREVIEW_KEY } from './utils/audioSettings'
 import './index.css'
 
 import { LyricsOverlay } from './components/Lyrics/LyricsOverlay'
@@ -68,6 +68,12 @@ function MainApp() {
     setAutoFocusEnabled(enabled)
   }, [])
 
+  const [videoPreviewEnabled, setVideoPreviewEnabled] = useState(() => localStorage.getItem(VIDEO_PREVIEW_KEY) !== 'false')
+  const changeVideoPreview = useCallback((enabled: boolean) => {
+    localStorage.setItem(VIDEO_PREVIEW_KEY, String(enabled))
+    setVideoPreviewEnabled(enabled)
+  }, [])
+
   const {
     isPlaying, currentTrack, duration, volume, is8D,
     isShuffle, repeatMode,
@@ -108,8 +114,25 @@ function MainApp() {
     return () => { if (cleanup) cleanup() }
   }, [togglePlay])
 
+  // Space toggles play/pause, like YouTube, unless the user is typing.
   useEffect(() => {
-    const cleanupPrevious = (window as any).ipcRenderer.on('player:previousTrack', () => handlePrev())
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        if (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+        // Avoid a focused button also being "clicked" by the same keypress.
+        if (target instanceof HTMLButtonElement) target.blur()
+      }
+      event.preventDefault()
+      togglePlay()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [togglePlay])
+
+  useEffect(() => {
+    const cleanupPrevious =(window as any).ipcRenderer.on('player:previousTrack', () => handlePrev())
     const cleanupNext = (window as any).ipcRenderer.on('player:nextTrack', () => handleNext())
     return () => {
       if (cleanupPrevious) cleanupPrevious()
@@ -404,7 +427,7 @@ function MainApp() {
             <span className="library-loading-dot" aria-hidden="true" />
             正在整理音樂庫… 已載入 {allTracks.length.toLocaleString()} 首，可先播放已載入歌曲
           </div>}
-          {currentTrack?.mediaType === 'video' && (
+          {currentTrack?.mediaType === 'video' && videoPreviewEnabled && (
             <VideoSurface
               track={currentTrack}
               getMediaElement={getMediaElement}
@@ -428,7 +451,8 @@ function MainApp() {
 
           {view === 'settings' && (
             <SettingsView currentTrack={currentTrack ? { path: currentTrack.path, title: currentTrack.title } : null}
-              autoFocusEnabled={autoFocusEnabled} onAutoFocusChange={changeAutoFocus} tetrio={tetrio} />
+              autoFocusEnabled={autoFocusEnabled} onAutoFocusChange={changeAutoFocus}
+              videoPreviewEnabled={videoPreviewEnabled} onVideoPreviewChange={changeVideoPreview} tetrio={tetrio} />
           )}
 
           {view === 'discord' && (

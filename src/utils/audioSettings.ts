@@ -1,5 +1,6 @@
 export const AUDIO_SETTINGS_KEY = 'nw_audio_settings'
 export const AUTO_FOCUS_KEY = 'neonwave_auto_focus'
+export const VIDEO_PREVIEW_KEY = 'neonwave_video_preview'
 
 export const SPACE_MODES = ['none', 'room', 'hall', 'concert', 'tetr'] as const
 export type SpaceMode = typeof SPACE_MODES[number]
