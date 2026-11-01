@@ -24,6 +24,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: rust-${{ runner.os }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Typecheck
         run: npm run typecheck
@@ -39,6 +41,12 @@ jobs:
 
       - name: Native permissions, playlist files and shutdown
         run: node scripts/e2e-native.cjs
+
+      - name: TETR.IO and seek regression
+        run: |
+          npm run e2e:tetrio
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run e2e:seek
 
       - uses: actions/upload-artifact@v4
         if: always()
